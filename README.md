@@ -129,13 +129,14 @@ v2v/
 │       ├── assemblyai.ts      # AssemblyAI transcription service
 │       ├── transcript.ts      # Transcript processing and chunking
 │       ├── deepseek.ts        # DeepSeek LLM service
-│       ├── images.ts          # Image search and download
-│       └── video.ts           # FFmpeg video generation
+│       ├── images.ts          # Image search and download (with watermark filtering)
+│       ├── video.ts           # FFmpeg video generation (memory-optimized)
+│       └── utils/
+│           └── dim.ts         # DuckDuckGo image search utility
 ├── tmp/
 │   ├── audio/                 # Temporary audio files
 │   ├── images/                # Downloaded images
 │   └── video/                 # Generated videos
-├── dim.ts                     # DuckDuckGo image search utility
 ├── index.ts                   # Main entry point (production bot)
 ├── test-workflow.ts           # Test script for local development
 └── .env                       # Environment variables (not in git but see .env.example)

@@ -21,6 +21,11 @@ export async function generateVideo(
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
 
+  // Warn if processing many images (potential memory issue)
+  if (images.length > 50) {
+    logger.warn("Video", `Processing ${images.length} images may require significant memory`);
+  }
+
   // Sort images by start time to ensure correct order
   const sortedImages = [...images].sort((a, b) => a.start - b.start);
 
@@ -119,7 +124,7 @@ async function runFFmpeg(
     // Add audio input
     inputArgs.push("-i", audioFilePath);
 
-    // Build complete FFmpeg arguments
+    // Build complete FFmpeg arguments with memory-efficient settings
     const ffmpegArgs = [
       ...inputArgs,
       "-filter_complex",
@@ -131,20 +136,32 @@ async function runFFmpeg(
       "-c:v",
       "libx264",
       "-preset",
-      "medium",
+      "veryfast", // Changed from "medium" to "veryfast" for lower memory usage
       "-crf",
       "23",
       "-c:a",
       "aac",
       "-b:a",
       "192k",
+      // Memory optimization flags
+      "-max_muxing_queue_size",
+      "1024", // Prevent buffer overflow
+      "-bufsize",
+      "2M", // Control buffer size to 2MB
+      "-threads",
+      "2", // Limit to 2 threads to reduce memory overhead
+      // Additional stability flags
+      "-fflags",
+      "+genpts+igndts", // Improve timestamp handling
+      "-avoid_negative_ts",
+      "make_zero", // Prevent timestamp issues
       "-shortest", // End video when shortest stream ends
       "-y", // Overwrite output file
       outputPath,
     ];
 
     logger.step("Video", `Running FFmpeg with ${images.length} images`);
-    logger.debug("Video", `FFmpeg command: ffmpeg ${ffmpegArgs.join(" ")}`);
+    logger.debug("Video", `Full FFmpeg command: ffmpeg ${ffmpegArgs.join(" ")}`);
 
     const ffmpeg = spawn("ffmpeg", ffmpegArgs);
 
@@ -167,13 +184,23 @@ async function runFFmpeg(
         logger.success("Video", "FFmpeg completed successfully");
         resolve();
       } else {
+        // Enhanced error logging
         logger.error("Video", `FFmpeg exited with code ${code}`);
-        logger.debug("Video", `FFmpeg stderr output:\n${stderrOutput}`);
-        reject(new Error(`FFmpeg exited with code ${code}`));
+
+        // In debug mode, show full stderr output
+        logger.debug("Video", `FFmpeg stderr:\n${stderrOutput}`);
+
+        // In lite mode, show brief error message
+        if (code === 244) {
+          logger.error("Video", "Exit code 244 indicates memory exhaustion. Try reducing image count or quality.");
+        }
+
+        reject(new Error(`FFmpeg exited with code ${code}. ${code === 244 ? "Memory exhaustion detected." : ""}`));
       }
     });
 
     ffmpeg.on("error", (error) => {
+      logger.error("Video", `Failed to start FFmpeg: ${error.message}`);
       reject(new Error(`Failed to start FFmpeg: ${error.message}`));
     });
   });

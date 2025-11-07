@@ -9,6 +9,16 @@ import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
 
 /**
+ * Domains that typically serve watermarked stock photos
+ */
+const WATERMARKED_DOMAINS = [
+  "dreamstime.com",
+  "alamy.com",
+  "freepik.com",
+  "gettyimages.com",
+];
+
+/**
  * Search and download images for all queries
  * @param queries - Array of image search queries with timestamps
  * @returns Array of downloaded image information
@@ -57,7 +67,31 @@ export async function downloadImagesForQueries(
 }
 
 /**
- * Search and download a single image for a query with retry logic
+ * Check if an image URL is from a watermarked stock photo site
+ * @param imageUrl - URL of the image to check
+ * @returns true if the URL contains a watermarked domain
+ */
+function isWatermarkedImage(imageUrl: string): boolean {
+  const lowerUrl = imageUrl.toLowerCase();
+  return WATERMARKED_DOMAINS.some((domain) => lowerUrl.includes(domain));
+}
+
+/**
+ * Extract domain from URL for logging purposes
+ * @param imageUrl - URL to extract domain from
+ * @returns Domain name or "unknown"
+ */
+function extractDomain(imageUrl: string): string {
+  try {
+    const url = new URL(imageUrl);
+    return url.hostname;
+  } catch {
+    return "unknown";
+  }
+}
+
+/**
+ * Search and download a single image for a query with watermark filtering and retry logic
  * @param queryData - Image search query with timestamps
  * @returns Downloaded image information
  */
@@ -73,18 +107,56 @@ async function downloadImageForQuery(
     try {
       logger.debug("Images", `Searching for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-      // Search for images using DuckDuckGo
-      const searchResults = await duckDuckGoImageSearch(query, 1);
+      // Fetch 10 results at once to find non-watermarked images
+      const searchResults = await duckDuckGoImageSearch(query, 10);
 
-      if (searchResults.length === 0 || !searchResults[0]) {
+      if (searchResults.length === 0) {
         throw new Error(`No images found for query: "${query}"`);
       }
 
-      const imageUrl = searchResults[0].image;
-      logger.debug("Images", `Found image URL: ${imageUrl}`);
+      logger.debug("Images", `Fetched ${searchResults.length} results, filtering watermarked images...`);
 
-      // Download the image
-      const filePath = await downloadImage(imageUrl, query);
+      // Try to find a non-watermarked image from the results
+      let selectedImageUrl: string | null = null;
+      let fallbackImageUrl: string | null = null;
+
+      for (const result of searchResults) {
+        if (!result?.image) continue;
+
+        const imageUrl = result.image;
+
+        // Check if this image is watermarked
+        if (isWatermarkedImage(imageUrl)) {
+          const domain = extractDomain(imageUrl);
+          logger.debug("Images", `Skipped watermarked image from ${domain}`);
+
+          // Store first watermarked image as fallback
+          if (!fallbackImageUrl) {
+            fallbackImageUrl = imageUrl;
+          }
+          continue;
+        }
+
+        // Found a non-watermarked image!
+        selectedImageUrl = imageUrl;
+        const domain = extractDomain(imageUrl);
+        logger.debug("Images", `Found non-watermarked image from ${domain}`);
+        break;
+      }
+
+      // If no non-watermarked image found, use fallback
+      if (!selectedImageUrl) {
+        if (fallbackImageUrl) {
+          const domain = extractDomain(fallbackImageUrl);
+          logger.warn("Images", `All ${searchResults.length} results were watermarked, using fallback image from ${domain}`);
+          selectedImageUrl = fallbackImageUrl;
+        } else {
+          throw new Error(`No valid images found for query: "${query}"`);
+        }
+      }
+
+      // Download the selected image
+      const filePath = await downloadImage(selectedImageUrl, query);
 
       // Success! Return the result
       if (attempt > 1) {

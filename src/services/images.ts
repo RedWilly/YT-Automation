@@ -2,8 +2,8 @@
  * Image search and download service using DuckDuckGo
  */
 
-import { duckDuckGoImageSearch } from "../../dim.ts";
-import { TMP_IMAGES_DIR } from "../constants.ts";
+import { duckDuckGoImageSearch } from "./utils/dim.ts";
+import { TMP_IMAGES_DIR, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
@@ -32,6 +32,12 @@ export async function downloadImagesForQueries(
         "Images",
         `Progress: ${i + 1}/${queriesLength} - Downloaded: ${downloadedImage.filePath}`
       );
+
+      // Add delay between queries to avoid rate limiting (except for last query)
+      if (i < queriesLength - 1) {
+        logger.debug("Images", `Waiting ${POLL_INTERVAL_MS}ms before next query to avoid rate limiting`);
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
     } catch (error) {
       logger.error(
         "Images",
@@ -51,7 +57,7 @@ export async function downloadImagesForQueries(
 }
 
 /**
- * Search and download a single image for a query
+ * Search and download a single image for a query with retry logic
  * @param queryData - Image search query with timestamps
  * @returns Downloaded image information
  */
@@ -60,27 +66,51 @@ async function downloadImageForQuery(
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
-  logger.debug("Images", `Searching for: "${query}"`);
+  let lastError: Error | null = null;
 
-  // Search for images using DuckDuckGo
-  const searchResults = await duckDuckGoImageSearch(query, 1);
+  // Retry up to MAX_POLL_ATTEMPTS times
+  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+    try {
+      logger.debug("Images", `Searching for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-  if (searchResults.length === 0 || !searchResults[0]) {
-    throw new Error(`No images found for query: "${query}"`);
+      // Search for images using DuckDuckGo
+      const searchResults = await duckDuckGoImageSearch(query, 1);
+
+      if (searchResults.length === 0 || !searchResults[0]) {
+        throw new Error(`No images found for query: "${query}"`);
+      }
+
+      const imageUrl = searchResults[0].image;
+      logger.debug("Images", `Found image URL: ${imageUrl}`);
+
+      // Download the image
+      const filePath = await downloadImage(imageUrl, query);
+
+      // Success! Return the result
+      if (attempt > 1) {
+        logger.success("Images", `Successfully downloaded after ${attempt} attempts`);
+      }
+
+      return {
+        query,
+        start,
+        end,
+        filePath,
+      };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < MAX_POLL_ATTEMPTS) {
+        logger.warn("Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+    }
   }
 
-  const imageUrl = searchResults[0].image;
-  logger.debug("Images", `Found image URL: ${imageUrl}`);
-
-  // Download the image
-  const filePath = await downloadImage(imageUrl, query);
-
-  return {
-    query,
-    start,
-    end,
-    filePath,
-  };
+  // All attempts failed
+  throw new Error(
+    `Failed to download image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
+  );
 }
 
 /**

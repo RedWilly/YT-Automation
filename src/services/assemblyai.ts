@@ -1,11 +1,10 @@
 /**
- * AssemblyAI service for audio transcription
+ * AssemblyAI service for audio transcription (using official SDK)
  */
 
+import { AssemblyAI } from "assemblyai";
 import {
   ASSEMBLYAI_API_KEY,
-  ASSEMBLYAI_UPLOAD_URL,
-  ASSEMBLYAI_TRANSCRIPT_URL,
   POLL_INTERVAL_MS,
   MAX_POLL_ATTEMPTS,
 } from "../constants.ts";
@@ -16,6 +15,11 @@ import type {
 } from "../types.ts";
 import * as logger from "../logger.ts";
 
+// Initialize AssemblyAI client
+const client = new AssemblyAI({
+  apiKey: ASSEMBLYAI_API_KEY,
+});
+
 /**
  * Upload audio file to AssemblyAI
  * @param audioFilePath - Path to the audio file
@@ -24,29 +28,12 @@ import * as logger from "../logger.ts";
 export async function uploadAudio(audioFilePath: string): Promise<string> {
   logger.step("AssemblyAI", "Uploading audio file", audioFilePath);
 
-  const file = Bun.file(audioFilePath);
-  const audioData = await file.arrayBuffer();
-
-  const response = await fetch(ASSEMBLYAI_UPLOAD_URL, {
-    method: "POST",
-    headers: {
-      Authorization: ASSEMBLYAI_API_KEY,
-      "Content-Type": "application/octet-stream",
-    },
-    body: audioData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to upload audio to AssemblyAI: ${response.status} - ${errorText}`
-    );
-  }
-
-  const data = (await response.json()) as AssemblyAIUploadResponse;
+  const uploadUrl = await client.files.upload(audioFilePath);
   logger.success("AssemblyAI", "Audio uploaded successfully");
-  logger.debug("AssemblyAI", `Upload URL: ${data.upload_url}`);
+  logger.debug("AssemblyAI", `Upload URL: ${uploadUrl}`);
 
+  // Match the original type signature
+  const data: AssemblyAIUploadResponse = { upload_url: uploadUrl };
   return data.upload_url;
 }
 
@@ -65,27 +52,11 @@ export async function requestTranscription(
     audio_url: audioUrl,
   };
 
-  const response = await fetch(ASSEMBLYAI_TRANSCRIPT_URL, {
-    method: "POST",
-    headers: {
-      Authorization: ASSEMBLYAI_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-  });
+  const transcript = await client.transcripts.create(requestBody);
+  logger.success("AssemblyAI", `Transcription requested (ID: ${transcript.id})`);
+  logger.debug("AssemblyAI", `Status: ${transcript.status}`);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to request transcription: ${response.status} - ${errorText}`
-    );
-  }
-
-  const data = (await response.json()) as AssemblyAITranscriptResponse;
-  logger.success("AssemblyAI", `Transcription requested (ID: ${data.id})`);
-  logger.debug("AssemblyAI", `Status: ${data.status}`);
-
-  return data;
+  return transcript as AssemblyAITranscriptResponse;
 }
 
 /**
@@ -96,24 +67,8 @@ export async function requestTranscription(
 export async function getTranscript(
   transcriptId: string
 ): Promise<AssemblyAITranscriptResponse> {
-  const url = `${ASSEMBLYAI_TRANSCRIPT_URL}/${transcriptId}`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Authorization: ASSEMBLYAI_API_KEY,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to get transcript: ${response.status} - ${errorText}`
-    );
-  }
-
-  const data = (await response.json()) as AssemblyAITranscriptResponse;
-  return data;
+  const transcript = await client.transcripts.get(transcriptId);
+  return transcript as AssemblyAITranscriptResponse;
 }
 
 /**
@@ -148,7 +103,6 @@ export async function pollForCompletion(
       );
     }
 
-    // Wait before next poll
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     attempts++;
   }
@@ -182,4 +136,3 @@ export async function transcribeAudio(
   const completedTranscript = await pollForCompletion(transcriptResponse.id);
   return completedTranscript;
 }
-

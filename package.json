@@ -1,0 +1,16 @@
+{
+  "name": "v2v",
+  "module": "index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "telegraf": "^4.16.3"
+  }
+}

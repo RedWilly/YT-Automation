@@ -116,9 +116,9 @@ async function downloadImageForQuery(
 
       logger.debug("Images", `Fetched ${searchResults.length} results, filtering watermarked images...`);
 
-      // Try to find a non-watermarked image from the results
-      let selectedImageUrl: string | null = null;
-      let fallbackImageUrl: string | null = null;
+      // Separate non-watermarked and watermarked images
+      const nonWatermarkedUrls: string[] = [];
+      const watermarkedUrls: string[] = [];
 
       for (const result of searchResults) {
         if (!result?.image) continue;
@@ -129,46 +129,77 @@ async function downloadImageForQuery(
         if (isWatermarkedImage(imageUrl)) {
           const domain = extractDomain(imageUrl);
           logger.debug("Images", `Skipped watermarked image from ${domain}`);
+          watermarkedUrls.push(imageUrl);
+        } else {
+          nonWatermarkedUrls.push(imageUrl);
+        }
+      }
 
-          // Store first watermarked image as fallback
-          if (!fallbackImageUrl) {
-            fallbackImageUrl = imageUrl;
+      logger.debug("Images", `Found ${nonWatermarkedUrls.length} non-watermarked and ${watermarkedUrls.length} watermarked images`);
+
+      // Try all non-watermarked images first, then watermarked as fallback
+      const imagesToTry = [...nonWatermarkedUrls, ...watermarkedUrls];
+
+      if (imagesToTry.length === 0) {
+        throw new Error(`No valid images found for query: "${query}"`);
+      }
+
+      // Try downloading each image until one succeeds
+      let downloadSucceeded = false;
+      let filePath: string | null = null;
+
+      for (let i = 0; i < imagesToTry.length; i++) {
+        const imageUrl = imagesToTry[i];
+        if (!imageUrl) continue;
+
+        const domain = extractDomain(imageUrl);
+        const isWatermarked = i >= nonWatermarkedUrls.length;
+
+        try {
+          logger.debug("Images", `Trying to download image ${i + 1}/${imagesToTry.length} from ${domain}${isWatermarked ? " (watermarked)" : ""}`);
+
+          filePath = await downloadImage(imageUrl, query);
+          downloadSucceeded = true;
+
+          if (isWatermarked) {
+            logger.warn("Images", `All non-watermarked images failed, successfully downloaded watermarked image from ${domain}`);
+          } else {
+            logger.debug("Images", `Successfully downloaded non-watermarked image from ${domain}`);
           }
+
+          break; // Success! Exit the loop
+        } catch (downloadError) {
+          // Log the failure and try the next image
+          const errorMsg = downloadError instanceof Error ? downloadError.message : String(downloadError);
+          logger.debug("Images", `Failed to download from ${domain}: ${errorMsg}`);
+
+          // If this is the last image, throw the error
+          if (i === imagesToTry.length - 1) {
+            throw new Error(`All ${imagesToTry.length} images failed to download. Last error: ${errorMsg}`);
+          }
+
+          // Otherwise, continue to the next image
           continue;
         }
-
-        // Found a non-watermarked image!
-        selectedImageUrl = imageUrl;
-        const domain = extractDomain(imageUrl);
-        logger.debug("Images", `Found non-watermarked image from ${domain}`);
-        break;
       }
 
-      // If no non-watermarked image found, use fallback
-      if (!selectedImageUrl) {
-        if (fallbackImageUrl) {
-          const domain = extractDomain(fallbackImageUrl);
-          logger.warn("Images", `All ${searchResults.length} results were watermarked, using fallback image from ${domain}`);
-          selectedImageUrl = fallbackImageUrl;
-        } else {
-          throw new Error(`No valid images found for query: "${query}"`);
+      // If download succeeded, return the result
+      if (downloadSucceeded && filePath) {
+        if (attempt > 1) {
+          logger.success("Images", `Successfully downloaded after ${attempt} attempts`);
         }
+
+        return {
+          query,
+          start,
+          end,
+          filePath,
+        };
       }
 
-      // Download the selected image
-      const filePath = await downloadImage(selectedImageUrl, query);
+      // This should never happen, but just in case
+      throw new Error(`Failed to download any image for query: "${query}"`);
 
-      // Success! Return the result
-      if (attempt > 1) {
-        logger.success("Images", `Successfully downloaded after ${attempt} attempts`);
-      }
-
-      return {
-        query,
-        start,
-        end,
-        filePath,
-      };
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 

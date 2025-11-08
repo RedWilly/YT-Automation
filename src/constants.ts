@@ -23,6 +23,9 @@ export const WORDS_PER_SEGMENT = 100;
 export const POLL_INTERVAL_MS = 10000; // 10 seconds
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
+// Video Generation Configuration
+export const IMAGES_PER_CHUNK = 15; // Number of images to process per chunk (prevents memory exhaustion)
+
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";
 

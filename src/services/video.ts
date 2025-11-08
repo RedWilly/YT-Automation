@@ -4,10 +4,9 @@
 
 import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
-import { existsSync } from "node:fs";
 import * as logger from "../logger.ts";
 
 /**
@@ -415,10 +414,21 @@ async function concatenateChunks(
 ): Promise<void> {
   // Create concat list file
   const concatListPath = join(TMP_VIDEO_DIR, `concat_list_${Date.now()}.txt`);
-  const concatContent = chunkPaths.map((path) => `file '${path}'`).join("\n");
+
+  // FFmpeg's concat demuxer expects forward slashes even on Windows
+  // Use path.sep to detect platform separator and replace if needed
+  const concatContent = chunkPaths
+    .map((path) => {
+      // On Windows, sep is '\', on Linux/Mac it's '/'
+      // Replace platform separator with forward slash for FFmpeg compatibility
+      const ffmpegPath = sep === '\\' ? path.split(sep).join('/') : path;
+      return `file '${ffmpegPath}'`;
+    })
+    .join("\n");
 
   await writeFile(concatListPath, concatContent, "utf-8");
   logger.debug("Video", `Created concat list: ${concatListPath}`);
+  logger.debug("Video", `Concat list content:\n${concatContent}`);
 
   return new Promise((resolve, reject) => {
     const ffmpegArgs = [
@@ -445,20 +455,20 @@ async function concatenateChunks(
     });
 
     ffmpeg.on("close", async (code) => {
-      // Cleanup concat list file
-      try {
-        await unlink(concatListPath);
-        logger.debug("Video", `Deleted concat list: ${concatListPath}`);
-      } catch (error) {
-        logger.warn("Video", `Failed to delete concat list: ${error instanceof Error ? error.message : String(error)}`);
-      }
-
       if (code === 0) {
         logger.success("Video", "Concatenation completed successfully");
+
+        // Keep concat list file for reference (don't delete)
+        logger.debug("Video", `Concat list file saved: ${concatListPath}`);
+
         resolve();
       } else {
         logger.error("Video", `Concatenation failed with code ${code}`);
         logger.debug("Video", `FFmpeg stderr:\n${stderrOutput}`);
+
+        // Keep concat list file for debugging
+        logger.warn("Video", `Concat list file kept for debugging: ${concatListPath}`);
+
         reject(new Error(`FFmpeg concatenation exited with code ${code}`));
       }
     });

@@ -99,3 +99,38 @@ export interface VideoGenerationResult {
   duration: number;
 }
 
+// YouTube Upload Types
+export type YouTubeChannel = "mossad" | "blindspot";
+
+export interface YouTubeUploadOptions {
+  title: string;
+  description?: string;
+  tags?: string[];
+  categoryId?: string;
+  channel?: YouTubeChannel; // Optional: defaults to "mossad"
+}
+
+export interface YouTubeUploadResult {
+  videoId: string;
+  videoUrl: string;
+  title: string;
+  privacyStatus: string;
+  channel: YouTubeChannel;
+}
+
+// Cleanup Types
+export interface CleanupResult {
+  deletedFiles: string[];
+  failedFiles: string[];
+  totalSize: number; // in bytes
+}
+
+// Progress Tracking Types
+export interface ProgressUpdate {
+  step: string;
+  message: string;
+  percentage?: number;
+  current?: number;
+  total?: number;
+}
+

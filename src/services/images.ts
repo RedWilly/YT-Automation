@@ -2,7 +2,7 @@
  * Image search and download service using DuckDuckGo
  */
 
-import { duckDuckGoImageSearch } from "./utils/dim.ts";
+import { duckDuckGoImageSearch } from "../utils/dim.ts";
 import { TMP_IMAGES_DIR, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import { join, extname } from "node:path";

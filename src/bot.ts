@@ -2,8 +2,8 @@
  * Telegram bot for YouTube automation workflow
  */
 
-import { Telegraf } from "telegraf";
-import { TELEGRAM_BOT_TOKEN, TMP_AUDIO_DIR } from "./constants.ts";
+import { getTelegramBot, getFileUrl, type Context } from "./utils/telegram.ts";
+import { TMP_AUDIO_DIR } from "./constants.ts";
 import { transcribeAudio } from "./services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
@@ -12,25 +12,23 @@ import {
   validateDownloadedImages,
 } from "./services/images.ts";
 import { generateVideo, validateVideoInputs } from "./services/video.ts";
+import { uploadToYouTube } from "./services/youtube.ts";
+import { cleanupTempFiles } from "./services/cleanup.ts";
+import { ProgressTracker } from "./services/progress.ts";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
-import type { Context } from "telegraf";
 import * as logger from "./logger.ts";
 
 /**
  * Create and configure the Telegram bot
  * @returns Configured Telegraf bot instance
  */
-export function createBot(): Telegraf {
-  if (!TELEGRAM_BOT_TOKEN) {
-    throw new Error("TELEGRAM_BOT_TOKEN is not set in environment variables");
-  }
-
-  const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+export function createBot() {
+  const bot = getTelegramBot();
 
   // Error handling
-  bot.catch((err, ctx) => {
+  bot.catch((err: any, ctx: Context) => {
     logger.error("Bot", "Error in bot", err);
     ctx.reply(`❌ An error occurred: ${err instanceof Error ? err.message : String(err)}`).catch(console.error);
   });
@@ -61,8 +59,13 @@ export function createBot(): Telegraf {
 async function handleStartCommand(ctx: Context): Promise<void> {
   await ctx.reply(
     "Welcome to YouTube Automation Bot! 🎥\n\n" +
-      "Send me an audio file with the /upload command to create a video.\n\n" +
-      "Usage: /upload (then send your audio file)"
+      "Send me an audio file to automatically:\n" +
+      "1. 🎙️ Transcribe your audio\n" +
+      "2. 🤖 Generate visual scenes with AI\n" +
+      "3. 🖼️ Download matching images\n" +
+      "4. 🎬 Create a video\n" +
+      "5. 📤 Upload to YouTube (private)\n\n" +
+      "Just send your audio file to get started!"
   );
 }
 
@@ -73,11 +76,12 @@ async function handleUploadCommand(ctx: Context): Promise<void> {
   await ctx.reply(
     "Please send me your audio or voice file now.\n\n" +
       "I will:\n" +
-      "1. Transcribe your audio\n" +
-      "2. Generate visual scenes\n" +
-      "3. Find matching images\n" +
-      "4. Create a video\n\n" +
-      "This may take a few minutes..."
+      "1. 🎙️ Transcribe your audio\n" +
+      "2. 🤖 Generate visual scenes\n" +
+      "3. 🖼️ Download matching images\n" +
+      "4. 🎬 Create a video\n" +
+      "5. 📤 Upload to YouTube (private)\n\n" +
+      "This may take a few minutes... I'll keep you updated!"
   );
 }
 
@@ -171,20 +175,24 @@ async function processAudioFile(
   fileId: string,
   filename: string
 ): Promise<void> {
-  const statusMessage = await ctx.reply("⏳ Processing your audio file...");
+  // Initialize progress tracker
+  const progress = new ProgressTracker(ctx);
+  await progress.start("🎙️ Audio received, starting processing...");
 
   try {
     // Step 1: Download audio file from Telegram
-    await updateStatus(ctx, statusMessage.message_id, "📥 Downloading audio file...");
-    const audioFilePath = await downloadTelegramFile(ctx, fileId, filename);
+    await progress.update({
+      step: "Downloading Audio",
+      message: "Downloading audio file from Telegram...",
+    });
+    const audioFilePath = await downloadTelegramFile(fileId, filename);
     logger.step("Bot", "Audio downloaded", audioFilePath);
 
     // Step 2: Transcribe audio with AssemblyAI
-    await updateStatus(
-      ctx,
-      statusMessage.message_id,
-      "🎙️ Transcribing audio (this may take a few minutes)..."
-    );
+    await progress.update({
+      step: "Transcription",
+      message: "Transcribing audio with AssemblyAI...\nThis may take a few minutes.",
+    });
     const transcript = await transcribeAudio(audioFilePath);
     logger.step("Bot", "Transcription completed", `${transcript.text.substring(0, 100)}...`);
 
@@ -192,16 +200,18 @@ async function processAudioFile(
     validateTranscriptData(transcript.words);
 
     // Step 3: Process transcript into segments
-    await updateStatus(ctx, statusMessage.message_id, "📝 Processing transcript...");
+    await progress.update({
+      step: "Processing Transcript",
+      message: "Segmenting transcript into scenes...",
+    });
     const { segments, formattedTranscript } = processTranscript(transcript.words);
     logger.step("Bot", `Created ${segments.length} segments`);
 
     // Step 4: Generate image search queries with LLM
-    await updateStatus(
-      ctx,
-      statusMessage.message_id,
-      "🤖 Generating visual scenes with AI..."
-    );
+    await progress.update({
+      step: "Generating Image Queries",
+      message: "Using AI to generate visual scene descriptions...",
+    });
     const imageQueries = await generateImageQueries(formattedTranscript);
     validateImageQueries(imageQueries);
     logger.step("Bot", `Generated ${imageQueries.length} image queries`);
@@ -231,39 +241,55 @@ async function processAudioFile(
     }
 
     // Step 5: Search and download images
-    await updateStatus(
-      ctx,
-      statusMessage.message_id,
-      `🖼️ Downloading ${imageQueries.length} images...`
-    );
+    await progress.update({
+      step: "Downloading Images",
+      message: `Searching and downloading ${imageQueries.length} images...`,
+      current: 0,
+      total: imageQueries.length,
+    });
     const downloadedImages = await downloadImagesForQueries(imageQueries);
     validateDownloadedImages(downloadedImages);
     logger.step("Bot", `Downloaded ${downloadedImages.length} images`);
 
     // Step 6: Generate video with FFmpeg
-    await updateStatus(ctx, statusMessage.message_id, "🎬 Creating video...");
+    await progress.update({
+      step: "Generating Video",
+      message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
+    });
     validateVideoInputs(downloadedImages, audioFilePath);
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
-    // Step 7: Send video back to user
-    await updateStatus(ctx, statusMessage.message_id, "📤 Uploading video...");
-    await ctx.replyWithVideo(
-      { source: videoResult.videoPath },
-      { caption: "Complete ✅" }
-    );
+    // Step 7: Upload to YouTube
+    await progress.update({
+      step: "Uploading to YouTube",
+      message: "Uploading video to YouTube as private...",
+    });
 
-    // Delete status message
-    await ctx.deleteMessage(statusMessage.message_id);
+    // Generate video title from filename or use default
+    const videoTitle = `Automated Video - ${new Date().toLocaleDateString()}`;
+    const uploadResult = await uploadToYouTube(videoResult.videoPath, {
+      title: videoTitle,
+      description: "Automatically generated video from audio transcription",
+      tags: ["automation", "ai-generated"],
+    });
+    logger.step("Bot", "Video uploaded to YouTube", uploadResult.videoUrl);
+
+    // Step 8: Cleanup temporary files
+    await progress.update({
+      step: "Cleanup",
+      message: "Cleaning up temporary files...",
+    });
+    await cleanupTempFiles(false); // Delete everything including final video
+    logger.step("Bot", "Cleanup completed");
+
+    // Step 9: Send completion message with YouTube URL
+    await progress.complete("Video uploaded successfully!", uploadResult.videoUrl);
 
     logger.success("Bot", "Workflow completed successfully!");
   } catch (error) {
     logger.error("Bot", "Error processing audio", error);
-    await updateStatus(
-      ctx,
-      statusMessage.message_id,
-      `❌ Error: ${error instanceof Error ? error.message : String(error)}`
-    );
+    await progress.error(error instanceof Error ? error : new Error(String(error)));
   }
 }
 
@@ -271,12 +297,10 @@ async function processAudioFile(
  * Download file from Telegram
  */
 async function downloadTelegramFile(
-  ctx: Context,
   fileId: string,
   filename: string
 ): Promise<string> {
-  const file = await ctx.telegram.getFile(fileId);
-  const fileUrl = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+  const fileUrl = await getFileUrl(fileId);
 
   const response = await fetch(fileUrl);
   if (!response.ok) {
@@ -297,28 +321,10 @@ async function downloadTelegramFile(
 }
 
 /**
- * Update status message
- */
-async function updateStatus(
-  ctx: Context,
-  messageId: number,
-  text: string
-): Promise<void> {
-  try {
-    await ctx.telegram.editMessageText(ctx.chat?.id, messageId, undefined, text);
-  } catch (error) {
-    // Ignore errors if message is the same
-    logger.debug("Bot", `Could not update status message: ${error}`);
-  }
-}
-
-/**
  * Start the bot
  */
 export async function startBot(): Promise<void> {
   logger.log("Bot", "Initializing bot...");
-  logger.debug("Bot", `Token loaded: ${TELEGRAM_BOT_TOKEN ? "✓" : "✗"}`);
-  logger.debug("Bot", `Token length: ${TELEGRAM_BOT_TOKEN.length} characters`);
 
   const bot = createBot();
 

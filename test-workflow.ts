@@ -12,6 +12,8 @@ import { processTranscript, validateTranscriptData } from "./src/services/transc
 import { generateImageQueries, validateImageQueries } from "./src/services/deepseek.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
+import { uploadToYouTube } from "./src/services/youtube.ts";
+import { cleanupTempFiles } from "./src/services/cleanup.ts";
 import { TMP_AUDIO_DIR } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
@@ -119,10 +121,27 @@ async function runTestWorkflow(): Promise<void> {
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.success("Test", `Video generated successfully!`);
 
+    // Step 7: Upload to YouTube
+    logger.step("Test", "Step 7: Uploading video to YouTube");
+    const videoTitle = `Test Video - ${new Date().toLocaleDateString()}`;
+    const uploadResult = await uploadToYouTube(videoResult.videoPath, {
+      title: videoTitle,
+      description: "Test video generated automatically from audio transcription",
+      tags: ["test", "automation", "ai-generated"],
+    });
+    logger.success("Test", `Video uploaded to YouTube!`);
+    logger.log("Test", `YouTube URL: ${uploadResult.videoUrl}`);
+
+    // Step 8: Cleanup temporary files
+    logger.step("Test", "Step 8: Cleaning up temporary files");
+    const cleanupResult = await cleanupTempFiles(false); // Delete everything including final video
+    logger.success("Test", `Cleanup completed: ${cleanupResult.deletedFiles.length} files deleted`);
+    logger.log("Test", `Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
+
     // Summary
     const endTime = Date.now();
     const totalTime = ((endTime - startTime) / 1000).toFixed(2);
-    
+
     logger.log("Test", "=".repeat(60));
     logger.log("Test", "✅ Test Workflow Completed Successfully!");
     logger.log("Test", "=".repeat(60));
@@ -131,8 +150,10 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `   • Words transcribed: ${transcript.words.length}`);
     logger.log("Test", `   • Segments created: ${segments.length}`);
     logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
-    logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
+    logger.log("Test", `   • YouTube URL: ${uploadResult.videoUrl}`);
+    logger.log("Test", `   • Files cleaned up: ${cleanupResult.deletedFiles.length}`);
+    logger.log("Test", `   • Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
     logger.log("Test", `   • Total processing time: ${totalTime} seconds`);
     logger.log("Test", "=".repeat(60));
 

@@ -76,18 +76,26 @@ REQUIRED STYLE KEYWORDS (use 1-2 per query):
 • "Cold War era"
 
 QUERY STRUCTURE:
-[Subject/Scene] + [Location/Context] + [Time Period] + [Style Descriptor]
+[Name/Rank/Subject/Scene] + [Action/Equipment] + [Location/Environment] + [Time Period] + [Style]
 
-Examples:
+Examples with extracted details:
+✅ "Colonel Eli Cohen Damascus apartment 1960s black and white"
+✅ "KGB General briefing room Moscow 1970s vintage photo"
+✅ "Mossad agents briefcase exchange foggy Paris café 1973 archival"
+✅ "hidden camera radio equipment Berlin safehouse 1960s grainy photo"
+✅ "Prime Minister Golda Meir war room 1973 black and white photo"
+✅ "agents crossing checkpoint rainy night Berlin 1970s vintage"
+✅ "Soviet Ambassador UN meeting hall 1960s archival photograph"
 ✅ "KGB officers Moscow headquarters 1970s black and white"
 ✅ "Berlin Wall checkpoint vintage photograph 1960s"
 ✅ "Mossad agents briefing room grainy 1980s photo"
 ✅ "CIA surveillance equipment archival image 1970s"
 ✅ "Soviet embassy Paris Cold War era photograph"
 
-❌ "betrayal and deception" (too abstract)
-❌ "tense meeting room" (no time/style markers)
-❌ "covert operation" (too generic, will return modern stock photos)
+
+❌ "betrayal and deception" (too abstract, no details)
+❌ "tense meeting room" (no names, ranks, location, or time)
+❌ "covert operation" (too generic, missing specifics)
 
 TIME PERIOD INFERENCE:
 Analyze the full transcript to determine the era, then apply consistently:
@@ -98,39 +106,61 @@ Analyze the full transcript to determine the era, then apply consistently:
 
 If specific years/events are mentioned (Yom Kippur War 1973, Berlin Wall 1989), use those exact years.
 
-SCENE TYPES & EXAMPLES:
+SCENE TYPES & DETAIL EXAMPLES:
 
-**Espionage Operations:**
+**Espionage Operations (with equipment/actions):**
+• "Eli Cohen hidden camera Damascus apartment 1960s black and white"
+• "CIA agent briefcase dead drop Vienna café 1970s vintage"
+• "KGB officer listening device installation 1980s archival photo"
+• "Mossad operative coded message exchange 1973 grainy photo"
 • "Mossad safe house Tel Aviv 1970s black and white"
 • "CIA agents covert meeting Vienna 1960s vintage photo"
 • "KGB surveillance room Moscow archival 1980s"
 
-**Political/Diplomatic:**
+
+**Political/Diplomatic (with ranks/names):**
+• "Prime Minister Golda Meir cabinet meeting 1973 black and white"
+• "Foreign Minister briefing UN Security Council 1970s archival"
+• "Soviet Ambassador Dobrynin White House 1960s vintage photo"
 • "UN Security Council 1970s historical photograph"
 • "diplomatic meeting Cold War era black and white"
 • "embassy corridor 1960s grainy photo"
 
-**Military/Conflict:**
-• "Israeli military Sinai desert 1973 archival photo"
-• "Soviet tanks Prague 1968 black and white"
-• "military checkpoint Berlin 1970s vintage"
 
-**Urban/Street Scenes:**
+**Military/Conflict (with ranks/equipment):**
+• "Israeli Colonel Sinai desert briefing 1973 archival photo"
+• "General inspecting troops checkpoint 1967 black and white"
+• "military radio operator field equipment 1970s vintage"
+
+**Surveillance/Operations (with actions/equipment):**
+• "agents tailing suspect foggy Prague street 1960s black and white"
+• "binoculars rooftop surveillance Paris 1970s grainy photo"
+• "border crossing passport check Berlin 1960s archival"
 • "foggy Prague street 1960s black and white photo"
 • "Paris café exterior Cold War era photograph"
 • "Moscow street scene 1980s grainy film"
 
-**Interior Spaces:**
+
+**Interior Spaces (with environmental detail):**
+• "interrogation dim overhead light bare room 1970s archival"
+• "war room maps telephone officers 1973 black and white photo"
+• "safehouse basement radio equipment 1960s vintage"
+OR
 • "dim interrogation room 1970s archival photo"
 • "briefing room overhead light vintage 1960s"
 • "hotel room Cold War era black and white"
 
+
 CONTENT ANALYSIS:
 Before generating queries, identify:
-1. What is the overall story about? (Which agencies? What conflict? What era?)
-2. What's the dominant time period? (Use this for ALL queries unless explicitly changing)
-3. What's the visual mood? (Tense/shadowy vs. official/bright)
-4. Are specific locations mentioned? (Use real place names)
+1. **Overview:** Which agencies? Which conflict? What era? Key people?
+2. **Dominant time period:** Use this for ALL queries unless explicitly changing
+3. **Key individuals:** Extract names and ranks mentioned (use in queries)
+4. **Equipment/objects:** Note any tools, weapons, documents mentioned
+5. **Actions occurring:** What are people doing? (meeting, surveilling, escaping, etc.)
+6. **Locations:** Real place names (cities, buildings, landmarks)
+7. **Environmental mood:** Tense/shadowy vs. official/bright, weather conditions
+8. **Visual details:** Lighting, weather, atmosphere mentioned in transcript
 
 OUTPUT RULES:
 • Generate EXACTLY ONE query per segment (match count perfectly)
@@ -147,34 +177,33 @@ Before outputting, verify each query would return vintage/archival imagery when 
 Ask: "Would this query find a black and white or vintage-style image?" If no, add style keywords.
 
 Example Input:
-[0-5400ms]: In 1973, during the Yom Kippur War, Mossad planned a daring rescue operation in Damascus.
-[5400-10800ms]: Secret cameras captured military convoys moving through the desert at night.
-[10800-16200ms]: The tension in Tel Aviv was unbearable as leaders awaited news.
+[0-5400ms]: In 1965, Colonel Eli Cohen, working undercover in Damascus, used a hidden radio transmitter to send classified Syrian military plans back to Mossad headquarters in Tel Aviv.
+[5400-10800ms]: Syrian intelligence officers burst into his apartment during a rainy night, finding the concealed equipment in a briefcase.
+[10800-16200ms]: Prime Minister Levi Eshkol received the news in a tense cabinet meeting, surrounded by military advisors studying maps under dim lights.
 
 Example Output:
 [
   {
     "start": 0,
     "end": 5400,
-    "query": "Mossad agents Damascus 1973 black and white photo"
+    "query": "Colonel Eli Cohen radio transmitter Damascus apartment 1965 black and white"
   },
   {
     "start": 5400,
     "end": 10800,
-    "query": "military convoy desert night 1973 archival image"
+    "query": "Syrian officers rainy night apartment raid briefcase 1965 vintage photo"
   },
   {
     "start": 10800,
     "end": 16200,
-    "query": "Tel Aviv command center 1970s vintage photograph"
+    "query": "Prime Minister Eshkol cabinet meeting maps dim light 1965 archival"
   }
 ]`;
 
 /**
  * Enhanced user prompt for DeepSeek image query generation
  */
-
-export function buildUserPrompt(formattedTranscript: string, segmentCount: number): string {
+function buildUserPrompt(formattedTranscript: string, segmentCount: number): string {
   return `TRANSCRIPT WITH TIMESTAMPS:
 Below is the complete transcript divided into ${segmentCount} segments.
 Each segment format: [start_ms–end_ms]: transcript text
@@ -182,7 +211,7 @@ Each segment format: [start_ms–end_ms]: transcript text
 ${formattedTranscript}
 
 INSTRUCTIONS:
-1. Analyze the FULL transcript above to understand the complete story, era, and context
+1. Analyze the FULL transcript above to understand the complete script, era, and context
 2. Extract specific details from EACH segment: names, ranks, equipment, actions, locations, environmental details
 3. Generate EXACTLY ${segmentCount} image search queries (one per segment)
 4. Each query MUST include:
@@ -228,7 +257,7 @@ export async function generateImageQueries(
         content: userPrompt,
       },
     ],
-    temperature: 0.7,
+    temperature: 0.4,
     max_tokens: 4000,
   };
 
@@ -342,9 +371,17 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     if (query.query.length === 0) {
       throw new Error(`Empty query string at index ${i}`);
     }
+
+    // Warn if query exceeds 10 words
+    const wordCount = query.query.split(/\s+/).length;
+    if (wordCount > 10) {
+      logger.warn(
+        "DeepSeek",
+        `Query at index ${i} exceeds 10 words (${wordCount} words): "${query.query}"`
+      );
+    }
   }
 
   logger.success("DeepSeek", `Validation passed for ${queries.length} queries`);
   return true;
 }
-

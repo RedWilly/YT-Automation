@@ -4,7 +4,7 @@
 
 import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
-import { join, sep } from "node:path";
+import { join, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import * as logger from "../logger.ts";
@@ -415,14 +415,14 @@ async function concatenateChunks(
   // Create concat list file
   const concatListPath = join(TMP_VIDEO_DIR, `concat_list_${Date.now()}.txt`);
 
-  // FFmpeg's concat demuxer expects forward slashes even on Windows
-  // Use path.sep to detect platform separator and replace if needed
+  // FFmpeg's concat demuxer interprets paths relative to the concat list file's location
+  // Since both the concat list and chunk files are in TMP_VIDEO_DIR, use just the filename
   const concatContent = chunkPaths
     .map((path) => {
-      // On Windows, sep is '\', on Linux/Mac it's '/'
-      // Replace platform separator with forward slash for FFmpeg compatibility
-      const ffmpegPath = sep === '\\' ? path.split(sep).join('/') : path;
-      return `file '${ffmpegPath}'`;
+      // Extract just the filename (e.g., "chunk_1762602415888_0.mp4")
+      // This avoids path duplication since concat list is in the same directory
+      const filename = basename(path);
+      return `file '${filename}'`;
     })
     .join("\n");
 

@@ -19,7 +19,7 @@ export const TMP_IMAGES_DIR = "tmp/images";
 export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
-export const WORDS_PER_SEGMENT = 100;
+export const WORDS_PER_SEGMENT = 150;
 export const POLL_INTERVAL_MS = 10000; // 10 seconds
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 

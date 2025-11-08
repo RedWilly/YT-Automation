@@ -16,6 +16,8 @@ const WATERMARKED_DOMAINS = [
   "alamy.com",
   "freepik.com",
   "gettyimages.com",
+  "vectorstock.com",
+  "vecteezy.com"
 ];
 
 /**

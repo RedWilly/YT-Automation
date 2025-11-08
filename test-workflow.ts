@@ -14,11 +14,12 @@ import { downloadImagesForQueries, validateDownloadedImages } from "./src/servic
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
 import { uploadToYouTube } from "./src/services/youtube.ts";
 import { cleanupTempFiles } from "./src/services/cleanup.ts";
-import { TMP_AUDIO_DIR } from "./src/constants.ts";
+import { TMP_AUDIO_DIR, YOUTUBE_AUTO_POST } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import type { YouTubeUploadResult } from "./src/types.ts";
 
 /**
  * Get audio file path from command line argument or find first file in tmp/audio/
@@ -121,22 +122,30 @@ async function runTestWorkflow(): Promise<void> {
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.success("Test", `Video generated successfully!`);
 
-    // Step 7: Upload to YouTube
-    logger.step("Test", "Step 7: Uploading video to YouTube");
-    const videoTitle = `Test Video - ${new Date().toLocaleDateString()}`;
-    const uploadResult = await uploadToYouTube(videoResult.videoPath, {
-      title: videoTitle,
-      description: "Test video generated automatically from audio transcription",
-      tags: ["test", "automation", "ai-generated"],
-    });
-    logger.success("Test", `Video uploaded to YouTube!`);
-    logger.log("Test", `YouTube URL: ${uploadResult.videoUrl}`);
+    // Step 7: Conditionally upload to YouTube based on YOUTUBE_AUTO_POST
+    let uploadResult: YouTubeUploadResult | null = null;
 
-    // Step 8: Cleanup temporary files
-    logger.step("Test", "Step 8: Cleaning up temporary files");
-    const cleanupResult = await cleanupTempFiles(false); // Delete everything including final video
-    logger.success("Test", `Cleanup completed: ${cleanupResult.deletedFiles.length} files deleted`);
-    logger.log("Test", `Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
+    if (YOUTUBE_AUTO_POST) {
+      logger.step("Test", "Step 7: Uploading video to YouTube");
+      const videoTitle = `Test Video - ${new Date().toLocaleDateString()}`;
+      uploadResult = await uploadToYouTube(videoResult.videoPath, {
+        title: videoTitle,
+        description: "Test video generated automatically from audio transcription",
+        tags: ["test", "automation", "ai-generated"],
+      });
+      logger.success("Test", `Video uploaded to YouTube!`);
+      logger.log("Test", `YouTube URL: ${uploadResult.videoUrl}`);
+
+      // Step 8: Cleanup temporary files (only after successful upload)
+      logger.step("Test", "Step 8: Cleaning up temporary files");
+      const cleanupResult = await cleanupTempFiles(false); // Delete everything including final video
+      logger.success("Test", `Cleanup completed: ${cleanupResult.deletedFiles.length} files deleted`);
+      logger.log("Test", `Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
+    } else {
+      logger.step("Test", "Step 7: Auto-post disabled - video saved locally");
+      logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
+      logger.log("Test", `⚠️ Auto-post is disabled. Video was not uploaded to YouTube.`);
+    }
 
     // Summary
     const endTime = Date.now();
@@ -151,9 +160,15 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `   • Segments created: ${segments.length}`);
     logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
-    logger.log("Test", `   • YouTube URL: ${uploadResult.videoUrl}`);
-    logger.log("Test", `   • Files cleaned up: ${cleanupResult.deletedFiles.length}`);
-    logger.log("Test", `   • Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
+    logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
+
+    if (YOUTUBE_AUTO_POST && uploadResult) {
+      logger.log("Test", `   • YouTube URL: ${uploadResult.videoUrl}`);
+      logger.log("Test", `   • Upload status: ✅ Uploaded successfully`);
+    } else {
+      logger.log("Test", `   • Upload status: ⚠️ Auto-post disabled - not uploaded`);
+    }
+
     logger.log("Test", `   • Total processing time: ${totalTime} seconds`);
     logger.log("Test", "=".repeat(60));
 

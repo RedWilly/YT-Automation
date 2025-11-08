@@ -2,14 +2,6 @@
 
 Automated workflow to convert voice-over audio into videos with AI-generated visual scenes.
 
-## Features
-
-- 🎙️ **Telegram Bot Integration** - Upload audio files via Telegram
-- 📝 **AI Transcription** - Powered by AssemblyAI
-- 🤖 **Visual Scene Generation** - DeepSeek LLM generates image search queries
-- 🖼️ **Automatic Image Search** - DuckDuckGo image search
-- 🎬 **Video Generation** - FFmpeg combines images with audio
-- ⚡ **Built with Bun** - Fast TypeScript runtime
 
 ## Prerequisites
 
@@ -97,13 +89,7 @@ The test workflow will:
 - ✅ Download images from DuckDuckGo
 - ✅ Generate the final video with FFmpeg
 - ✅ Save the video to `tmp/video/`
-- ❌ Skip sending to Telegram (test mode only)
 
-**Benefits:**
-- 🚀 Faster iteration (no Telegram upload/download)
-- 🔍 Easier debugging with detailed logs
-- 🧪 Test different audio files quickly
-- 💻 Works offline (except API calls)
 
 ## Workflow Steps
 
@@ -115,32 +101,6 @@ The test workflow will:
 6. **Download Images** - DuckDuckGo image search and download
 7. **Generate Video** - FFmpeg combines images with audio
 8. **Send Video** - Telegram bot sends completed video
-
-## Project Structure
-
-```
-v2v/
-├── src/
-│   ├── bot.ts                 # Telegram bot and workflow orchestration
-│   ├── constants.ts           # Environment variables and configuration
-│   ├── logger.ts              # Centralized logging utility (DEBUG mode support)
-│   ├── types.ts               # TypeScript type definitions
-│   └── services/
-│       ├── assemblyai.ts      # AssemblyAI transcription service
-│       ├── transcript.ts      # Transcript processing and chunking
-│       ├── deepseek.ts        # DeepSeek LLM service
-│       ├── images.ts          # Image search and download (with watermark filtering)
-│       ├── video.ts           # FFmpeg video generation (memory-optimized)
-│       └── utils/
-│           └── dim.ts         # DuckDuckGo image search utility
-├── tmp/
-│   ├── audio/                 # Temporary audio files
-│   ├── images/                # Downloaded images
-│   └── video/                 # Generated videos
-├── index.ts                   # Main entry point (production bot)
-├── test-workflow.ts           # Test script for local development
-└── .env                       # Environment variables (not in git but see .env.example)
-```
 
 ## Development
 

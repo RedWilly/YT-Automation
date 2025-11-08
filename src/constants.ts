@@ -27,6 +27,7 @@ export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 export const IMAGES_PER_CHUNK = 15; // Number of images to process per chunk (prevents memory exhaustion)
 
 // YouTube API Configuration
+export const YOUTUBE_AUTO_POST = process.env.YOUTUBE_AUTO_POST === "true";
 export const YOUTUBE_CLIENT_ID = process.env.YOUTUBE_CLIENT_ID || "";
 export const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET || "";
 export const YOUTUBE_DEFAULT_CHANNEL = process.env.YOUTUBE_DEFAULT_CHANNEL || "";

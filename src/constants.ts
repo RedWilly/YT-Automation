@@ -19,12 +19,21 @@ export const TMP_IMAGES_DIR = "tmp/images";
 export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
-export const WORDS_PER_SEGMENT = 150;
+export const WORDS_PER_SEGMENT = 110;
 export const POLL_INTERVAL_MS = 10000; // 10 seconds
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration
-export const IMAGES_PER_CHUNK = 15; // Number of images to process per chunk (prevents memory exhaustion)
+export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)
+
+// AI Image Generation Configuration
+export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
+export const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";
+export const AI_IMAGE_STYLE = "digital painting style that imitates vintage oil illustrations mid-19/20th century illustration, with painterly texture, warm muted colors, dramatic lighting, and a vintage illustration aesthetic";
+export const AI_IMAGE_MODEL = "flux"; // Options: flux, kontext, turbo, gptimage
+export const AI_IMAGE_WIDTH = 1920; 
+export const AI_IMAGE_HEIGHT = 1080; 
+export const AI_IMAGE_NOLOGO = true; // thus when enabled removes pollinations watermarks
 
 // YouTube API Configuration
 export const YOUTUBE_AUTO_POST = process.env.YOUTUBE_AUTO_POST === "true";

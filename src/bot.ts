@@ -3,7 +3,7 @@
  */
 
 import { getTelegramBot, getFileUrl, type Context } from "./utils/telegram.ts";
-import { TMP_AUDIO_DIR, YOUTUBE_AUTO_POST } from "./constants.ts";
+import { TMP_AUDIO_DIR, YOUTUBE_AUTO_POST, USE_AI_IMAGE } from "./constants.ts";
 import { transcribeAudio } from "./services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
@@ -59,16 +59,19 @@ export function createBot() {
  */
 async function handleStartCommand(ctx: Context): Promise<void> {
   const autoPostStatus = YOUTUBE_AUTO_POST ? "✅ Enabled" : "❌ Disabled";
+  const imageMode = USE_AI_IMAGE ? "🎨 AI Generation" : "🔍 Web Search";
 
   await ctx.reply(
     "Welcome to YouTube Automation Bot! 🎥\n\n" +
       "Send me an audio file to automatically:\n" +
       "1. 🎙️ Transcribe your audio\n" +
       "2. 🤖 Generate visual scenes with AI\n" +
-      "3. 🖼️ Download matching images\n" +
+      "3. 🖼️ Get matching images\n" +
       "4. 🎬 Create a video\n" +
       (YOUTUBE_AUTO_POST ? "5. 📤 Upload to YouTube (private)\n\n" : "5. 💾 Save video locally\n\n") +
-      `📊 Auto-post to YouTube: ${autoPostStatus}\n\n` +
+      `📊 Settings:\n` +
+      `   • Auto-post to YouTube: ${autoPostStatus}\n` +
+      `   • Image source: ${imageMode}\n\n` +
       "Just send your audio file to get started!"
   );
 }
@@ -77,12 +80,14 @@ async function handleStartCommand(ctx: Context): Promise<void> {
  * Handle /upload command
  */
 async function handleUploadCommand(ctx: Context): Promise<void> {
+  const imageMode = USE_AI_IMAGE ? "generate AI images" : "search for images online";
+
   await ctx.reply(
     "Please send me your audio or voice file now.\n\n" +
       "I will:\n" +
       "1. 🎙️ Transcribe your audio\n" +
       "2. 🤖 Generate visual scenes\n" +
-      "3. 🖼️ Download matching images\n" +
+      `3. 🖼️ ${USE_AI_IMAGE ? "Generate AI images" : "Search for images online"}\n` +
       "4. 🎬 Create a video\n" +
       (YOUTUBE_AUTO_POST ? "5. 📤 Upload to YouTube (private)\n\n" : "5. 💾 Save video locally\n\n") +
       "This may take a few minutes... I'll keep you updated!"

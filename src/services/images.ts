@@ -1,9 +1,20 @@
 /**
- * Image search and download service using DuckDuckGo
+ * Image search and download service using DuckDuckGo or AI generation
  */
 
 import { duckDuckGoImageSearch } from "../utils/dim.ts";
-import { TMP_IMAGES_DIR, POLL_INTERVAL_MS, MAX_POLL_ATTEMPTS } from "../constants.ts";
+import {
+  TMP_IMAGES_DIR,
+  POLL_INTERVAL_MS,
+  MAX_POLL_ATTEMPTS,
+  USE_AI_IMAGE,
+  POLLINATIONS_API_KEY,
+  AI_IMAGE_STYLE,
+  AI_IMAGE_MODEL,
+  AI_IMAGE_WIDTH,
+  AI_IMAGE_HEIGHT,
+  AI_IMAGE_NOLOGO,
+} from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
@@ -21,28 +32,45 @@ const WATERMARKED_DOMAINS = [
 ];
 
 /**
- * Search and download images for all queries
+ * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
+ * Both AI generation and web search follow the same patterns:
+ * - POLL_INTERVAL_MS delays between each image
+ * - Retry logic with MAX_POLL_ATTEMPTS for failed images
+ * - Same error handling and logging approach
+ * - Track progress the same way (current/total)
+ * - Continue processing even if individual images fail
+ *
  * @param queries - Array of image search queries with timestamps
- * @returns Array of downloaded image information
+ * @returns Array of downloaded/generated image information
  */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[]
 ): Promise<DownloadedImage[]> {
-  logger.step("Images", `Downloading images for ${queries.length} queries`);
+  // Log which mode we're using
+  if (USE_AI_IMAGE) {
+    logger.step("Images", `🎨 AI Image Generation Mode: Using Pollinations.ai to generate ${queries.length} images`);
+  } else {
+    logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
+  }
 
-  const downloadedImages: DownloadedImage[] = [];
+  const processedImages: DownloadedImage[] = [];
   const queriesLength = queries.length;
 
+  // Process each query with the same logic for both AI and web search
   for (let i = 0; i < queriesLength; i++) {
     const queryData = queries[i];
     if (!queryData) continue;
 
     try {
-      const downloadedImage = await downloadImageForQuery(queryData);
-      downloadedImages.push(downloadedImage);
+      // Use AI generation or web search based on USE_AI_IMAGE flag
+      const processedImage = USE_AI_IMAGE
+        ? await generateAIImageForQuery(queryData)
+        : await downloadImageForQuery(queryData);
+
+      processedImages.push(processedImage);
       logger.debug(
         "Images",
-        `Progress: ${i + 1}/${queriesLength} - Downloaded: ${downloadedImage.filePath}`
+        `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
 
       // Add delay between queries to avoid rate limiting (except for last query)
@@ -53,7 +81,7 @@ export async function downloadImagesForQueries(
     } catch (error) {
       logger.error(
         "Images",
-        `Failed to download image for query "${queryData.query}"`,
+        `Failed to ${USE_AI_IMAGE ? "generate AI image" : "download image"} for query "${queryData.query}"`,
         error
       );
       // Continue with next query even if one fails
@@ -62,10 +90,96 @@ export async function downloadImagesForQueries(
 
   logger.success(
     "Images",
-    `Successfully downloaded ${downloadedImages.length}/${queriesLength} images`
+    `Successfully ${USE_AI_IMAGE ? "generated" : "downloaded"} ${processedImages.length}/${queriesLength} images`
   );
 
-  return downloadedImages;
+  return processedImages;
+}
+
+/**
+ * Generate a single AI image for a query using Pollinations.ai with retry logic
+ * Follows the same retry pattern as downloadImageForQuery for consistency
+ * @param queryData - Image search query with timestamps
+ * @returns Generated image information
+ */
+async function generateAIImageForQuery(
+  queryData: ImageSearchQuery
+): Promise<DownloadedImage> {
+  const { query, start, end } = queryData;
+
+  let lastError: Error | null = null;
+
+  // Retry up to MAX_POLL_ATTEMPTS times (same as web search)
+  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+    try {
+      logger.debug("AI-Images", `Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+
+      // Combine the query with the vintage oil painting style
+      const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
+      logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
+
+      // Build Pollinations.ai API URL
+      const baseUrl = "https://image.pollinations.ai/prompt/";
+      const url =
+        baseUrl +
+        encodeURIComponent(fullPrompt) +
+        `?model=${AI_IMAGE_MODEL}&width=${AI_IMAGE_WIDTH}&height=${AI_IMAGE_HEIGHT}&nologo=${AI_IMAGE_NOLOGO}`;
+
+      logger.debug("AI-Images", `API URL: ${url}`);
+
+      // Make request to Pollinations.ai
+      const response = await fetch(url, {
+        headers: {
+          "x-pollinations-token": POLLINATIONS_API_KEY,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("AI-Images", `API request failed: ${response.status} ${response.statusText}`);
+        logger.debug("AI-Images", `Response body: ${errorText}`);
+        throw new Error(`Pollinations.ai API request failed: ${response.status} ${response.statusText}`);
+      }
+
+      // Get image data
+      const imageData = await response.arrayBuffer();
+
+      // Sanitize query for filename
+      const sanitizedQuery = sanitizeFilename(query);
+      const filename = `ai_${sanitizedQuery}.png`;
+      const filePath = join(TMP_IMAGES_DIR, filename);
+
+      // Save the image
+      await Bun.write(filePath, imageData);
+
+      logger.debug("AI-Images", `Saved AI image to: ${filePath}`);
+
+      // If this succeeded after retries, log success
+      if (attempt > 1) {
+        logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
+      }
+
+      return {
+        query,
+        start,
+        end,
+        filePath,
+      };
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < MAX_POLL_ATTEMPTS) {
+        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+    }
+  }
+
+  // All attempts failed
+  throw new Error(
+    `Failed to generate AI image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
+  );
 }
 
 /**
@@ -285,9 +399,9 @@ function sanitizeFilename(filename: string): string {
   // Replace invalid Windows filename characters with underscore
   return filename
     .replace(/[<>:"/\\|?*]/g, "_")
-    .replace(/\s+/g, " ")
+    .replace(/\s+/g, "_")
     .trim()
-    .substring(0, 200); // Limit length to avoid filesystem issues
+    .substring(0, 200);
 }
 
 /**

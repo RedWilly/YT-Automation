@@ -1,13 +1,33 @@
 /**
  * Test workflow script for local development
  * Runs the complete YouTube automation workflow without Telegram bot
- * 
+ *
  * Usage:
  *   bun test-workflow.ts <audio-file-path>
  *   bun test-workflow.ts  (uses first file in tmp/audio/)
  */
 
-import { transcribeAudio } from "./src/services/assemblyai.ts";
+/**
+ * ASSEMBLYAI UPLOAD URL CACHE
+ *
+ * To avoid repeatedly uploading the same audio file during testing:
+ *
+ * 1. First run (or when testing new audio file):
+ *    - Set to empty string: const ASSEMBLYAI_UPLOAD_URL = "";
+ *    - The workflow will upload the audio file and log the upload URL
+ *    - Copy the upload URL from the logs
+ *
+ * 2. Subsequent runs with same audio file:
+ *    - Paste the upload URL here: const ASSEMBLYAI_UPLOAD_URL = "https://cdn.assemblyai.com/upload/...";
+ *    - The workflow will skip the upload step and use the cached URL
+ *    - This saves API quota and speeds up testing
+ *
+ * Example:
+ *   const ASSEMBLYAI_UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
+ */
+const ASSEMBLYAI_UPLOAD_URL: string = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
+
+import { requestTranscription, pollForCompletion, uploadAudio } from "./src/services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./src/services/deepseek.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
@@ -84,12 +104,51 @@ async function runTestWorkflow(): Promise<void> {
 
     // Step 2: Transcribe audio with AssemblyAI
     logger.step("Test", "Step 2: Transcribing audio with AssemblyAI");
-    const transcript = await transcribeAudio(audioFilePath);
-    
+
+    let transcript;
+
+    // Check if we have a cached upload URL
+    if (ASSEMBLYAI_UPLOAD_URL && ASSEMBLYAI_UPLOAD_URL.trim() !== "") {
+      logger.log("Test", "📦 Using cached AssemblyAI upload URL (skipping upload step)");
+      logger.debug("Test", `Cached URL: ${ASSEMBLYAI_UPLOAD_URL}`);
+
+      // Skip upload, use cached URL directly for transcription
+      const transcriptResponse = await requestTranscription(ASSEMBLYAI_UPLOAD_URL);
+
+      // Poll for completion if not already completed
+      if (transcriptResponse.status === "completed") {
+        logger.success("Test", "Transcription already completed");
+        transcript = transcriptResponse;
+      } else {
+        transcript = await pollForCompletion(transcriptResponse.id);
+      }
+    } else {
+      logger.log("Test", "📤 No cached upload URL found - uploading audio file to AssemblyAI");
+
+      // Upload the audio file
+      const uploadUrl = await uploadAudio(audioFilePath);
+      logger.success("Test", "✅ Audio uploaded successfully!");
+      logger.log("Test", "");
+      logger.log("Test", "💡 TIP: To skip upload in future test runs, copy this URL:");
+      logger.log("Test", `📋 ASSEMBLYAI_UPLOAD_URL = "${uploadUrl}";`);
+      logger.log("Test", "");
+
+      // Request transcription with the new upload URL
+      const transcriptResponse = await requestTranscription(uploadUrl);
+
+      // Poll for completion if not already completed
+      if (transcriptResponse.status === "completed") {
+        logger.success("Test", "Transcription already completed");
+        transcript = transcriptResponse;
+      } else {
+        transcript = await pollForCompletion(transcriptResponse.id);
+      }
+    }
+
     if (!transcript.words || transcript.words.length === 0) {
       throw new Error("Transcription returned no words");
     }
-    
+
     logger.success("Test", `Transcription completed: ${transcript.words.length} words`);
     logger.debug("Test", `Transcript text: ${transcript.text?.substring(0, 100)}...`);
 

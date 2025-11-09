@@ -2,11 +2,12 @@
  * Video generation service using FFmpeg
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, INCLUDE_DISCLAIMER, DISCLAIMER_VIDEO_PATH } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
 import { join, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import * as logger from "../logger.ts";
 
 /**
@@ -36,14 +37,33 @@ export async function generateVideo(
   const outputFilename = `video_${timestamp}.mp4`;
   const outputPath = join(TMP_VIDEO_DIR, outputFilename);
 
+  // Generate the main content video (without disclaimer)
+  const contentVideoPath = INCLUDE_DISCLAIMER
+    ? join(TMP_VIDEO_DIR, `content_${timestamp}.mp4`)
+    : outputPath;
+
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, outputPath);
+    await renderVideoInChunks(sortedImages, audioFilePath, contentVideoPath);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
     const { filterComplex } = createFilterComplex(sortedImages);
-    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath);
+    await runFFmpeg(sortedImages, audioFilePath, filterComplex, contentVideoPath);
+  }
+
+  // If disclaimer is enabled, prepend it to the content video
+  if (INCLUDE_DISCLAIMER) {
+    logger.step("Video", "Prepending disclaimer video to content");
+    await prependDisclaimerVideo(contentVideoPath, outputPath);
+
+    // Clean up temporary content video
+    try {
+      await unlink(contentVideoPath);
+      logger.debug("Video", `Deleted temporary content video: ${contentVideoPath}`);
+    } catch (error) {
+      logger.warn("Video", `Failed to delete temporary content video: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   logger.success("Video", `Video generated successfully`);
@@ -476,6 +496,97 @@ async function concatenateChunks(
     ffmpeg.on("error", (error) => {
       logger.error("Video", `Failed to start FFmpeg concatenation: ${error.message}`);
       reject(new Error(`Failed to start FFmpeg concatenation: ${error.message}`));
+    });
+  });
+}
+
+/**
+ * Prepend disclaimer video to the content video
+ * @param contentVideoPath - Path to the generated content video
+ * @param outputPath - Final output video path (disclaimer + content)
+ */
+async function prependDisclaimerVideo(
+  contentVideoPath: string,
+  outputPath: string
+): Promise<void> {
+  // Validate disclaimer video exists
+  if (!existsSync(DISCLAIMER_VIDEO_PATH)) {
+    logger.warn("Video", `Disclaimer video not found at ${DISCLAIMER_VIDEO_PATH}, skipping disclaimer`);
+    logger.warn("Video", "Renaming content video to output path instead");
+
+    // If disclaimer doesn't exist, just use the content video as final output
+    // This is already handled by the caller, so we just return
+    throw new Error(`Disclaimer video not found: ${DISCLAIMER_VIDEO_PATH}`);
+  }
+
+  logger.debug("Video", `Disclaimer video: ${DISCLAIMER_VIDEO_PATH}`);
+  logger.debug("Video", `Content video: ${contentVideoPath}`);
+  logger.debug("Video", `Output video: ${outputPath}`);
+
+  // Create concat list file with disclaimer first, then content
+  const concatListPath = join(TMP_VIDEO_DIR, `disclaimer_concat_${Date.now()}.txt`);
+
+  // Use absolute paths for concat list to avoid path resolution issues
+  const concatContent = [
+    `file '${DISCLAIMER_VIDEO_PATH}'`,
+    `file '${contentVideoPath}'`
+  ].join("\n");
+
+  await writeFile(concatListPath, concatContent, "utf-8");
+  logger.debug("Video", `Created disclaimer concat list: ${concatListPath}`);
+  logger.debug("Video", `Concat list content:\n${concatContent}`);
+
+  return new Promise((resolve, reject) => {
+    const ffmpegArgs = [
+      "-f",
+      "concat",
+      "-safe",
+      "0",
+      "-i",
+      concatListPath,
+      "-c",
+      "copy", // No re-encoding, just copy streams
+      "-y",
+      outputPath,
+    ];
+
+    logger.debug("Video", `FFmpeg disclaimer concat command: ffmpeg ${ffmpegArgs.join(" ")}`);
+
+    const ffmpeg = spawn("ffmpeg", ffmpegArgs);
+
+    let stderrOutput = "";
+
+    ffmpeg.stderr.on("data", (data) => {
+      stderrOutput += data.toString();
+    });
+
+    ffmpeg.on("close", async (code) => {
+      if (code === 0) {
+        logger.success("Video", "Disclaimer prepended successfully");
+
+        // Clean up concat list file
+        try {
+          await unlink(concatListPath);
+          logger.debug("Video", `Deleted concat list: ${concatListPath}`);
+        } catch (error) {
+          logger.warn("Video", `Failed to delete concat list: ${error instanceof Error ? error.message : String(error)}`);
+        }
+
+        resolve();
+      } else {
+        logger.error("Video", `Disclaimer concatenation failed with code ${code}`);
+        logger.debug("Video", `FFmpeg stderr:\n${stderrOutput}`);
+
+        // Keep concat list file for debugging
+        logger.warn("Video", `Concat list file kept for debugging: ${concatListPath}`);
+
+        reject(new Error(`FFmpeg disclaimer concatenation exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (error) => {
+      logger.error("Video", `Failed to start FFmpeg disclaimer concatenation: ${error.message}`);
+      reject(new Error(`Failed to start FFmpeg disclaimer concatenation: ${error.message}`));
     });
   });
 }

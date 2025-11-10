@@ -29,38 +29,71 @@ YOUR TASK:
 5. Use EXACT timestamps from each segment (do not modify them)
 6. Return valid JSON array with "start" (ms), "end" (ms), "query" (string) keys
 
-DETAIL EXTRACTION PRIORITY:
-Parse each segment for these elements (use when present):
+DETAIL EXTRACTION PRIORITY (CRITICAL - FOLLOW THIS ORDER):
 
-**NAMES & IDENTITIES:**
-- Specific people: "Eli Cohen", "Ashraf Marwan", "Golda Meir", "Yuri Andropov"
-- Use names in queries when mentioned: "Eli Cohen Damascus 1960s black and white"
+**PRIORITY 1: PEOPLE & ACTIONS (MOST IMPORTANT - NEVER SKIP):**
+Every query MUST include people and what they're doing when present in the transcript.
 
-**RANKS & TITLES:**
+- **People First:** "man", "woman", "agent", "officer", "worker", "soldier", "diplomat"
+- **Actions/Verbs:** "pushing", "walking", "sitting", "writing", "meeting", "crossing", "entering", "watching"
+- **Combine them:** "man pushing cart", "agent crossing border", "officer writing report", "worker entering building"
+
+Examples of CORRECT people + action queries:
+✅ "hotel worker pushing cleaning cart hallway 1980 black and white"
+✅ "man in uniform knocking door hotel 1980 archival photo"
+✅ "Dr. El Mashad writing desk hotel room 1980 vintage photo"
+✅ "KGB officer walking Moscow street 1970s black and white"
+✅ "agent entering building briefcase 1960s archival photo"
+✅ "Colonel briefing officers war room 1973 vintage photo"
+
+Examples of WRONG queries (missing people/actions):
+❌ "hotel corridor cleaning cart room 502 1980 archival" (WHERE IS THE PERSON? WHERE IS THE ACTION?)
+❌ "briefcase café table 1970s vintage" (WHO is at the café? WHAT are they doing?)
+❌ "war room maps 1973 black and white" (WHO is in the room? WHAT are they doing?)
+❌ "Moscow street 1970s archival" (WHO is on the street? WHAT are they doing?)
+
+**PRIORITY 2: NAMES & IDENTITIES:**
+- Specific people: "Eli Cohen", "Ashraf Marwan", "Golda Meir", "Yuri Andropov", "Dr. El Mashad"
+- Use names with actions: "Eli Cohen operating radio Damascus 1960s black and white"
+- Use titles with actions: "Prime Minister Golda Meir cabinet meeting 1973 archival"
+
+**PRIORITY 3: RANKS & TITLES:**
 - Military: "Colonel", "General", "Lieutenant", "Commander"
 - Political: "Prime Minister", "Foreign Minister", "Ambassador", "President"
 - Intelligence: "Agent", "Officer", "Operative", "Handler", "Station Chief"
-- Use to add authenticity: "KGB Colonel Moscow office 1970s vintage photo"
+- Civilian: "hotel worker", "hotel uniform", "cleaning staff", "receptionist"
+- Use with actions: "KGB Colonel briefing officers Moscow 1970s vintage photo"
 
-**EQUIPMENT & OBJECTS:**
+**PRIORITY 4: EQUIPMENT & OBJECTS:**
 - Surveillance: "hidden camera", "listening device", "radio transmitter", "binoculars"
 - Documents: "briefcase", "classified files", "coded message", "passport"
 - Communication: "telephone", "telegraph", "radio equipment", "cipher machine"
 - Weapons: "pistol", "sniper rifle" (only if explicitly mentioned)
-- Include when present: "briefcase exchange café Paris 1970s archival photo"
+- Everyday items: "cleaning cart", "notebook", "glasses", "key"
+- Include with people: "agent with briefcase crossing border 1970s archival photo"
 
-**ACTIONS & ACTIVITIES:**
-- Meeting: "briefing", "negotiation", "interrogation", "handshake"
-- Movement: "surveillance", "tailing", "escape", "crossing border", "parachuting"
-- Operations: "dead drop", "code exchange", "covert entry", "exfiltration"
-- Use active scenes: "agents crossing checkpoint Berlin 1960s black and white"
+**PRIORITY 5: ACTIONS & ACTIVITIES (VERBS ARE CRITICAL):**
+- Meeting: "briefing", "negotiation", "interrogation", "handshake", "meeting"
+- Movement: "walking", "pushing", "crossing", "entering", "escaping", "tailing"
+- Operations: "dead drop", "code exchange", "surveillance", "exfiltration"
+- Daily actions: "writing", "sitting", "knocking", "opening door", "reading"
+- ALWAYS use verbs: "agents crossing checkpoint Berlin 1960s black and white"
 
-**ENVIRONMENTAL DETAILS:**
+**PRIORITY 6: ENVIRONMENTAL DETAILS (SECONDARY - ADD ONLY IF SPACE ALLOWS):**
 - Weather: "foggy", "rainy night", "snow-covered", "desert heat"
 - Lighting: "dim", "shadowy", "overhead light", "street lamp", "moonlit"
-- Setting: "narrow alley", "rooftop", "basement", "hotel lobby", "train station"
+- Setting: "narrow alley", "rooftop", "basement", "hotel lobby", "train station", "hallway"
 - Atmosphere: "crowded street", "empty corridor", "bustling market"
-- Layer for depth: "foggy Moscow street snowy night 1970s vintage photo"
+- Use for context: "agent walking foggy Moscow street 1970s vintage photo"
+
+CRITICAL RULE: PEOPLE + ACTIONS COME FIRST!
+If the transcript mentions a person doing something, your query MUST include:
+1. The person (name, title, or description)
+2. The action (verb - what they're doing)
+3. The location/context
+4. Time period + style
+
+DO NOT create empty scene queries. DO NOT skip people. DO NOT skip actions.
 
 CRITICAL: EVERY QUERY MUST INCLUDE STYLE DESCRIPTORS
 Your queries are for finding vintage-style images online. Modern, colorful, or stock photo results won't work.
@@ -75,27 +108,35 @@ REQUIRED STYLE KEYWORDS (use 1-2 per query):
 • "documentary footage"
 • "Cold War era"
 
-QUERY STRUCTURE:
-[Name/Rank/Subject/Scene] + [Action/Equipment] + [Location/Environment] + [Time Period] + [Style]
+QUERY STRUCTURE (MANDATORY FORMAT):
+[Person/Name/Title] + [ACTION VERB] + [Object/Equipment] + [Location] + [Time Period] + [Style]
 
-Examples with extracted details:
-✅ "Colonel Eli Cohen Damascus apartment 1960s black and white"
-✅ "KGB General briefing room Moscow 1970s vintage photo"
-✅ "Mossad agents briefcase exchange foggy Paris café 1973 archival"
-✅ "hidden camera radio equipment Berlin safehouse 1960s grainy photo"
-✅ "Prime Minister Golda Meir war room 1973 black and white photo"
+CORRECT Examples with PEOPLE + ACTIONS:
+✅ "hotel worker pushing cleaning cart hallway 1980 black and white"
+✅ "man in uniform knocking hotel door 1980 archival photo"
+✅ "Dr. El Mashad writing desk hotel room 1980 vintage photo"
+✅ "Colonel Eli Cohen operating radio Damascus apartment 1960s black and white"
+✅ "KGB General briefing officers Moscow 1970s vintage photo"
+✅ "Mossad agents exchanging briefcase foggy Paris café 1973 archival"
+✅ "Prime Minister Golda Meir meeting cabinet war room 1973 black and white"
 ✅ "agents crossing checkpoint rainy night Berlin 1970s vintage"
-✅ "Soviet Ambassador UN meeting hall 1960s archival photograph"
-✅ "KGB officers Moscow headquarters 1970s black and white"
-✅ "Berlin Wall checkpoint vintage photograph 1960s"
-✅ "Mossad agents briefing room grainy 1980s photo"
-✅ "CIA surveillance equipment archival image 1970s"
-✅ "Soviet embassy Paris Cold War era photograph"
+✅ "Soviet Ambassador speaking UN meeting hall 1960s archival photograph"
+✅ "KGB officers walking Moscow headquarters 1970s black and white"
+✅ "CIA agent installing surveillance equipment 1970s archival image"
+✅ "soldier patrolling Berlin Wall checkpoint 1960s vintage photograph"
 
-
-❌ "betrayal and deception" (too abstract, no details)
-❌ "tense meeting room" (no names, ranks, location, or time)
-❌ "covert operation" (too generic, missing specifics)
+WRONG Examples (MISSING PEOPLE OR ACTIONS):
+❌ "hotel corridor cleaning cart room 502 1980 archival" (NO PERSON! NO ACTION!)
+❌ "Damascus apartment 1960s black and white" (WHO is there? WHAT are they doing?)
+❌ "briefing room Moscow 1970s vintage photo" (WHO is briefing? WHAT are they doing?)
+❌ "briefcase exchange café 1973 archival" (WHO is exchanging? Need "agents exchanging briefcase")
+❌ "radio equipment safehouse 1960s grainy photo" (WHO is using it? Need "agent operating radio")
+❌ "war room 1973 black and white photo" (WHO is in the room? WHAT are they doing?)
+❌ "checkpoint Berlin 1970s vintage" (WHO is at checkpoint? Need "agents crossing checkpoint")
+❌ "surveillance equipment 1970s archival" (WHO is using it? Need "agent installing equipment")
+❌ "betrayal and deception" (too abstract, no people, no actions, no details)
+❌ "tense meeting room" (no people, no actions, no location, no time)
+❌ "covert operation" (too generic, missing people, actions, specifics)
 
 TIME PERIOD INFERENCE:
 Analyze the full transcript to determine the era, then apply consistently:
@@ -106,49 +147,62 @@ Analyze the full transcript to determine the era, then apply consistently:
 
 If specific years/events are mentioned (Yom Kippur War 1973, Berlin Wall 1989), use those exact years.
 
-SCENE TYPES & DETAIL EXAMPLES:
+SCENE TYPES & DETAIL EXAMPLES (ALL INCLUDE PEOPLE + ACTIONS):
 
-**Espionage Operations (with equipment/actions):**
-• "Eli Cohen hidden camera Damascus apartment 1960s black and white"
-• "CIA agent briefcase dead drop Vienna café 1970s vintage"
-• "KGB officer listening device installation 1980s archival photo"
-• "Mossad operative coded message exchange 1973 grainy photo"
-• "Mossad safe house Tel Aviv 1970s black and white"
-• "CIA agents covert meeting Vienna 1960s vintage photo"
-• "KGB surveillance room Moscow archival 1980s"
+**Espionage Operations (PERSON + ACTION + equipment):**
+✅ "Eli Cohen operating hidden camera Damascus apartment 1960s black and white"
+✅ "CIA agent placing briefcase dead drop Vienna café 1970s vintage"
+✅ "KGB officer installing listening device 1980s archival photo"
+✅ "Mossad operative exchanging coded message 1973 grainy photo"
+✅ "agent entering Mossad safe house Tel Aviv 1970s black and white"
+✅ "CIA agents meeting covertly Vienna 1960s vintage photo"
+✅ "KGB officer monitoring surveillance room Moscow 1980s archival"
 
+**Political/Diplomatic (PERSON + ACTION + context):**
+✅ "Prime Minister Golda Meir leading cabinet meeting 1973 black and white"
+✅ "Foreign Minister addressing UN Security Council 1970s archival"
+✅ "Soviet Ambassador Dobrynin entering White House 1960s vintage photo"
+✅ "diplomats debating UN Security Council 1970s historical photograph"
+✅ "ambassadors meeting diplomatic hall Cold War era black and white"
+✅ "diplomat walking embassy corridor 1960s grainy photo"
 
-**Political/Diplomatic (with ranks/names):**
-• "Prime Minister Golda Meir cabinet meeting 1973 black and white"
-• "Foreign Minister briefing UN Security Council 1970s archival"
-• "Soviet Ambassador Dobrynin White House 1960s vintage photo"
-• "UN Security Council 1970s historical photograph"
-• "diplomatic meeting Cold War era black and white"
-• "embassy corridor 1960s grainy photo"
+**Military/Conflict (PERSON + ACTION + equipment):**
+✅ "Israeli Colonel briefing officers Sinai desert 1973 archival photo"
+✅ "General inspecting troops checkpoint 1967 black and white"
+✅ "military radio operator using field equipment 1970s vintage"
+✅ "soldier patrolling border checkpoint 1960s archival photo"
+✅ "commander studying maps war room 1973 black and white"
 
+**Surveillance/Operations (PERSON + ACTION + equipment):**
+✅ "agents tailing suspect foggy Prague street 1960s black and white"
+✅ "agent watching through binoculars rooftop Paris 1970s grainy photo"
+✅ "officer checking passport border crossing Berlin 1960s archival"
+✅ "agent walking foggy Prague street 1960s black and white photo"
+✅ "operative entering Paris café Cold War era photograph"
+✅ "KGB officer walking Moscow street 1980s grainy film"
 
-**Military/Conflict (with ranks/equipment):**
-• "Israeli Colonel Sinai desert briefing 1973 archival photo"
-• "General inspecting troops checkpoint 1967 black and white"
-• "military radio operator field equipment 1970s vintage"
+**Interior Spaces (PERSON + ACTION + environmental detail):**
+✅ "officer interrogating suspect dim overhead light 1970s archival"
+✅ "generals studying maps war room 1973 black and white photo"
+✅ "agent operating radio safehouse basement 1960s vintage"
+✅ "man writing desk hotel room dim light 1980s archival photo"
+✅ "officers briefing room overhead light vintage 1960s"
+✅ "agent sitting hotel room Cold War era black and white"
 
-**Surveillance/Operations (with actions/equipment):**
-• "agents tailing suspect foggy Prague street 1960s black and white"
-• "binoculars rooftop surveillance Paris 1970s grainy photo"
-• "border crossing passport check Berlin 1960s archival"
-• "foggy Prague street 1960s black and white photo"
-• "Paris café exterior Cold War era photograph"
-• "Moscow street scene 1980s grainy film"
+**Hotel/Civilian Scenes (PERSON + ACTION + context):**
+✅ "hotel worker pushing cleaning cart hallway 1980 black and white"
+✅ "man in uniform knocking hotel door 1980 archival photo"
+✅ "receptionist working hotel lobby desk 1970s vintage photo"
+✅ "guest entering hotel room 1980s archival photograph"
+✅ "worker opening door hotel corridor 1980 black and white"
 
-
-**Interior Spaces (with environmental detail):**
-• "interrogation dim overhead light bare room 1970s archival"
-• "war room maps telephone officers 1973 black and white photo"
-• "safehouse basement radio equipment 1960s vintage"
-OR
-• "dim interrogation room 1970s archival photo"
-• "briefing room overhead light vintage 1960s"
-• "hotel room Cold War era black and white"
+WRONG Examples (NO PEOPLE OR ACTIONS):
+❌ "hotel corridor cleaning cart 1980 archival" (WHERE IS THE WORKER?)
+❌ "interrogation room 1970s archival" (WHO is being interrogated?)
+❌ "war room maps 1973 black and white" (WHO is in the war room?)
+❌ "Prague street 1960s black and white" (WHO is on the street?)
+❌ "Paris café 1970s photograph" (WHO is at the café?)
+❌ "hotel room 1980 black and white" (WHO is in the room?)
 
 
 CONSISTENCY REQUIREMENTS (CRITICAL):
@@ -267,23 +321,53 @@ Example Input:
 [0-5400ms]: In 1965, Colonel Eli Cohen, working undercover in Damascus, used a hidden radio transmitter to send classified Syrian military plans back to Mossad headquarters in Tel Aviv.
 [5400-10800ms]: Syrian intelligence officers burst into his apartment during a rainy night, finding the concealed equipment in a briefcase.
 [10800-16200ms]: Prime Minister Levi Eshkol received the news in a tense cabinet meeting, surrounded by military advisors studying maps under dim lights.
+[16200-21600ms]: The bird is awake. Inside the hotel, a man in a hotel uniform pushed the cleaning cart down the fifth floor hallway. The wheels made a soft squeak that nobody heard. He stopped outside room 502.
 
-Example Output:
+Example Output (NOTICE: Every query has PERSON + ACTION):
 [
   {
     "start": 0,
     "end": 5400,
-    "query": "Colonel Eli Cohen radio transmitter Damascus apartment 1965 black and white"
+    "query": "Colonel Eli Cohen operating radio transmitter Damascus apartment 1965 black and white"
   },
   {
     "start": 5400,
     "end": 10800,
-    "query": "Syrian officers rainy night apartment raid briefcase 1965 vintage photo"
+    "query": "Syrian officers raiding apartment rainy night briefcase 1965 vintage photo"
   },
   {
     "start": 10800,
     "end": 16200,
-    "query": "Prime Minister Eshkol cabinet meeting maps dim light 1965 archival"
+    "query": "Prime Minister Eshkol cabinet meeting advisors studying maps 1965 archival"
+  },
+  {
+    "start": 16200,
+    "end": 21600,
+    "query": "hotel worker pushing cleaning cart fifth floor hallway 1980 black and white"
+  }
+]
+
+WRONG Output (MISSING PEOPLE/ACTIONS - DO NOT DO THIS):
+[
+  {
+    "start": 0,
+    "end": 5400,
+    "query": "radio transmitter Damascus apartment 1965 black and white"  ❌ NO PERSON!
+  },
+  {
+    "start": 5400,
+    "end": 10800,
+    "query": "apartment raid rainy night briefcase 1965 vintage photo"  ❌ NO SPECIFIC PEOPLE!
+  },
+  {
+    "start": 10800,
+    "end": 16200,
+    "query": "cabinet meeting maps dim light 1965 archival"  ❌ NO PERSON! NO ACTION!
+  },
+  {
+    "start": 16200,
+    "end": 21600,
+    "query": "hotel corridor cleaning cart room 502 1980 archival"  ❌ NO PERSON! NO ACTION!
   }
 ]`;
 
@@ -299,27 +383,47 @@ ${formattedTranscript}
 
 INSTRUCTIONS:
 1. **READ THE FULL TRANSCRIPT FIRST** - Understand the complete narrative, time period, characters, and locations
+
 2. **IDENTIFY CONSISTENCY ELEMENTS:**
    - Which characters appear multiple times? (use same descriptors for them)
    - Which locations appear multiple times? (maintain same atmosphere)
    - What is the time period? (use same year/decade for all queries)
    - Which segments are consecutive in same scene? (maintain visual continuity)
+
 3. **CREATE YOUR STYLE GUIDE:**
    - Determine the exact time period (e.g., "1965" or "1960s") - use for ALL queries
    - Choose 2-3 primary style keywords (e.g., "black and white photo", "vintage") - prefer these throughout
    - Note recurring character names/ranks - reuse exact same descriptors
    - Note recurring locations - maintain same environmental details
+
 4. **GENERATE EXACTLY ${segmentCount} IMAGE SEARCH QUERIES** (one per segment):
+
+   **CRITICAL REQUIREMENT - EVERY QUERY MUST HAVE:**
+   ✅ **PERSON** (name, title, or description: "Colonel Eli Cohen", "hotel worker", "agent", "man in uniform")
+   ✅ **ACTION** (verb: "pushing", "operating", "walking", "meeting", "writing", "entering", "crossing")
+   ✅ **CONTEXT** (location/equipment: "cleaning cart hallway", "radio Damascus", "checkpoint Berlin")
+   ✅ **TIME PERIOD** (consistent year/decade: "1965", "1980", "1960s")
+   ✅ **STYLE** (vintage descriptor: "black and white", "archival photo", "vintage")
+
+   **Query Format:** [PERSON] + [ACTION] + [CONTEXT] + [TIME] + [STYLE]
+
+   Examples:
+   ✅ "hotel worker pushing cleaning cart hallway 1980 black and white"
+   ✅ "Colonel Eli Cohen operating radio Damascus 1965 archival photo"
+   ✅ "agent crossing checkpoint Berlin 1960s vintage photo"
+
+   ❌ WRONG: "hotel corridor cleaning cart 1980 archival" (NO PERSON! NO ACTION!)
+   ❌ WRONG: "Damascus apartment 1965 black and white" (NO PERSON! NO ACTION!)
+   ❌ WRONG: "checkpoint Berlin 1960s vintage" (NO PERSON! NO ACTION!)
+
    - Extract specific details from EACH segment: names, ranks, equipment, actions, locations
    - Apply your style guide consistently across all queries
-   - Each query MUST include:
-     * Concrete visual elements (people, places, objects)
-     * The consistent time period you identified
-     * At least ONE vintage style descriptor
    - Maintain character consistency (same person = same descriptors)
    - Maintain location consistency (same place = same atmosphere)
    - Maintain visual flow between consecutive segments
+
 5. Use the EXACT timestamps provided (do not modify them)
+
 6. Keep each query under 10 words
 
 CRITICAL CONSISTENCY RULES:

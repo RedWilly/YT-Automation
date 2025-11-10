@@ -20,7 +20,7 @@ export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
 export const WORDS_PER_SEGMENT = 110;
-export const POLL_INTERVAL_MS = 10000; // 10 seconds
+export const POLL_INTERVAL_MS = 15000; // 15 seconds when usinng flux or turbo you can use 10000=10second
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration
@@ -31,10 +31,11 @@ export const DISCLAIMER_VIDEO_PATH = "asset/start.mov";
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
 export const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";
-export const AI_IMAGE_STYLE = "digital painting style that imitates vintage oil illustrations mid-19/20th century illustration, with painterly texture, warm muted colors, dramatic lighting, and a vintage illustration aesthetic, no text, no words, no letters, no captions";
-export const AI_IMAGE_MODEL = "turbo"; // Options: flux, kontext, turbo, gptimage
-export const AI_IMAGE_WIDTH = 1920; 
-export const AI_IMAGE_HEIGHT = 1080; 
+export const AI_IMAGE_STYLE = "in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions";
+export const AI_IMAGE_MODEL = "gptimage"; // Options: flux, kontext, turbo, gptimage
+export const AI_IMAGE_WIDTH = 1920;
+export const AI_IMAGE_HEIGHT = 1080;
+export const AI_IMAGE_ASPECT = "16:9"; // For gptimage model only (options: 1:1, 16:9, 9:16, 4:3, 3:4)
 export const AI_IMAGE_NOLOGO = true; // thus when enabled removes pollinations watermarks
 
 // YouTube API Configuration

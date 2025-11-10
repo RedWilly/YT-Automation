@@ -1,0 +1,492 @@
+bun test-workflow.ts
+[Test] ============================================================
+[Test] 🧪 Starting Test Workflow
+[Test] ============================================================
+[Test] Step 1: Getting audio file
+[Test] No audio file specified, searching in tmp/audio
+[Test] Found audio file: How Mossad Turned Saddam's Top Nuclear Scientist I.MP3
+[Test] ✓ Audio file ready: tmp\audio\How Mossad Turned Saddam's Top Nuclear Scientist I.MP3
+[Test] Step 2: Transcribing audio with AssemblyAI
+[Test] 📦 Using cached AssemblyAI upload URL (skipping upload step)
+[Test] Cached URL: https://cdn.assemblyai.com/upload/3c7cba7c-5c84-444f-a580-ef87fbd57030
+[AssemblyAI] Requesting transcription
+[AssemblyAI] Audio URL: https://cdn.assemblyai.com/upload/3c7cba7c-5c84-444f-a580-ef87fbd57030
+[AssemblyAI] ✓ Transcription requested (ID: 59e82336-ad33-481e-9b68-f5db0ebd4a4c)
+[AssemblyAI] Status: completed
+[Test] ✓ Transcription already completed
+[Test] ✓ Transcription completed: 6581 words
+[Test] Transcript text: June 13, 1980 11:47pm in the lobby of the Hotel Le Mdien in Paris, a phone rang behind the front des...
+[Test] Step 3: Processing transcript into segments
+[Transcript] ✓ Validation passed for 6581 words
+[Transcript] Processing 6581 words into segments
+[Transcript]   → 110 words per segment
+[Transcript] Segment 1: 110 words, 0ms-37660ms
+[Transcript] Segment 2: 110 words, 37660ms-77300ms
+[Transcript] Segment 3: 110 words, 77300ms-114980ms
+[Transcript] Segment 4: 110 words, 114980ms-155200ms
+[Transcript] Segment 5: 110 words, 155200ms-193090ms
+[Transcript] Segment 6: 110 words, 193090ms-226970ms
+[Transcript] Segment 7: 110 words, 226970ms-262410ms
+[Transcript] Segment 8: 110 words, 262410ms-299880ms
+[Transcript] Segment 9: 110 words, 299880ms-336029ms
+[Transcript] Segment 10: 110 words, 336029ms-375810ms
+[Transcript] Segment 11: 110 words, 375810ms-411760ms
+[Transcript] Segment 12: 110 words, 411760ms-451910ms
+[Transcript] Segment 13: 110 words, 451910ms-486150ms
+[Transcript] Segment 14: 110 words, 486150ms-526050ms
+[Transcript] Segment 15: 110 words, 526050ms-566600ms
+[Transcript] Segment 16: 110 words, 566600ms-603890ms
+[Transcript] Segment 17: 110 words, 603890ms-640200ms
+[Transcript] Segment 18: 110 words, 640200ms-678390ms
+[Transcript] Segment 19: 110 words, 678390ms-715670ms
+[Transcript] Segment 20: 110 words, 715670ms-758100ms
+[Transcript] Segment 21: 110 words, 758100ms-796600ms
+[Transcript] Segment 22: 110 words, 796600ms-836930ms
+[Transcript] Segment 23: 110 words, 836930ms-880550ms
+[Transcript] Segment 24: 110 words, 880550ms-917620ms
+[Transcript] Segment 25: 110 words, 917620ms-950370ms
+[Transcript] Segment 26: 110 words, 950370ms-987550ms
+[Transcript] Segment 27: 110 words, 987550ms-1026100ms
+[Transcript] Segment 28: 110 words, 1026100ms-1061860ms
+[Transcript] Segment 29: 110 words, 1061860ms-1096960ms
+[Transcript] Segment 30: 110 words, 1096960ms-1132230ms
+[Transcript] Segment 31: 110 words, 1132230ms-1171860ms
+[Transcript] Segment 32: 110 words, 1171860ms-1208070ms
+[Transcript] Segment 33: 110 words, 1208070ms-1246320ms
+[Transcript] Segment 34: 110 words, 1246320ms-1283650ms
+[Transcript] Segment 35: 110 words, 1283650ms-1319750ms
+[Transcript] Segment 36: 110 words, 1319750ms-1359480ms
+[Transcript] Segment 37: 110 words, 1359480ms-1397770ms
+[Transcript] Segment 38: 110 words, 1397770ms-1438430ms
+[Transcript] Segment 39: 110 words, 1438430ms-1477160ms
+[Transcript] Segment 40: 110 words, 1477160ms-1515460ms
+[Transcript] Segment 41: 110 words, 1515460ms-1550450ms
+[Transcript] Segment 42: 110 words, 1550450ms-1586660ms
+[Transcript] Segment 43: 110 words, 1586660ms-1622910ms
+[Transcript] Segment 44: 110 words, 1622910ms-1665380ms
+[Transcript] Segment 45: 110 words, 1665380ms-1699190ms
+[Transcript] Segment 46: 110 words, 1699190ms-1732740ms
+[Transcript] Segment 47: 110 words, 1732740ms-1767960ms
+[Transcript] Segment 48: 110 words, 1767960ms-1806810ms
+[Transcript] Segment 49: 110 words, 1806810ms-1845440ms
+[Transcript] Segment 50: 110 words, 1845440ms-1884080ms
+[Transcript] Segment 51: 110 words, 1884080ms-1923160ms
+[Transcript] Segment 52: 110 words, 1923160ms-1960500ms
+[Transcript] Segment 53: 110 words, 1960500ms-1999780ms
+[Transcript] Segment 54: 110 words, 1999780ms-2036310ms
+[Transcript] Segment 55: 110 words, 2036310ms-2075320ms
+[Transcript] Segment 56: 110 words, 2075320ms-2117510ms
+[Transcript] Segment 57: 110 words, 2117510ms-2151680ms
+[Transcript] Segment 58: 110 words, 2151680ms-2191380ms
+[Transcript] Segment 59: 110 words, 2191380ms-2225950ms
+[Transcript] Segment 60: 91 words, 2225950ms-2253940ms
+[Transcript] ✓ Created 60 segments total
+[Test] ✓ Created 60 segments
+[Test] Step 4: Generating image search queries with DeepSeek
+[DeepSeek] Generating image search queries
+[DeepSeek]   → 60 segments
+[DeepSeek] Formatted transcript:
+[0–37660ms]: June 13, 1980 11:47pm in the lobby of the Hotel Le Mdien in Paris, a phone rang behind the front desk. The night clerk picked it up. He listened for 10 seconds, then hung up. He looked at the guest list for the fifth floor, room 502. Dr. Yahya El Mashad. He checked in three days ago. The clerk reached for a key. Across the street, in a Reno, parked under a broken street lamp, a man lowered his binoculars. He he tapped the driver on the shoulder. He's still awake, he said in Hebrew. Lights are on. Sixth night in a row. The driver just nodded. He'd heard it
+[37660–77300ms]: all before. For two weeks they'd taken shifts in this car, watching the hotel. They'd watched Dr. El Mashad leave each morning at 7:30am Always carrying the same leather briefcase. They'd watched him return at 6pm always alone. They'd watched him eat dinner at the same cafe on Avenue de Terrans, or always ordering the same dish. He was a man of patterns. Mossad liked patterns. Patterns made people predictable. In the backseat, a woman quietly cleaned a camera lens with a soft cloth. She didn't look up. The cleaner comes tomorrow, she said. The real one. Not our guy. Then Tonight's the night, the driver said. They'd been calling
+[77300–114980ms]: him the scientist in their reports, but now they knew his name, his history, his his worth to Saddam Hussein. Dr. Yahya El Mashad, Egypt's top nuclear physicist, had come to Paris for uranium enrichment equipment. He was the brain behind Iraq's atomic bomb program, the man who could turn Saddam's dreams of a superweapon into something real. And that made him the most dangerous man in the Middle East. The man with the binoculars looked at his watch. 11:52pm Tell the team to move, he said. The woman got out of the car and walked to a phone booth on the corner. She dialed a number and spoke. 3.
+[114980–155200ms]: The bird is awake. Inside the hotel, a man in a hotel uniform pushed the cleaning cart down the fifth floor hallway. The wheels made a soft squeak that nobody heard. He stopped outside room 502. He knocked twice. Housekeeping, he said quietly. Forgot to leave fresh towels. No answer. He knocked again. Still nothing. He slipped a key into the lock. It turned silently. The door opened two inches. Inside, the room was dark except for a single lamp near the window. Dr. El Mashad sat at a small desk, his back to the door, writing in a notebook. He wore glasses. His hair was gray at the temples.
+[155200–193090ms]: He looked tired. The man with the cart stepped inside and closed the door behind him. The lock clicked Dr. El Michaud turned around. Who are you? He asked in French. The man didn't answer. He just walked toward the desk, slowly, his hands empty. Dr. Michaud, he said in accented English. We need to talk. Dr. Michaud stood up. He was tall, thin, with the careful movements of a man who spent his life around dangerous materials. I didn't call for anyone I know, the man said. That's why I'm here. He reached into his uniform pocket and pulled out a small wallet. He opened it. Inside was no
+[193090–226970ms]: ID, just a single photograph. Dr. Michad looked at it. His face changed. The color left his cheeks. The photograph showed his daughter playing in a garden in Baghdad. It had been taken last week. The man in the uniform put the wallet away. Please, he said, sit down. This will only take a few minutes. Then you can go back to your work. Dr. Michaud looked at the window as if thinking about running, but they were on the fifth floor. He looked at the door, but the man stood between him and it. Finally, he sat down. The man pulled up a chair and sat across from him.
+[226970–262410ms]: He took out a pack of cigarettes and offered one. Dr. Michaud shook his head. The man lit one for himself. The smoke rose between them in a thin line. Doctor, he said quietly, you know why you're in Paris? We. We know why you're in Paris. The equipment you're trying to buy, the contacts you're meeting, the plans in your briefcase. We know all of it. Dr. Michaud's hands were shaking slightly. He put them on his knees. I am a scientist, he said. I work for my country. You're building a bomb, the man said, not angry, just stating a fact. I am building power plants for electricity.
+[262410–299880ms]: The man smiled a little. It wasn't a friendly smile. Doctor, let's not waste time. You and I both know Iraq doesn't need nuclear power plants. Iraq has oil. Iraq has gas. What Iraq wants is what Israel already fears, and we can't let that happen. He leaned forward. But here's the thing. We don't want to hurt you. We don't want to hurt your family. We just want to help you make the right choice. Dr. Michad looked at him. What choice? The choice to work for us instead. To tell us what Saddam is planning, to give us the names, the timelines, the locations to be our eyes
+[299880–336029ms]: inside his program. Dr. Michhad laughed. It was a short, sharp sound. You want me to be a traitor? I want you to be smart, the man said. I want you to understand that Saddam's Dream ends in fire. Not just for Israel. For Iraq, for your family. For you. He tapped his cigarette into a small glass ashtray. Think about it. You get paid. Your family stay safe. You get to keep doing your work, just with different bosses. Dr. Michaud stood up again. He walked to the window and looked out at the Paris lights. And if I say no? The man didn't answer right away. He just
+[336029–375810ms]: smoked his cigarette and watched the scientist's back. Finally he said, then this conversation never happened. You go to your meetings tomorrow, you buy your equipment, you fly back to Baghdad, and we hope you succeed in building a power plant. He paused. But Doctor, we both know what you're really building. Dr. Machad turned around. His face was hard now. I won't do it, he said. I am an Iraqi citizen. I am an Arab. I will not betray my people to you. The man nodded. Slowly he put out his cigarette. He stood up. I understand, he said. He walked to the door and opened it. The hallway
+[375810–411760ms]: was empty. Enjoy the rest of your stay in Paris, Doctor. He left the door closed quietly. Dr. Michaud stood alone in his room. He looked at the door. He looked at his notebook on the desk. He looked at his briefcase by the bed. He felt something cold in his chest, like ice spreading. He didn't know that three floors down, in a room registered to a Swiss tourist who didn't exist, the man in the uniform was making a phone call. The answer was no, he said. On the other end of the line, a voice said, are you sure? Yes. Then we moved to the next stage.
+[411760–451910ms]: The man hung up. He looked at his watch. 12:14am Outside, the rental started and drove away into the Paris night. The surveillance was over. The next phase was about to begin. The rental turned down a side street in the 17th arrondissement and stopped behind the flower shop that wouldn't open for six hours. The the three agents got out without speaking. They walked single file through a narrow passage that smelled of damp newspaper and old bread, then climbed the metal staircase to the second floor of an apartment building. The door had no number. The driver knocked twice, paused, knocked once more. The door opened. A woman
+[451910–486150ms]: in her 40s with short dark hair let them in. She didn't ask questions. She just locked the door behind them and went to the window to check the street. Inside, the apartment was bare. No pictures on the walls, no books on the shelves. Just a table, four chairs, a radio, and a telephone that wasn't connected to the French network. The man in the uniform, his name was Daniel, though nobody used names here. Took off his hotel jacket and folded it carefully. He placed it in a plastic bag. The woman took it without a word and disappeared into another room. She would burn it later. The
+[486150–526050ms]: driver, whose name was Ari, sat at the table and took out a small notebook. He wrote down the 12:31am he wrote down the room number, 502. He wrote down the answer. Negative. Then he looked at Daniel. You're sure? Daniel was washing his hands in the small kitchen sink. The water ran cold. He said, no. He meant no. The woman came back. She had a bottle of cognac and three glasses. She poured without asking if anyone wanted it. They all drank. The alcohol burned. Outside, Paris was quiet. A cat cried in the alley. At 1:15am the phone on the table rang. It was the secure line.
+[526050–566600ms]: Ari answered. He listened for two minutes. He said, understood. He hung up. He looked at the other two. Tel Aviv approves the next stage. The cleaner gets his window tomorrow morning, 7:30 to 8:00am Daniel nodded slowly. He poured himself another drink. He didn't like this part, but he never let it show. Does he know what's coming? The scientist? Ari said no. But he's smart. He'll figure it out. Three floors below, in room 502, Dr. Yahya El Mashad sat in the dark. He hadn't moved for 40 minutes. His notebook was still open on the desk. The page was blank. He kept seeing the photograph of his
+[566600–603890ms]: daughter. He kept hearing the man's voice. We hope you succeed in building a power plant. He knew what that meant. He'd read about what happened to other scientists who said no to Mossad, the ones who had accidents, the ones who disappeared. He'd always thought it was propaganda. Arab radio stations love to blame Israel for everything. But now he wasn't so sure. He got up and went to his briefcase. He opened it. Inside were papers, technical drawings, a list of suppliers in Brussels and Paris. He took out the list and held it over the ashtray. He had a lighter in his pocket. He flicked it. The
+[603890–640200ms]: flame danced. But he couldn't do it. These weren't just his contacts. They were his country's only chance to join the nuclear age, to have a seat at the table, to not be pushed around by Israel or America or Iran. He put the list back. He closed the briefcase. He lay down on the bed and stared at the ceiling. He didn't sleep. At 6am his alarm went off. He showered. He shaved. He dressed in the same suit he'd worn the day before. At 7:15am he went down to the hotel restaurant and drank a Coffee. It tasted bitter. The waiter brought him a croissant. He didn't eat.
+[640200–678390ms]: He looked at the other guests. A German businessman reading a newspaper. A. A French couple arguing quietly. Two Japanese tourists studying a map. Everyone looked normal. Nobody looked like a killer. At 7:45am he paid his bill and went back to his room. He needed to prepare for his meeting at 9am with a company called Kojima. They sold uranium enrichment equipment. He'd been negotiating with them for three weeks. Today was the day they would agree on price. Everything depended on it. He unlocked his door and went inside. The room had been cleaned. The bed was made. Fresh towels hung in the bathroom. The window was open
+[678390–715670ms]: to let in the June air. On the desk, his notebook lay exactly where he'd left it. But something was different. The lampshade was crooked, just a little. He always straightened it. Always. It was a habit from his lab days. Everything had to be precise. He walked to the desk. He touched the lamp. He. He looked around the room. Nothing else seemed wrong. Just a lamp. He told himself he was being paranoid. Massaad didn't break into rooms to adjust lamps. They broke into rooms to. He didn't finish the thought. He sat down and opened his notebook. He tried to focus on the numbers for the meeting.
+[715670–758100ms]: The half life of Uranium235, the specifications for the gas centrifuges, the timeline Saddam had given him. Have the bomb ready by 1985. But his mind kept going back to the lamp. At 8am in the apartment above the flower shop, the phone rang again. Ari answered. He listened. He said, thank you. He hung up. He looked at Daniel and the woman. The cleaner reports the room is empty. The scientists left for his meeting early. Daniel let out a breath he didn't know he was holding. So. So we wait, Ari said. He'll be back. They always come back. At 8:45am Dr. Yahya El Mashad walked into the
+[758100–796600ms]: offices of Cogema on Rue de Courcelles. The receptionist smiled at him. She recognized him now. He'd been here three times in as many weeks. Monsieur Meshade, she said in French. They are waiting for you in Conference Room B. He nodded and followed her down a corridor lined with posters showing nuclear reactors and smiling families. And the posters promised a clean energy future. He had always found them ironic. His own work had nothing to do with smiling families. In the conference room, three men stood up. Two were French engineers. The third was a man in a dark suit who didn't introduce himself. Dr. Michaud shook hands
+[796600–836930ms]: with the engineers. The man in the suit just nodded. He had a face that looked like it had been carved from stone. The meeting started like the others. They talked about centrifuge specifications, about uranium hexafluoride gas, about delivery schedules. Dr. Micha took notes. The man in the suit watched him write. He didn't take any notes himself. He just watched. At 9:30am the senior engineer slid a paper across the table. It was a price quote. Dr. Michaud looked at it. It was three times higher than they'd discussed. He looked up. This is wrong, he said. The engineer smiled politely. Market conditions have changed. The price of
+[836930–880550ms]: titanium has gone up. Also, there are complications with export licenses. What complications? The man in the suit finally spoke. His voice was soft. Certain governments have expressed concerns about end users. Dr. Michat felt something cold in his stomach. What governments? I think you know, the man said. The room got quiet. The two engineers suddenly found their papers very interesting. They shuffled them and looked at their watches. Dr. Michaud stood up. He put his notebook in his briefcase. I think we're done here, doctor, the man in the suit said. Consider the price a favor. A warning, if you will. Some doors are better left unopened. Dr.
+[880550–917620ms]: Michaud left the room without answering. He walked past the receptionist, who didn't smile this time. He pushed through the glass doors and stood on the sidewalk. In the June sun. He felt like he couldn't breathe. He started walking. He didn't know where, just away. He walked for six blocks before he realized he was being followed. It wasn't obvious, just a man in a blue jacket reading a newspaper, staying exactly one block behind. When Dr. Michat stopped to cross the street. The man stopped to tie his shoe. When Dr. Michat turned left, the man turned left. Dr. Micha ducked into a metro station. He jumped on  
+[917620–950370ms]: the first train that came, not caring where it went. He got off three stops later and ran up the stairs into the daylight. He looked around. The man in the blue jacket was gone. But now there was a woman with a shopping bag standing by a newsstand. She was looking at him. He started walking again, faster this time. He turned down a narrow street lined with bakeries. The the smell of fresh bread made him sick. He turned again and found himself in a small square with a fountain. He sat on a bench. His hands were shaking. He put them between his knees to stop them.
+[950370–987550ms]: A boy on a bicycle rode past. The boy looked at him too long. Dr. Michat stood up and walked back to the hotel. At 11am the phone rang in the apartment above the flower Shop, Ari answered. He listened. He wrote something down. He hung up and looked at Daniel. He he's back. Went straight to his room. He's packing. Daniel was cleaning his gun. He didn't look up. Packing? His flight isn't until tomorrow night, but he's packing now. Scared, the woman said. She was at the window again, watching pigeons land on the roof across the street. He should be. Ari nodded. He picked up the phone
+[987550–1026100ms]: again and dialed a number in Tel Aviv. He waited while it rang. A voice answered. Ari said, the subject is preparing to leave early. Recommend we move tonight. The voice on the other end said two words. Ari hung up. Approval? Daniel asked. Yes. At 6pm Dr. Michaud came downstairs to the hotel restaurant again. He didn't eat. He just sat at the same table and drank three glasses of wine, one after another. The waiter noticed but didn't say anything. The German businessman was there again, so still reading his newspaper. It was the same newspaper as this morning. Dr. Michaud noticed that. He went back to his    
+[1026100–1061860ms]: room at 7:30pm he locked the door. He put a chair under the handle, though he knew it wouldn't stop anyone who really wanted to come in. He sat on the bed and turned on the tv. The news was in French. He didn't understand most of it. He just needed the noise. At 11:15pm There was a knock on his door. Soft. Three taps. Pause two more. Dr. Michaud didn't move. He just sat on the bed, staring at the door. The knock came again. Room service, a voice said. You left a message for a wake up call. Dr. Michaud stood up. He walked to the door. He
+[1061860–1096960ms]: looked through the peephole. He saw a man in a hotel uniform holding a tray with a coffee pot. The man looked familiar. It was the same man from last night. Dr. Michaud didn't open the door. He just stood there, breathing. The man outside knocked again. Doctor, a voice said. I have your coffee. Dr. Michaud stood up. He walked to the door. He looked through the peephole. He saw a man in a hotel uniform holding a tray with a coffee pot. The man looked familiar. It was the same man from last night. Dr. Michaud didn't open the door. He just stood there, breathing. The the man
+[1096960–1132230ms]: outside Knocked again. Doctor, I have your coffee. Dr. Michaud backed away from the door. He looked at the window. Fifth floor. He looked at the phone. He picked it up. There was no dial tone. Just silence. He put the phone down. The knock came again, harder this time. Dr. Michad, the voice said. We need to talk again. Dr. Michad went to his briefcase. He opened it. He took out the list of contacts. He held it in his hands. Then he walked to the bathroom and closed the door. He sat on the edge of the bathtub and waited. Outside. He heard a key slide into the
+[1132230–1171860ms]: lock. He heard the door open. The bathroom door was thin. Dr. Michaud could hear footsteps on the carpet. Beware. Careful. Quiet. He held his breath. The list of contacts was still in his hand. He started tearing it into small pieces. He dropped them in the toilet. The footsteps stopped outside the bathroom door. There was a knock. Doctor, the voice said. It was calm, almost gentle. Open the door. This doesn't have to be difficult. Dr. Micha didn't answer. He kept tearing paper. Doctor, I'm coming in. The door handle turned. The lock was weak. It broke with a small click. The door opened. The man from last  
+[1171860–1208070ms]: night stood there. He wasn't wearing the hotel uniform now, the just a dark shirt and pants. His hands were empty. He looked at Dr. Micha sitting on the edge of the bathtub, at the shredded paper in his hands, at the toilet bowl full of confetti. That won't help, the man said. He stepped into the bathroom. The space was tight. Dr. Michad could smell cigarette smoke on him. We already have copies of everything. Dr. Michaud looked up. Then why are you here? Because you still have a choice, the man said. He knelt down so they were eye level. Your final choice. Cooperate and you walk out
+[1208070–1246320ms]: of this hotel tonight. You take a flight to Geneva. You start a new life. Your family gets to keep theirs. Dr. Michaud's voice was quiet. And if I still say no? The man didn't answer right away. He looked at the floor, at the white tiles. Then he looked back at Dr. Michad. Then your work ends here. Take tonight in this bathroom. Dr. Michad nodded slowly. He understood. He'd understood from the moment he saw his daughter's photograph. He stood up. The man stood up too. I am an Iraqi citizen, Dr. Michhad said. I am a scientist. I will not be your spy. The man sighed. It
+[1246320–1283650ms]: was a small sound, almost sad. I thought you might say that. He moved quickly. Not rushed, just efficiently. He took Dr. Michad's arm, turned him around, and pushed his head down into the bathtub. Dr. Michad struggled, but the man was stronger. He held him there, face down in the empty tub, while Dr. Michaud's legs kicked against the tiles. It didn't take long. Three minutes, maybe four. When it was done, the man let go Dr. Michad's body slumped into the tub. The man straightened his own shirt. He looked at himself in the bathroom mirror. His face was calm. He'd done this before. He walked out of
+[1283650–1319750ms]: the bathroom and closed the door behind him. He went to the desk and picked up Dr. Michaud's notebook. He flipped through the pages. They were full of equations, diagrams, notes in Arabic. He put it in his bag. He took the briefcase too. He made one final phone call from the room phone. He said two words. It's done. Then he left. He walked down the hallway, took the service elevator to the basement and. And disappeared into the Paris Morning. At 6am the real hotel cleaner found Dr. Michaud. She screamed. The night manager called the police. By 7am the room was full of French detectives. They took
+[1319750–1359480ms]: photographs. They dusted for fingerprints. They found nothing useful. The coroner would later rule it a heart attack. A tragic accident. A scientist overworked, under stress, dying alone in a foreign city. The bruising on his neck was attributed to his fall into the tub. The broken lock on the bathroom door was noted, but not pursued. The missing notebook and briefcase were recorded as theft after death. In Baghdad, Saddam Hussein received the news by encrypted telegram. He threw a glass against the wall. Dr. Mashad was irreplaceable. He was the only nuclear physicist in Iraq who understood both the theory and the engineering. Without him, the bomb program
+[1359480–1397770ms]: would stall. The timeline would stretch. The dream would fade. In Tel Aviv, the director of Mossad read the same report. He closed the file and placed it in a cabinet marked Operation Sphinx. He didn't smile. He didn't celebrate. He just looked at the calendar. Three months until the Osirak reactor was ready for its first fuel load. They had bought time. That was all they'd ever wanted. The director of Mossad left his office at 7pm he walked down a hallway lined with similar cabinets. Each one held a name. Each name represented a problem that had been solved. Or a problem that was still being solved. Operation
+[1397770–1438430ms]: Sphinx was just one of 12 active operations aimed at Iraq's weapons programs. The director didn't think about Dr. Mashad again. He thought about the reactor. Osirak, the French built nuclear reactor outside Baghdad. The real target, Dr. Machad, had been the brain. But Osirak was the body. Without the brain, the body would still function for a while. The reactor would be finished. The fuel would arrive. The Iraqis would find another scientist. Maybe not as good, but good enough. Good enough to build a bomb. Eventually, the director walked into a briefing room where six men sat around the table and they were pilots. Their flight suits were
+[1438430–1477160ms]: folded over the backs of their chairs. They looked tired. They'd been training for six months, flying practice runs over the Mediterranean. Learning to drop bombs at low altitude, learning to navigate by landmarks, learning to dodge radar. They didn't know the target yet. They would soon. Gentlemen, the director said. He didn't sit down. The timetable has moved up. The window is now August. One of the pilots, a captain with gray eyes, looked up. Why August? Because the reactor goes hot in September. Once they load the Vuel rods. We can't bomb it. The radiation risk is too high. Too many civilians. The captain nodded. He understood. You
+[1477160–1515460ms]: could bomb a construction site. You couldn't bomb a running reactor. Not without killing thousands. Not without the world turning against you completely. The director walked to a map on the wall and it showed Iraq, Jordan, Saudi Arabia. A red line was drawn from Israel to Baghdad, snaking through the desert. The route is unchanged. You fly low. You stay below radar. You refuel in the air over the Gulf of Aqaba. You approach from the east, where their defenses are weakest. You drop the bombs, you come home. How many? The captain asked. Sixteen mark 84s. £2,000 each. We need at least two direct hits on the reactor
+[1515460–1550450ms]: dome. And if we miss? You won't miss. You've trained on a full scale model in the Negev. You know every inch of that building. The pilots looked at each other. They knew the training. They knew the risks. They knew that three of them might not come back. Iraqi air defenses were Russian made and updated. They had Sam sixes, they had MIGs. They had radars that could see a bird at 50 miles. But they also knew what a nuclear Iraq would mean. They'd grown up with the memory of 1973. They'd lived through the war in Lebanon. They'd seen Saddam's chemical weapons used on Iranian soldiers. They
+[1550450–1586660ms]: knew what he would do with a bomb. The captain stood up. We'll be ready. The director nodded. He left the room. He had other meetings, other scientists to track, other reactors to worry about. Syria was building one. Iran was starting. Pakistan had already tested. The genie was out of the bottle. Massad was just trying to slow it down. In Baghdad, three days after Dr. Mashad's death, a meeting was held in a concrete bunker under the Republican Palace. Saddam Hussein wasn't there. He stayed in his palace, surrounded by guards. But his brother in law, Hussein Kamel, chaired the meeting. He was the head of Iraq's weapons
+[1586660–1622910ms]: programs. He was a man who solved problems with violence. We need a replacement, kamel said. He looked at the dozen scientists around the table. Most of them were younger than Dr. Michad. Most of them had studied in Europe or America. Most of them were scared. One man raised his hand. His name was Dr. Khalid Ibrahim. He'd worked with Dr. Mashad for five years. I can take over the enrichment program, but I need the notes. I need his notebooks. His notebooks were stolen in Paris, kamel said. Mossad has them. The room went quiet. Everyone knew what that meant. If Massad had the notes, they knew everything.     
+[1622910–1665380ms]: The designs, the suppliers, the timeline, the weaknesses. Then we change everything, Dr. Ibrahim said quietly. We start over. New designs, new suppliers, new timeline. How long? Kamel asked. Three years. Maybe four. Kamel stood up. He walked around the table slowly. His boots made a heavy sound on the concrete floor. You have one year. The reactor will be operational in three months. After that we can produce plutonium. We don't need enrichment for that. We can do it the old way. Dr. Ibrahim nodded. He understood. Plutonium was easier than uranium. You just needed a working reactor, and Osirak would be working soon. But he also understood something
+[1665380–1699190ms]: else. If Mossad killed Dr. Machad, they knew about Osirac. They would come for it next. He just didn't know how or when. In Paris, the man who called himself Daniel boarded a flight to Tel Aviv. He flew economy. He read a magazine. He didn't think about the scientists in the bathtub. He thought about his own daughter, who was turning 6 next week. He thought about her birthday party. He thought about the cake. When the plane landed, he went through customs like any other Israeli citizen. Returning home, he took a taxi to his apartment in Herzilya. He kissed his wife. He played with his daughter. He
+[1699190–1732740ms]: told her he was sorry he missed so much that night. After his daughter was asleep, he sat on his balcony and looked at the Mediterranean. He thought about the captain with gray eyes and the six pilots. He thought about the 16 bombs. He thought about the men who would die in Baghdad, both the ones they meant to kill and the ones they didn't. He drank a glass of wine and told himself it was necessary. It was always necessary. Then, on June 7, 1981, 3:15am the pilots woke to the sound of trucks moving across a tarmac at Etc. An air force base. They'd slept in a
+[1732740–1767960ms]: barracks near the flight line, but none of them had really slept. They just land their bunks with their eyes closed, listening to the night sounds, thinking about wives, children, parents. The captain with gray eyes thought about his mother, who still lived in Haifa. He wondered if she'd hear the news before he got back. If he got back. They dressed in silence. No jokes, no small talk. They'd said everything the night before during the final briefing. Now there was only the mission. In the ready room, they ate a breakfast of eggs and bread. Nobody tasted it. They drank coffee that burned their tongues. The squadron commander
+[1767960–1806810ms]: stood by the door, watching them. He didn't give a speech. He just said, weather is clear, wind is low. Good flying conditions. At 4am they walked to their planes. Six F16s, painted desert tan. Six F15s for cover. The ground crew had been working on them all night. The bombs were already loaded. 162000 pounder slung under the F16s, heavy enough to sag the wings. The captain climbed the ladder to his cockpit. The crew chief helped him strap in. The chief's hands were steady. He'd done this a hundred times. He patted the captain's helmet and said, come home safe. The captain nodded. He couldn't speak. His throat
+[1806810–1845440ms]: was too tight. At 5:35am the first engine started. The wine cut through the dark. One by one, the others followed. 12 jets, 12 sets of lights. 12 pilots who all thought about the same thing. The reactor dome they'd studied in photographs. The target they'd memorized. The building that looked like a concrete mushroom growing out of the desert. At 5:55am the lead F16 taxied onto the Runway. The captain was third in line. He could see the glow of the afterburners ahead of him. The heat shimmered the air. He pushed his throttle forward and felt the plane lurch, then leap, then lift. The wheels left the ground   
+[1845440–1884080ms]: at 6:02am he pulled back on the stick and climbed into the dark sky. They flew south first over the Red sea, staying low 200ft above the water. The sun was starting to rise behind them, turning the sea gold. To their right, the mountains of Saudi Arabia were black silhouettes. To their left, the desert of Sinai stretched empty and Brown. At 6:45am they refueled in the air, tankers from the Israeli Air Force flying in lazy circles. The F16s took on fuel while still moving, connecting to the boom, drinking thousands of pounds of jet fuel in minutes. One pilot missed his connection twice. His hands were shaking
+[1884080–1923160ms]: too much. The third time, he got it. After refueling, they turned northeast toward Jordan. They flew over the desert at 500ft, following the terrain, using the hills to hide from radar. The Jordanians had old Russian systems, but they were good enough to see you if you flew Too high. So they stayed low, bouncing through the hot air, their bones rattling from the turbulence. At 7:10am they crossed into Iraqi airspace. The radar warning lights stayed dark. They were below the Sweep. In Baghdad, Dr. Khalid Ibrahim was just arriving at the Osirak reactor site. He'd moved his office there after Dr. Michaud's death. He felt safer surrounded
+[1923160–1960500ms]: by soldiers and guards. The reactor dome towered over him. A 60 foot concrete cylinder painted white. Inside, technicians were making final checks. The French engineers were scheduled to load the first fuel rods in September, just three months away. Dr. Ibrahim walked into the control room and checked the gauges. Everything looked normal. He poured himself a cup of tea from a thermos and sat by the window watching the sun rise over the Tigris River. He thought about Dr. Machad. He thought about the missing notebooks. He thought about what the man in the para suit had said. Some doors are better Left unopened. At 7:30am The Israeli
+[1960500–1999780ms]: planes were 60 miles out. The pilots could see the river now, a silver ribbon through the green farmland they could see Baghdad of a horizon, a cluster of gray buildings and smoke. The F16s pulled up to high cover, ready to fight off any Iraqi fighters. The F16s dropped lower to 300ft. The captain's target was the reactor dome. He had two bombs. The first had to hit the center. The second was insurance. He switched on his targeting computer. The crosshairs floated over his canopy, showing him where to aim. He switched off the computer. He'd been trained to do this visually. Computers failed. Eyes didn't. At 7:38am
+[1999780–2036310ms]: he saw the dome. It was exactly like the photographs. White, round, sitting in a compound surrounded by anti aircraft guns that were pointing the wrong way. The Iraqis had expected an attack from Iran, from the east. They hadn't expected Israel from the west. The captain lined up his approach. He was doing 500 knots. The air screamed over his wings. He could see trucks now, soldiers running, guns swinging toward him. They were too late. He pulled back on the stick slightly, popping up to 800ft. He needed altitude for the bomb to arc down cleanly. He pressed the release button. He felt the plane jump as the  
+[2036310–2075320ms]: first bomb fell away. He pressed again. The second bomb followed. He rolled right hard, pulling into a turn that pressed him into his seat. He looked back over his shoulder. The first bomb hit the dome at 7:39am the flash lit up the morning sky. A fireball that rolled up and out, white and orange and black. The second bomb hit two seconds later, punching through the concrete Roof and detonating. Inside, the dome cracked like an eggshell. Down below, Dr. Ibrahim felt the ground shake. His teacup fell and broke. He ran to the window. The dome was gone, just gone, replaced by smoke and flame and rubble.        
+wn the ladder. His legs felt like rubber. The crew chief was there again, pumping his hand, saying something about a perfect mission. The captain just nodded. He walked to the ready room and sat down. He didn't take off his helmet for a long time. In Tel Aviv, the director of Mossad got the call at 10am he listened, said thank you, and hung up. He walked to his window and
+[2151680–2191380ms]: looked out at the city. He thought about Dr. Machad in the bathtub in Paris. He thought about the captain with gray eyes. He thought about Saddam Hussein sitting somewhere in Baghdad, throwing another glass against the wall. He opened the cabinet and pulled out the Operation Sphinx file. He wrote at the bottom. Reactor destroyed. Scientist neutralized. Program delayed Minimum five years. He closed the file and locked it away. In Baghdad, Hussein Kamel arrived at the ruins of a Sirak that afternoon. He stood in the rubble and cursed the Israelis, the Americans, the French, everyone. But Mostly he cursed Dr. Michad. If the scientist had been alive,
+[2191380–2225950ms]: if he'd been there to supervise, maybe the defenses would have been ready. Maybe the attack would have failed. But Dr. Michad was dead. The notebooks were gone. The reactor was gone. Saddam's dream of an atomic bomb was set back a decade. That night, in an apartment in Herzilya, Daniel sat on his balcony again. He heard the news on the radio. The announcer called it a miracle raid. The Prime Minister called it a preemptive strike for peace. And Daniel just looked at the Mediterranean and thought about the man in the bathtub. He wondered if he'd really had to kill him. He wondered if the doctor would
+[2225950–2253940ms]: have changed his mind given time. But time was something they never had. Time was the one thing Mossad couldn't create. They could only steal it, minute by minute, death by death. Bomb by bomb. His daughter came out onto the balcony. She was in her pajamas. Daddy, she said. Why are you sad? He picked her up and held her. He didn't answer. He just looked at the lights along the coast and thought about how easy it was to destroy something and how hard it was to build it.
+
+[DeepSeek] Raw response content:
+```json
+[
+  {
+    "start": 0,
+    "end": 37660,
+    "query": "Hotel Le Medien Paris lobby night 1980 black and white"
+  },
+  {
+    "start": 37660,
+    "end": 77300,
+    "query": "Mossad surveillance car Paris street 1980 vintage photo"
+  },
+  {
+    "start": 77300,
+    "end": 114980,
+    "query": "Dr Yahya El Mashad nuclear physicist 1980 black and white"
+  },
+  {
+    "start": 114980,
+    "end": 155200,
+    "query": "hotel corridor cleaning cart room 502 1980 archival"
+  },
+  {
+    "start": 155200,
+    "end": 193090,
+    "query": "hotel room desk scientist notebook 1980 black and white"
+  },
+  {
+    "start": 193090,
+    "end": 226970,
+    "query": "photograph daughter garden Baghdad 1980 vintage photo"
+  },
+  {
+    "start": 226970,
+    "end": 262410,
+    "query": "hotel room conversation cigarette smoke 1980 black and white"
+  },
+  {
+    "start": 262410,
+    "end": 299880,
+    "query": "nuclear scientist briefcase documents 1980 archival photo"
+  },
+  {
+    "start": 299880,
+    "end": 336029,
+    "query": "hotel room tense conversation 1980 black and white"
+  },
+  {
+    "start": 336029,
+    "end": 375810,
+    "query": "scientist window Paris lights 1980 vintage photo"
+  },
+  {
+    "start": 375810,
+    "end": 411760,
+    "query": "hotel room empty after meeting 1980 black and white"
+  },
+  {
+    "start": 411760,
+    "end": 451910,
+    "query": "Paris street night rental car 1980 archival"
+  },
+  {
+    "start": 451910,
+    "end": 486150,
+    "query": "Mossad safe house Paris apartment 1980 black and white"
+  },
+  {
+    "start": 486150,
+    "end": 526050,
+    "query": "agents table notebook operation 1980 vintage photo"
+  },
+  {
+    "start": 526050,
+    "end": 566600,
+    "query": "secure telephone Mossad headquarters 1980 black and white"
+  },
+  {
+    "start": 566600,
+    "end": 603890,
+    "query": "hotel room dark scientist thinking 1980 archival"
+  },
+  {
+    "start": 603890,
+    "end": 640200,
+    "query": "briefcase documents nuclear plans 1980 black and white"
+  },
+  {
+    "start": 640200,
+    "end": 678390,
+    "query": "hotel restaurant breakfast Paris 1980 vintage photo"
+  },
+  {
+    "start": 678390,
+    "end": 715670,
+    "query": "hotel room desk crooked lamp 1980 black and white"
+  },
+  {
+    "start": 715670,
+    "end": 758100,
+    "query": "Mossad apartment flower shop surveillance 1980 archival"
+  },
+  {
+    "start": 758100,
+    "end": 796600,
+    "query": "Cogema office nuclear company Paris 1980 black and white"
+  },
+  {
+    "start": 796600,
+    "end": 836930,
+    "query": "conference room nuclear engineers meeting 1980 vintage photo"
+  },
+  {
+    "start": 836930,
+    "end": 880550,
+    "query": "price quote document table 1980 black and white"
+  },
+  {
+    "start": 880550,
+    "end": 917620,
+    "query": "Paris sidewalk scientist walking 1980 archival"
+  },
+  {
+    "start": 917620,
+    "end": 950370,
+    "query": "metro station Paris surveillance 1980 black and white"
+  },
+  {
+    "start": 950370,
+    "end": 987550,
+    "query": "Paris square fountain bench 1980 vintage photo"
+  },
+  {
+    "start": 987550,
+    "end": 1026100,
+    "query": "Mossad apartment telephone call 1980 black and white"
+  },
+  {
+    "start": 1026100,
+    "end": 1061860,
+    "query": "hotel restaurant wine glasses 1980 archival"
+  },
+  {
+    "start": 1061860,
+    "end": 1096960,
+    "query": "hotel door peephole view 1980 black and white"
+  },
+  {
+    "start": 1096960,
+    "end": 1132230,
+    "query": "hotel room phone no dial tone 1980 vintage photo"
+  },
+  {
+    "start": 1132230,
+    "end": 1171860,
+    "query": "bathroom door hotel room 1980 black and white"
+  },
+  {
+    "start": 1171860,
+    "end": 1208070,
+    "query": "bathroom confrontation scientist agent 1980 archival"
+  },
+  {
+    "start": 1208070,
+    "end": 1246320,
+    "query": "bathtub hotel bathroom 1980 black and white"
+  },
+  {
+    "start": 1246320,
+    "end": 1283650,
+    "query": "struggle bathroom tiles 1980 vintage photo"
+  },
+  {
+    "start": 1283650,
+    "end": 1319750,
+    "query": "bathroom mirror agent calm 1980 black and white"
+  },
+  {
+    "start": 1319750,
+    "end": 1359480,
+    "query": "hotel room police investigation 1980 archival"
+  },
+  {
+    "start": 1359480,
+    "end": 1397770,
+    "query": "Saddam Hussein palace anger 1980 black and white"
+  },
+  {
+    "start": 1397770,
+    "end": 1438430,
+    "query": "Mossad director office files 1980 vintage photo"
+  },
+  {
+    "start": 1438430,
+    "end": 1477160,
+    "query": "Israeli pilots briefing room 1980 black and white"
+  },
+  {
+    "start": 1477160,
+    "end": 1515460,
+    "query": "military map Iraq route 1980 archival"
+  },
+  {
+    "start": 1515460,
+    "end": 1550450,
+    "query": "F16 fighter jets 1980 black and white"
+  },
+  {
+    "start": 1550450,
+    "end": 1586660,
+    "query": "Israeli Air Force pilots 1980 vintage photo"
+  },
+  {
+    "start": 1586660,
+    "end": 1622910,
+    "query": "Iraqi bunker meeting scientists 1980 black and white"
+  },
+  {
+    "start": 1622910,
+    "end": 1665380,
+    "query": "Dr Khalid Ibrahim reactor 1980 archival"
+  },
+  {
+    "start": 1665380,
+    "end": 1699190,
+    "query": "Osirak reactor dome Iraq 1980 black and white"
+  },
+  {
+    "start": 1699190,
+    "end": 1732740,
+    "query": "Daniel Mossad agent apartment 1980 vintage photo"
+  },
+  {
+    "start": 1732740,
+    "end": 1767960,
+    "query": "air force base barracks 1980 black and white"
+  },
+  {
+    "start": 1767960,
+    "end": 1806810,
+    "query": "pilots ready room breakfast 1980 archival"
+  },
+  {
+    "start": 1806810,
+    "end": 1845440,
+    "query": "F16 cockpit pilot 1980 black and white"
+  },
+  {
+    "start": 1845440,
+    "end": 1884080,
+    "query": "jet engines startup runway 1980 vintage photo"
+  },
+  {
+    "start": 1884080,
+    "end": 1923160,
+    "query": "air refueling tanker F16 1980 black and white"
+  },
+  {
+    "start": 1923160,
+    "end": 1960500,
+    "query": "Osirak reactor control room 1980 archival"
+  },
+  {
+    "start": 1960500,
+    "end": 1999780,
+    "query": "F16 formation flight 1980 black and white"
+  },
+  {
+    "start": 1999780,
+    "end": 2036310,
+    "query": "reactor dome target approach 1980 vintage photo"
+  },
+  {
+    "start": 2036310,
+    "end": 2075320,
+    "query": "bomb release F16 1980 black and white"
+  },
+  {
+    "start": 2075320,
+    "end": 2117510,
+    "query": "nuclear reactor explosion 1980 archival"
+  },
+  {
+    "start": 2117510,
+    "end": 2151680,
+    "query": "F16 landing return base 1980 black and white"
+  },
+  {
+    "start": 2151680,
+    "end": 2191380,
+    "query": "Mossad director office window 1980 vintage photo"
+  },
+  {
+    "start": 2191380,
+    "end": 2225950,
+    "query": "Osirak reactor ruins rubble 1980 black and white"
+  },
+  {
+    "start": 2225950,
+    "end": 2253940,
+    "query": "Daniel balcony Mediterranean view 1980 archival"
+  }
+    "end": 2253940,
+    "query": "Daniel balcony Mediterranean view 1980 archival"
+  }
+    "query": "Daniel balcony Mediterranean view 1980 archival"
+  }
+  }
+]
+```
+[DeepSeek] ✓ Generated 60 image search queries
+[DeepSeek] ✓ Validation passed for 60 queries
+[Test] ✓ Query count matches segment count (60)
+[Test] Step 5: Downloading images from DuckDuckGo
+[Images] 🎨 AI Image Generation Mode: Using Pollinations.ai to generate 60 images
+[AI-Images] Generating image for: "Hotel Le Medien Paris lobby night 1980 black and white" (attempt 1/60)
+[AI-Images] Full prompt: "Hotel Le Medien Paris lobby night 1980 black and white, in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions"
+[AI-Images] Using aspect ratio 16:9 for gptimage model
+[AI-Images] API URL: https://image.pollinations.ai/prompt/Hotel%20Le%20Medien%20Paris%20lobby%20night%201980%20black%20and%20white%2C%20in%20the%20style%20of%20a%20cinematic%20propaganda%20oil%20painting%2C%20mid-20th%20century%20illustration%2C%20painterly%20brush%20strokes%2C%20soft%20diffused%20lighting%20through%20windows%2C%20warm%20desaturated%20tones%2C%20storytelling%20composition%2C%20vintage%20printed%20texture%2C%20subtle%20grain%2C%20dramatic%20sunlight%20and%20shadow%2C%20nostalgic%20atmosphere%2C%20no%20text%2C%20no%20words%2C%20no%20letters%2C%20no%20captions?model=gptimage&aspect=16:9&nologo=true
+[AI-Images] Saved AI image to: tmp\images\ai_Hotel_Le_Medien_Paris_lobby_night_1980_black_and_white.png
+[Images] Progress: 1/60 - Generated: tmp\images\ai_Hotel_Le_Medien_Paris_lobby_night_1980_black_and_white.png
+[Images] Waiting 15000ms before next query to avoid rate limiting
+[AI-Images] Generating image for: "Mossad surveillance car Paris street 1980 vintage photo" (attempt 1/60)
+[AI-Images] Full prompt: "Mossad surveillance car Paris street 1980 vintage photo, in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions"
+[AI-Images] Using aspect ratio 16:9 for gptimage model
+[AI-Images] API URL: https://image.pollinations.ai/prompt/Mossad%20surveillance%20car%20Paris%20street%201980%20vintage%20photo%2C%20in%20the%20style%20of%20a%20cinematic%20propaganda%20oil%20painting%2C%20mid-20th%20century%20illustration%2C%20painterly%20brush%20strokes%2C%20soft%20diffused%20lighting%20through%20windows%2C%20warm%20desaturated%20tones%2C%20storytelling%20composition%2C%20vintage%20printed%20texture%2C%20subtle%20grain%2C%20dramatic%20sunlight%20and%20shadow%2C%20nostalgic%20atmosphere%2C%20no%20text%2C%20no%20words%2C%20no%20letters%2C%20no%20captions?model=gptimage&aspect=16:9&nologo=true
+[AI-Images] ❌ API request failed: 502 Bad Gateway
+[AI-Images] Response body: 502 Bad Gateway
+Unable to reach the origin service. The service may be down or it may not be responding to traffic from cloudflared
+
+[AI-Images] ⚠️ Attempt 1 failed, retrying in 15000ms...
+[AI-Images] Generating image for: "Mossad surveillance car Paris street 1980 vintage photo" (attempt 2/60)
+[AI-Images] Full prompt: "Mossad surveillance car Paris street 1980 vintage photo, in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions"
+[AI-Images] Using aspect ratio 16:9 for gptimage model
+[AI-Images] API URL: https://image.pollinations.ai/prompt/Mossad%20surveillance%20car%20Paris%20street%201980%20vintage%20photo%2C%20in%20the%20style%20of%20a%20cinematic%20propaganda%20oil%20painting%2C%20mid-20th%20century%20illustration%2C%20painterly%20brush%20strokes%2C%20soft%20diffused%20lighting%20through%20windows%2C%20warm%20desaturated%20tones%2C%20storytelling%20composition%2C%20vintage%20printed%20texture%2C%20subtle%20grain%2C%20dramatic%20sunlight%20and%20shadow%2C%20nostalgic%20atmosphere%2C%20no%20text%2C%20no%20words%2C%20no%20letters%2C%20no%20captions?model=gptimage&aspect=16:9&nologo=true
+[AI-Images] Saved AI image to: tmp\images\ai_Mossad_surveillance_car_Paris_street_1980_vintage_photo.png
+[AI-Images] ✓ Successfully generated after 2 attempts
+[Images] Progress: 2/60 - Generated: tmp\images\ai_Mossad_surveillance_car_Paris_street_1980_vintage_photo.png
+[Images] Waiting 15000ms before next query to avoid rate limiting
+[AI-Images] Generating image for: "Dr Yahya El Mashad nuclear physicist 1980 black and white" (attempt 1/60)
+[AI-Images] Full prompt: "Dr Yahya El Mashad nuclear physicist 1980 black and white, in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions"
+[AI-Images] Using aspect ratio 16:9 for gptimage model
+[AI-Images] API URL: https://image.pollinations.ai/prompt/Dr%20Yahya%20El%20Mashad%20nuclear%20physicist%201980%20black%20and%20white%2C%20in%20the%20style%20of%20a%20cinematic%20propaganda%20oil%20painting%2C%20mid-20th%20century%20illustration%2C%20painterly%20brush%20strokes%2C%20soft%20diffused%20lighting%20through%20windows%2C%20warm%20desaturated%20tones%2C%20storytelling%20composition%2C%20vintage%20printed%20texture%2C%20subtle%20grain%2C%20dramatic%20sunlight%20and%20shadow%2C%20nostalgic%20atmosphere%2C%20no%20text%2C%20no%20words%2C%20no%20letters%2C%20no%20captions?model=gptimage&aspect=16:9&nologo=true

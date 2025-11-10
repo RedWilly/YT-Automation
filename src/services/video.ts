@@ -4,7 +4,7 @@
 
 import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, INCLUDE_DISCLAIMER, DISCLAIMER_VIDEO_PATH } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -527,9 +527,12 @@ async function prependDisclaimerVideo(
   const concatListPath = join(TMP_VIDEO_DIR, `disclaimer_concat_${Date.now()}.txt`);
 
   // Use absolute paths for concat list to avoid path resolution issues
+  const absoluteDisclaimerPath = resolve(DISCLAIMER_VIDEO_PATH);
+  const absoluteContentPath = resolve(contentVideoPath);
+
   const concatContent = [
-    `file '${DISCLAIMER_VIDEO_PATH}'`,
-    `file '${contentVideoPath}'`
+    `file '${absoluteDisclaimerPath}'`,
+    `file '${absoluteContentPath}'`
   ].join("\n");
 
   await writeFile(concatListPath, concatContent, "utf-8");

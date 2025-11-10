@@ -13,6 +13,7 @@ import {
   AI_IMAGE_MODEL,
   AI_IMAGE_WIDTH,
   AI_IMAGE_HEIGHT,
+  AI_IMAGE_ASPECT,
   AI_IMAGE_NOLOGO,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
@@ -120,10 +121,23 @@ async function generateAIImageForQuery(
 
       // Build Pollinations.ai API URL
       const baseUrl = "https://image.pollinations.ai/prompt/";
-      const url =
-        baseUrl +
-        encodeURIComponent(fullPrompt) +
-        `?model=${AI_IMAGE_MODEL}&width=${AI_IMAGE_WIDTH}&height=${AI_IMAGE_HEIGHT}&nologo=${AI_IMAGE_NOLOGO}`;
+
+      // gptimage model uses aspect ratio instead of width/height
+      // Other models (flux, kontext, turbo) use width/height
+      let url: string;
+      if (AI_IMAGE_MODEL === "gptimage") {
+        url =
+          baseUrl +
+          encodeURIComponent(fullPrompt) +
+          `?model=${AI_IMAGE_MODEL}&aspect=${AI_IMAGE_ASPECT}&nologo=${AI_IMAGE_NOLOGO}`;
+        logger.debug("AI-Images", `Using aspect ratio ${AI_IMAGE_ASPECT} for gptimage model`);
+      } else {
+        url =
+          baseUrl +
+          encodeURIComponent(fullPrompt) +
+          `?model=${AI_IMAGE_MODEL}&width=${AI_IMAGE_WIDTH}&height=${AI_IMAGE_HEIGHT}&nologo=${AI_IMAGE_NOLOGO}`;
+        logger.debug("AI-Images", `Using dimensions ${AI_IMAGE_WIDTH}x${AI_IMAGE_HEIGHT} for ${AI_IMAGE_MODEL} model`);
+      }
 
       logger.debug("AI-Images", `API URL: ${url}`);
 

@@ -151,6 +151,63 @@ OR
 • "hotel room Cold War era black and white"
 
 
+CONSISTENCY REQUIREMENTS (CRITICAL):
+After analyzing the full transcript, maintain visual consistency across all queries:
+
+1. **CHARACTER CONSISTENCY:**
+   - If the same person appears in multiple segments, use similar descriptors
+   - Track recurring characters and maintain their visual identity
+   - Example: If "Colonel Eli Cohen" appears in segments 1, 4, and 7:
+     ✅ All should reference "Colonel Eli Cohen" with similar context
+     ✅ "Colonel Eli Cohen Damascus 1965", "Colonel Eli Cohen radio equipment 1965", "Colonel Eli Cohen apartment 1965"
+     ❌ Don't switch between "agent", "spy", "officer", "operative" for the same person
+     ❌ Don't change rank or name variations randomly
+
+2. **LOCATION CONSISTENCY:**
+   - If multiple segments occur in the same location, maintain environmental details
+   - Keep atmosphere, lighting, and mood consistent for the same place
+   - Example: If segments 2-5 all happen in "Damascus apartment":
+     ✅ Use consistent atmosphere: "Damascus apartment dim light 1965"
+     ✅ Maintain same environmental details: "Damascus apartment radio equipment 1965"
+     ❌ Don't randomly change lighting (dim → bright) unless transcript indicates change
+     ❌ Don't switch location descriptors (apartment → safehouse → room) for same place
+
+3. **TIME PERIOD CONSISTENCY:**
+   - Determine the dominant era from the full transcript FIRST
+   - Apply this era to ALL queries unless explicitly changing
+   - Use specific years when mentioned, otherwise use decade
+   - Example: If transcript is about 1965 events:
+     ✅ Use "1965" or "1960s" for ALL queries
+     ✅ "Colonel Eli Cohen Damascus 1965", "Syrian officers apartment 1965", "Mossad headquarters 1965"
+     ❌ Don't mix "1960s", "1970s", "1980s" randomly across queries
+     ❌ Don't use generic "Cold War era" when specific year is known
+
+4. **NARRATIVE FLOW:**
+   - Consecutive segments should have visual continuity
+   - Track scene changes: indoor → outdoor, day → night, location transitions
+   - Maintain environmental conditions unless transcript indicates change
+   - Example: If segment 3 ends with "rainy night Damascus":
+     ✅ Segment 4 should maintain "rainy night" if still same scene/time
+     ✅ Only change if transcript explicitly moves to new time/place
+     ❌ Don't randomly switch weather/lighting between consecutive segments
+
+5. **STYLE CONSISTENCY:**
+   - Choose 2-3 primary style descriptors for the entire transcript
+   - Prefer these throughout instead of randomly varying
+   - Example: Pick "black and white photo" and "1960s" as primary style:
+     ✅ Use "black and white photo" or "black and white" in most queries
+     ✅ Occasionally vary with "vintage photo" or "archival photo" for diversity
+     ❌ Don't randomly alternate between all style options (vintage, archival, grainy, documentary)
+     ❌ Don't use different decades for same time period
+
+6. **VISUAL COHERENCE:**
+   - The final video should feel like one cohesive documentary, not random images
+   - Queries should create a visual narrative that flows naturally
+   - Similar scenes should have similar visual treatment
+   - Example: All "briefing room" scenes should have similar descriptors:
+     ✅ "briefing room maps 1965 black and white", "briefing room officers 1965 black and white"
+     ❌ Don't make one "grainy 1960s" and another "archival 1970s" for same room
+
 CONTENT ANALYSIS:
 Before generating queries, identify:
 1. **Overview:** Which agencies? Which conflict? What era? Key people?
@@ -161,6 +218,8 @@ Before generating queries, identify:
 6. **Locations:** Real place names (cities, buildings, landmarks)
 7. **Environmental mood:** Tense/shadowy vs. official/bright, weather conditions
 8. **Visual details:** Lighting, weather, atmosphere mentioned in transcript
+9. **Recurring elements:** Which characters, locations, or themes appear multiple times?
+10. **Scene continuity:** Which segments are consecutive in same location/time?
 
 OUTPUT RULES:
 • Generate EXACTLY ONE query per segment (match count perfectly)
@@ -172,9 +231,37 @@ OUTPUT RULES:
 • NO abstract concepts, NO modern terms, NO camera directions
 • Output ONLY the JSON array, no explanations
 
+WORKFLOW (FOLLOW THIS ORDER):
+1. **READ FULL TRANSCRIPT** - Understand complete narrative, era, characters, locations
+2. **IDENTIFY CONSISTENCY ELEMENTS:**
+   - Main characters and their ranks/roles
+   - Primary locations and their atmosphere
+   - Exact time period (year or decade)
+   - Recurring themes or equipment
+   - Scene continuity (which segments are in same location/time)
+3. **CREATE STYLE GUIDE FOR THIS TRANSCRIPT:**
+   - Choose primary time period descriptor (e.g., "1965" or "1960s")
+   - Choose 2-3 primary style keywords (e.g., "black and white photo", "vintage")
+   - Note character descriptors to reuse (e.g., "Colonel Eli Cohen")
+   - Note location descriptors to reuse (e.g., "Damascus apartment dim light")
+4. **GENERATE QUERIES FOLLOWING YOUR STYLE GUIDE:**
+   - Apply consistent time period to all queries
+   - Reuse character descriptors for recurring people
+   - Maintain location atmosphere for same places
+   - Keep visual flow between consecutive segments
+5. **VALIDATE CONSISTENCY:**
+   - Same person = same descriptors across queries
+   - Same location = same atmosphere across queries
+   - Same time period = same year/decade across queries
+   - Consecutive segments = visual continuity
+
 VALIDATION CHECK:
-Before outputting, verify each query would return vintage/archival imagery when searched online.
-Ask: "Would this query find a black and white or vintage-style image?" If no, add style keywords.
+Before outputting, verify:
+1. Each query would return vintage/archival imagery when searched online
+2. Same characters have consistent descriptors across all appearances
+3. Same locations have consistent atmosphere across all appearances
+4. Time period is consistent throughout (unless transcript explicitly changes era)
+5. Consecutive segments have visual flow (no jarring style/mood changes)
 
 Example Input:
 [0-5400ms]: In 1965, Colonel Eli Cohen, working undercover in Damascus, used a hidden radio transmitter to send classified Syrian military plans back to Mossad headquarters in Tel Aviv.
@@ -211,20 +298,40 @@ Each segment format: [start_ms–end_ms]: transcript text
 ${formattedTranscript}
 
 INSTRUCTIONS:
-1. Analyze the FULL transcript above to understand the complete script, era, and context
-2. Extract specific details from EACH segment: names, ranks, equipment, actions, locations, environmental details
-3. Generate EXACTLY ${segmentCount} image search queries (one per segment)
-4. Each query MUST include:
-   - Concrete visual elements (people, places, objects)
-   - Time period or specific year
-   - At least ONE vintage style descriptor (black and white, archival, vintage, grainy, etc.)
+1. **READ THE FULL TRANSCRIPT FIRST** - Understand the complete narrative, time period, characters, and locations
+2. **IDENTIFY CONSISTENCY ELEMENTS:**
+   - Which characters appear multiple times? (use same descriptors for them)
+   - Which locations appear multiple times? (maintain same atmosphere)
+   - What is the time period? (use same year/decade for all queries)
+   - Which segments are consecutive in same scene? (maintain visual continuity)
+3. **CREATE YOUR STYLE GUIDE:**
+   - Determine the exact time period (e.g., "1965" or "1960s") - use for ALL queries
+   - Choose 2-3 primary style keywords (e.g., "black and white photo", "vintage") - prefer these throughout
+   - Note recurring character names/ranks - reuse exact same descriptors
+   - Note recurring locations - maintain same environmental details
+4. **GENERATE EXACTLY ${segmentCount} IMAGE SEARCH QUERIES** (one per segment):
+   - Extract specific details from EACH segment: names, ranks, equipment, actions, locations
+   - Apply your style guide consistently across all queries
+   - Each query MUST include:
+     * Concrete visual elements (people, places, objects)
+     * The consistent time period you identified
+     * At least ONE vintage style descriptor
+   - Maintain character consistency (same person = same descriptors)
+   - Maintain location consistency (same place = same atmosphere)
+   - Maintain visual flow between consecutive segments
 5. Use the EXACT timestamps provided (do not modify them)
 6. Keep each query under 10 words
+
+CRITICAL CONSISTENCY RULES:
+- If "Colonel Eli Cohen" appears in segments 1, 5, and 8 → use "Colonel Eli Cohen" in all three queries
+- If segments 2-4 are in "Damascus apartment" → maintain same atmosphere/lighting for all three
+- If transcript is about 1965 events → use "1965" or "1960s" in ALL queries, not mixed decades
+- If segment 3 ends in "rainy night" and segment 4 continues same scene → maintain "rainy night"
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array with ${segmentCount} objects, each containing:
 - "start": timestamp in milliseconds (exact copy)
-- "end": timestamp in milliseconds (exact copy)  
+- "end": timestamp in milliseconds (exact copy)
 - "query": the image search query string
 
 No explanations, no markdown formatting, no preamble - ONLY the JSON array.`;

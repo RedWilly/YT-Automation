@@ -25,7 +25,7 @@
  * Example:
  *   const ASSEMBLYAI_UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const ASSEMBLYAI_UPLOAD_URL: string = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
+const ASSEMBLYAI_UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio } from "./src/services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";

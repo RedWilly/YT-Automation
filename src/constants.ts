@@ -26,7 +26,7 @@ export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 // Video Generation Configuration
 export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)
 export const INCLUDE_DISCLAIMER = process.env.INCLUDE_DISCLAIMER === "true";
-export const DISCLAIMER_VIDEO_PATH = "assets/start.mov";
+export const DISCLAIMER_VIDEO_PATH = "asset/start.mov";
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";

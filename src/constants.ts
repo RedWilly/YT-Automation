@@ -28,6 +28,10 @@ export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (pre
 export const INCLUDE_DISCLAIMER = process.env.INCLUDE_DISCLAIMER === "true";
 export const DISCLAIMER_VIDEO_PATH = "asset/start.mov";
 
+// Ken Burns Effect Configuration
+export const ENABLE_KEN_BURNS = process.env.ENABLE_KEN_BURNS === "true";
+export const KEN_BURNS_STYLE = process.env.KEN_BURNS_STYLE || "random"; // Options: zoom_in, zoom_out, pan_left, pan_right, random
+
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
 export const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";

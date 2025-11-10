@@ -2,7 +2,7 @@
  * Video generation service using FFmpeg
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, INCLUDE_DISCLAIMER, DISCLAIMER_VIDEO_PATH } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, INCLUDE_DISCLAIMER, DISCLAIMER_VIDEO_PATH, ENABLE_KEN_BURNS, KEN_BURNS_STYLE } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
 import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -22,6 +22,13 @@ export async function generateVideo(
 ): Promise<VideoGenerationResult> {
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
+
+  // Log Ken Burns effect status
+  if (ENABLE_KEN_BURNS) {
+    logger.step("Video", `🎬 Ken Burns effect enabled: ${KEN_BURNS_STYLE}`);
+  } else {
+    logger.debug("Video", "Ken Burns effect disabled (static images)");
+  }
 
   // Sort images by start time to ensure correct order
   const sortedImages = [...images].sort((a, b) => a.start - b.start);
@@ -77,6 +84,56 @@ export async function generateVideo(
 }
 
 /**
+ * Get Ken Burns effect filter based on style
+ * @param style - Ken Burns effect style
+ * @param duration - Duration of the effect in seconds
+ * @param index - Image index for random variation
+ * @returns Ken Burns zoompan filter string
+ */
+function getKenBurnsFilter(style: string, duration: number, index: number): string {
+  const frames = Math.floor(duration * 30); // 30 fps
+
+  // Calculate smooth zoom increment based on duration
+  // Target: zoom from 1.0 to 1.15 (subtle 15% zoom) over the entire duration
+  const maxZoom = 1.15; // Reduced from 1.3 for less aggressive effect
+  const zoomRange = maxZoom - 1.0; // 0.15
+  const zoomIncrement = zoomRange / frames; // Smooth increment per frame
+
+  // Calculate smooth pan speed based on duration
+  // Pan across ~10% of image width over entire duration
+  const panDistance = 192; // 10% of 1920px width
+  const panSpeed = panDistance / frames; // Smooth pan speed per frame
+
+  // Different Ken Burns effects with smooth, duration-aware motion
+  const effects = {
+    // Smooth zoom in: gradually zoom from 1.0 to 1.15 over entire duration
+    zoom_in: `zoompan=z='min(1.0+on*${zoomIncrement},${maxZoom})':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
+
+    // Smooth zoom out: gradually zoom from 1.15 to 1.0 over entire duration
+    zoom_out: `zoompan=z='max(${maxZoom}-on*${zoomIncrement},1.0)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
+
+    // Smooth pan left: pan from right to left at constant 1.1x zoom over entire duration
+    pan_left: `zoompan=z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)-on*${panSpeed}':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
+
+    // Smooth pan right: pan from left to right at constant 1.1x zoom over entire duration
+    pan_right: `zoompan=z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)+on*${panSpeed}':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
+  };
+
+  // Random mode: alternate between effects based on index
+  if (style === "random") {
+    const effectKeys = Object.keys(effects) as Array<keyof typeof effects>;
+    const randomEffect = effectKeys[index % effectKeys.length];
+    if (randomEffect) {
+      return effects[randomEffect];
+    }
+    return effects.zoom_in;
+  }
+
+  // Return specific effect or default to zoom_in
+  return effects[style as keyof typeof effects] || effects.zoom_in;
+}
+
+/**
  * Create FFmpeg filter complex for image transitions
  * @param images - Sorted array of images with timing
  * @returns Filter complex string and total duration
@@ -97,10 +154,19 @@ function createFilterComplex(
     const duration = (image.end - image.start) / 1000; // Convert ms to seconds
     totalDuration += duration;
 
-    // Scale image to fit 1920x1080 while maintaining aspect ratio, then pad
-    filters.push(
-      `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
-    );
+    // Build filter chain for this image
+    let filterChain = `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2`;
+
+    // Add Ken Burns effect if enabled
+    if (ENABLE_KEN_BURNS) {
+      const kenBurnsFilter = getKenBurnsFilter(KEN_BURNS_STYLE, duration, i);
+      filterChain += `,${kenBurnsFilter}`;
+    }
+
+    // Add remaining filters
+    filterChain += `,setsar=1,fps=30,format=yuv420p[v${i}]`;
+
+    filters.push(filterChain);
   }
 
   // Concatenate all video segments

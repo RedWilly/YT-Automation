@@ -193,8 +193,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,70,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,0,2,10,10,80,1
-Style: Highlight,Arial,70,&H00FFFFFF,&H000000FF,&H00FF008B,&H00FF008B,-1,0,0,0,100,100,0,0,3,12,0,2,10,10,80,1
+Style: Default,Resolve-Bold,72,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,1,2,2,10,10,130,1
+Style: Highlight,Resolve-Bold,72,&H00FFFFFF,&H000000FF,&H00FF008B,&H00FF008B,-1,0,0,0,100,100,0,0,3,6,0,2,10,10,130,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -210,8 +210,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const currentWord = group.words[i];
       if (!currentWord) continue;
 
+      // Use continuous timing to avoid gaps/flickering
+      // Start time: current word's start
+      // End time: next word's start (or current word's end if it's the last word)
       const startTime = msToAssTime(currentWord.start);
-      const endTime = msToAssTime(currentWord.end);
+      const nextWord = group.words[i + 1];
+      const endTime = nextWord ? msToAssTime(nextWord.start) : msToAssTime(currentWord.end);
 
       // Build the text with current word highlighted
       // Use \rStyleName to switch between Default and Highlight styles

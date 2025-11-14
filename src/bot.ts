@@ -56,7 +56,6 @@ export function createBot() {
  * Handle /start command
  */
 async function handleStartCommand(ctx: Context): Promise<void> {
-  const autoPostStatus = YOUTUBE_AUTO_POST ? "✅ Enabled" : "❌ Disabled";
   const imageMode = USE_AI_IMAGE ? "🎨 AI Generation" : "🔍 Web Search";
 
   await ctx.reply(
@@ -66,9 +65,8 @@ async function handleStartCommand(ctx: Context): Promise<void> {
       "2. 🤖 Generate visual scenes with AI\n" +
       "3. 🖼️ Get matching images\n" +
       "4. 🎬 Create a video\n" +
-      (YOUTUBE_AUTO_POST ? "5. 📤 Upload to YouTube (private)\n\n" : "5. 💾 Save video locally\n\n") +
+      "5. 💾 Save video locally\n\n" +
       `📊 Settings:\n` +
-      `   • Auto-post to YouTube: ${autoPostStatus}\n` +
       `   • Image source: ${imageMode}\n\n` +
       "Just send your audio file to get started!"
   );
@@ -87,7 +85,7 @@ async function handleUploadCommand(ctx: Context): Promise<void> {
       "2. 🤖 Generate visual scenes\n" +
       `3. 🖼️ ${USE_AI_IMAGE ? "Generate AI images" : "Search for images online"}\n` +
       "4. 🎬 Create a video\n" +
-      (YOUTUBE_AUTO_POST ? "5. 📤 Upload to YouTube (private)\n\n" : "5. 💾 Save video locally\n\n") +
+      "5. 💾 Save video locally\n\n" +
       "This may take a few minutes... I'll keep you updated!"
   );
 }

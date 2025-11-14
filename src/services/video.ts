@@ -2,13 +2,91 @@
  * Video generation service using FFmpeg
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, PAN_EFFECT } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
 import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import * as logger from "../logger.ts";
+
+/**
+ * Pan direction for vertical pan effect
+ */
+type PanDirection = "up" | "down";
+
+/**
+ * Pan parameters for zoompan filter
+ */
+interface PanParams {
+  enabled: boolean;
+  direction: PanDirection;
+  yStart: number; // Starting Y position (pixels)
+  yEnd: number; // Ending Y position (pixels)
+}
+
+/**
+ * Calculate pan parameters based on image aspect ratio and duration
+ * @param duration - Scene duration in seconds
+ * @returns Pan parameters for zoompan filter
+ */
+function calculatePanParams(duration: number): PanParams {
+  // If pan effect is disabled, return disabled params
+  if (!PAN_EFFECT) {
+    return {
+      enabled: false,
+      direction: "down",
+      yStart: 0,
+      yEnd: 0,
+    };
+  }
+
+  // Target video dimensions
+  const VIDEO_WIDTH = 1920;
+  const VIDEO_HEIGHT = 1080;
+
+  // AI-generated image dimensions (4:3 aspect ratio)
+  const IMAGE_WIDTH = 1472;
+  const IMAGE_HEIGHT = 1104;
+
+  // Calculate scaled dimensions when fitting image to video width
+  // The image will be scaled to fit 1920px width while maintaining aspect ratio
+  const scaledHeight = (IMAGE_HEIGHT * VIDEO_WIDTH) / IMAGE_WIDTH; // = 1440px
+
+  // Calculate total vertical headroom (extra space above and below)
+  const totalHeadroom = scaledHeight - VIDEO_HEIGHT; // = 1440 - 1080 = 360px
+
+  // Use only 10-20% of available headroom for subtle pan
+  const usableHeadroom = totalHeadroom * 0.15; // 15% of 360px = 54px
+
+  // Leave buffer zones at top and bottom (remaining 85% of headroom)
+  const bufferZone = (totalHeadroom - usableHeadroom) / 2; // = (360 - 54) / 2 = 153px
+
+  // Randomly choose pan direction (up or down)
+  const direction: PanDirection = Math.random() > 0.5 ? "down" : "up";
+
+  // Calculate start and end Y positions (as percentage of scaled height)
+  // We need to express Y as a percentage because zoompan works with normalized coordinates
+  let yStartPercent: number;
+  let yEndPercent: number;
+
+  if (direction === "down") {
+    // Pan down: start at top buffer, end at top buffer + usable headroom
+    yStartPercent = bufferZone / scaledHeight;
+    yEndPercent = (bufferZone + usableHeadroom) / scaledHeight;
+  } else {
+    // Pan up: start at top buffer + usable headroom, end at top buffer
+    yStartPercent = (bufferZone + usableHeadroom) / scaledHeight;
+    yEndPercent = bufferZone / scaledHeight;
+  }
+
+  return {
+    enabled: true,
+    direction,
+    yStart: Math.round(yStartPercent * 1000) / 1000, // Round to 3 decimal places
+    yEnd: Math.round(yEndPercent * 1000) / 1000,
+  };
+}
 
 /**
  * Generate video from images and audio using FFmpeg with chunked rendering
@@ -22,6 +100,12 @@ export async function generateVideo(
 ): Promise<VideoGenerationResult> {
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
+
+  if (PAN_EFFECT) {
+    logger.log("Video", "🎬 Pan effect enabled - applying subtle vertical motion to images");
+  } else {
+    logger.log("Video", "📷 Pan effect disabled - using static images");
+  }
 
   // Sort images by start time to ensure correct order
   const sortedImages = [...images].sort((a, b) => a.start - b.start);
@@ -70,7 +154,7 @@ function createFilterComplex(
 
   const imagesLength = images.length;
 
-  // Scale and pad each image to 1920x1080
+  // Process each image with optional pan effect
   for (let i = 0; i < imagesLength; i++) {
     const image = images[i];
     if (!image) continue;
@@ -78,10 +162,42 @@ function createFilterComplex(
     const duration = (image.end - image.start) / 1000; // Convert ms to seconds
     totalDuration += duration;
 
-    // Scale image to fit 1920x1080 while maintaining aspect ratio, then pad
-    filters.push(
-      `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
-    );
+    // Calculate pan parameters for this image
+    const panParams = calculatePanParams(duration);
+
+    if (panParams.enabled) {
+      // Apply pan effect using zoompan filter
+      // CRITICAL FIX: The zoompan filter must output exactly the right number of frames
+      // and then stop, otherwise it will continue outputting frames indefinitely
+
+      const fps = 30;
+      const totalFrames = Math.round(duration * fps);
+
+      // Zoompan filter parameters:
+      // - z=1: No zoom (keep scale at 1x)
+      // - x=iw/2-(iw/zoom/2): Center horizontally
+      // - y=...: Vertical position (animated from yStart to yEnd)
+      // - d=1: Duration per frame (1 frame) - CRITICAL: This makes it output exactly totalFrames frames
+      // - s=1920x1080: Output size
+      // - fps=30: Frame rate
+
+      // Y expression: interpolate from yStart to yEnd over totalFrames
+      // on = output frame number (0 to totalFrames-1)
+      // Formula: yStart + (yEnd - yStart) * (on / totalFrames)
+      const yExpression = `ih*${panParams.yStart}+(ih*${panParams.yEnd}-ih*${panParams.yStart})*on/${totalFrames}`;
+
+      // CRITICAL: Use trim filter to ensure exactly the right duration
+      filters.push(
+        `[${i}:v]scale=1920:-1,zoompan=z=1:x=iw/2-(iw/zoom/2):y=${yExpression}:d=1:s=1920x1080:fps=${fps},trim=duration=${duration},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${i}]`
+      );
+
+      logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (${(panParams.yStart * 100).toFixed(1)}% → ${(panParams.yEnd * 100).toFixed(1)}%) over ${duration.toFixed(2)}s (${totalFrames} frames)`);
+    } else {
+      // No pan effect - use static image with scale and pad
+      filters.push(
+        `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
+      );
+    }
   }
 
   // Concatenate all video segments

@@ -19,11 +19,12 @@ export const TMP_IMAGES_DIR = "tmp/images";
 export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
-export const POLL_INTERVAL_MS = 15000; // 15 seconds when usinng flux or turbo you can use 10000=10second
+export const POLL_INTERVAL_MS = 5000; // 5 seconds between poll attempts
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration
 export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)
+export const PAN_EFFECT = process.env.PAN_EFFECT === "true"; // Enable subtle vertical pan effect on images
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";

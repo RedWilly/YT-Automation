@@ -56,35 +56,35 @@ function calculatePanParams(duration: number): PanParams {
   // Calculate total vertical headroom (extra space above and below)
   const totalHeadroom = scaledHeight - VIDEO_HEIGHT; // = 1440 - 1080 = 360px
 
-  // Use only 10-20% of available headroom for subtle pan
-  const usableHeadroom = totalHeadroom * 0.15; // 15% of 360px = 54px
+  // Use 30% of available headroom for visible pan effect
+  // NOTE: Increased from 15% to 30% to make pan more visible
+  const usableHeadroom = totalHeadroom * 0.30; // 30% of 360px = 108px
 
-  // Leave buffer zones at top and bottom (remaining 85% of headroom)
-  const bufferZone = (totalHeadroom - usableHeadroom) / 2; // = (360 - 54) / 2 = 153px
+  // Leave buffer zones at top and bottom (remaining 70% of headroom)
+  const bufferZone = (totalHeadroom - usableHeadroom) / 2; // = (360 - 108) / 2 = 126px
 
   // Randomly choose pan direction (up or down)
   const direction: PanDirection = Math.random() > 0.5 ? "down" : "up";
 
-  // Calculate start and end Y positions (as percentage of scaled height)
-  // We need to express Y as a percentage because zoompan works with normalized coordinates
-  let yStartPercent: number;
-  let yEndPercent: number;
+  // Calculate start and end Y positions in pixels
+  let yStart: number;
+  let yEnd: number;
 
   if (direction === "down") {
     // Pan down: start at top buffer, end at top buffer + usable headroom
-    yStartPercent = bufferZone / scaledHeight;
-    yEndPercent = (bufferZone + usableHeadroom) / scaledHeight;
+    yStart = bufferZone;
+    yEnd = bufferZone + usableHeadroom;
   } else {
     // Pan up: start at top buffer + usable headroom, end at top buffer
-    yStartPercent = (bufferZone + usableHeadroom) / scaledHeight;
-    yEndPercent = bufferZone / scaledHeight;
+    yStart = bufferZone + usableHeadroom;
+    yEnd = bufferZone;
   }
 
   return {
     enabled: true,
     direction,
-    yStart: Math.round(yStartPercent * 1000) / 1000, // Round to 3 decimal places
-    yEnd: Math.round(yEndPercent * 1000) / 1000,
+    yStart: Math.round(yStart),
+    yEnd: Math.round(yEnd),
   };
 }
 
@@ -166,32 +166,45 @@ function createFilterComplex(
     const panParams = calculatePanParams(duration);
 
     if (panParams.enabled) {
-      // Apply pan effect using zoompan filter
-      // CRITICAL FIX: The zoompan filter must output exactly the right number of frames
-      // and then stop, otherwise it will continue outputting frames indefinitely
+      // Apply pan effect using scale + crop (NO ZOOMPAN!)
+      //
+      // Why not zoompan?
+      // - zoompan is designed for zoom effects, not simple panning
+      // - It has complex frame timing issues with -loop 1
+      // - For vertical pan only, we just need: scale → crop with animated Y position
+      //
+      // Filter chain:
+      // 1. scale=1920:-1 → Scale to 1920px width, maintain aspect ratio (creates 1920×1440 for 4:3 images)
+      // 2. fps=30 → Set frame rate to 30fps BEFORE crop (ensures proper frame generation)
+      // 3. crop → Crop to 1920×1080 with animated Y position (this creates the pan effect)
+      // 4. setsar=1 → Set sample aspect ratio to 1:1
+      // 5. format=yuv420p → Convert to YUV420P color format
 
       const fps = 30;
       const totalFrames = Math.round(duration * fps);
 
-      // Zoompan filter parameters:
-      // - z=1: No zoom (keep scale at 1x)
-      // - x=iw/2-(iw/zoom/2): Center horizontally
+      // Animated Y position for crop filter
+      //
+      // The crop filter's y parameter can use expressions with 'n' (frame number)
+      // Formula: yStart + (yEnd - yStart) * (n / totalFrames)
+      //
+      // 'n' starts at 0 and increments by 1 for each frame
+      // We clamp it to totalFrames to prevent overshooting
+      const yExpression = `if(lte(n,${totalFrames}),${panParams.yStart}+(${panParams.yEnd}-${panParams.yStart})*n/${totalFrames},${panParams.yEnd})`;
+
+      // Crop filter parameters:
+      // - w=1920: Output width (crop to 1920px)
+      // - h=1080: Output height (crop to 1080px)
+      // - x=0: Horizontal position (no horizontal pan, start at left edge)
       // - y=...: Vertical position (animated from yStart to yEnd)
-      // - d=1: Duration per frame (1 frame) - CRITICAL: This makes it output exactly totalFrames frames
-      // - s=1920x1080: Output size
-      // - fps=30: Frame rate
-
-      // Y expression: interpolate from yStart to yEnd over totalFrames
-      // on = output frame number (0 to totalFrames-1)
-      // Formula: yStart + (yEnd - yStart) * (on / totalFrames)
-      const yExpression = `ih*${panParams.yStart}+(ih*${panParams.yEnd}-ih*${panParams.yStart})*on/${totalFrames}`;
-
-      // CRITICAL: Use trim filter to ensure exactly the right duration
+      //
+      // This crops a 1920×1080 window from the 1920×1440 scaled image,
+      // with the Y position animating from yStart to yEnd over totalFrames frames
       filters.push(
-        `[${i}:v]scale=1920:-1,zoompan=z=1:x=iw/2-(iw/zoom/2):y=${yExpression}:d=1:s=1920x1080:fps=${fps},trim=duration=${duration},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[v${i}]`
+        `[${i}:v]scale=1920:-1,fps=${fps},crop=w=1920:h=1080:x=0:y='${yExpression}',setsar=1,format=yuv420p[v${i}]`
       );
 
-      logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (${(panParams.yStart * 100).toFixed(1)}% → ${(panParams.yEnd * 100).toFixed(1)}%) over ${duration.toFixed(2)}s (${totalFrames} frames)`);
+      logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (${panParams.yStart}px → ${panParams.yEnd}px) over ${duration.toFixed(2)}s (${totalFrames} frames)`);
     } else {
       // No pan effect - use static image with scale and pad
       filters.push(
@@ -278,7 +291,8 @@ async function runFFmpeg(
       "+genpts+igndts", // Improve timestamp handling
       "-avoid_negative_ts",
       "make_zero", // Prevent timestamp issues
-      "-shortest", // End video when shortest stream ends
+      // NOTE: Removed -shortest flag to prevent premature video cutoff
+      // The video duration is controlled by the filter_complex concat filter
       "-y", // Overwrite output file
       outputPath,
     ];
@@ -474,7 +488,7 @@ async function runFFmpegChunk(
       "+genpts+igndts",
       "-avoid_negative_ts",
       "make_zero",
-      "-shortest",
+      // NOTE: Removed -shortest flag to prevent premature video cutoff
       "-y",
       outputPath,
     ];

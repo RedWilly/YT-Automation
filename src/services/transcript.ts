@@ -15,10 +15,12 @@ import * as logger from "../logger.ts";
  * Uses smart sentence detection with abbreviation handling and short sentence merging
  *
  * @param words - Array of words from AssemblyAI transcription
+ * @param audioDurationSeconds - Audio duration in seconds from AssemblyAI
  * @returns Segments array and formatted transcript string
  */
 export function processTranscript(
-  words: AssemblyAIWord[]
+  words: AssemblyAIWord[],
+  audioDurationSeconds: number | null
 ): SegmentProcessingResult {
   logger.step("Transcript", `Processing ${words.length} words into sentence-based segments`);
 
@@ -27,14 +29,24 @@ export function processTranscript(
   // Problem: AssemblyAI may return timestamps that don't start at 0ms
   // This causes all segments to be offset, breaking image-audio alignment
   const firstWord = words[0];
+
   if (!firstWord) {
     throw new Error("No words in transcript");
   }
+
   const timeOffset = firstWord.start;
+
+  // Use AssemblyAI's audio_duration (in seconds) as the actual audio duration
+  // This is more accurate than using the last word's end time
+  const actualAudioDurationMs = audioDurationSeconds
+    ? audioDurationSeconds * 1000
+    : words[words.length - 1]?.end || 0;
 
   if (timeOffset > 0) {
     logger.debug("Transcript", `Normalizing timestamps (offset: ${timeOffset}ms → 0ms)`);
   }
+
+  logger.debug("Transcript", `Actual audio duration: ${actualAudioDurationMs}ms (${(actualAudioDurationMs / 1000).toFixed(2)}s)`);
 
   // Use sentence-based segmentation
   const sentenceDetections = segmentBySentences(words);
@@ -52,13 +64,19 @@ export function processTranscript(
       sentence.startWordIndex,
       sentence.endWordIndex
     );
+
     const normalizedEnd = end - timeOffset;
     const adjustedStart = index === 0 ? 0 : previousEnd;
-    const adjustedEnd = normalizedEnd;
+
+    // CRITICAL FIX: For the last segment, extend to actual audio duration
+    // This prevents audio cutoff by ensuring the video duration matches the audio file
+    // The last segment should play until the audio ends, not just until the last word ends
+    const isLastSegment = index === sentenceDetections.length - 1;
+    const adjustedEnd = isLastSegment ? (actualAudioDurationMs - timeOffset) : normalizedEnd;
 
     logger.debug(
       "Transcript",
-      `Segment ${index + 1}: "${sentence.text.substring(0, 50)}..." (${sentence.wordCount} words, ${adjustedStart}ms-${adjustedEnd}ms)`
+      `Segment ${index + 1}: "${sentence.text.substring(0, 50)}..." (${sentence.wordCount} words, ${adjustedStart}ms-${adjustedEnd}ms)${isLastSegment ? " [LAST - using actual audio duration]" : ""}`
     );
 
     segments.push({

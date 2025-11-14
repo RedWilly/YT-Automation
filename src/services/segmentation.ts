@@ -144,7 +144,10 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
 
 /**
  * Merge very short consecutive sentences for better flow
- * Rule: If sentence has ≤2 words AND next sentence has ≤4 words, merge them
+ *
+ * Rules:
+ * 1. If sentence has ≤2 words, ALWAYS merge with next sentence (if exists)
+ * 2. If sentence has ≤5 words AND next sentence has ≤5 words, merge them
  *
  * @param sentences - Array of detected sentences
  * @returns Array of sentences after merging short ones
@@ -164,9 +167,9 @@ function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[
 
     const next = sentences[i + 1];
 
-    // Check if we should merge: current ≤2 words AND next ≤4 words
-    if (next && current.wordCount <= 2 && next.wordCount <= 4) {
-      // Merge current and next
+    // Rule 1: Very short sentences (≤2 words) ALWAYS merge with next
+    // This handles cases like "But." or "However." appearing alone
+    if (next && current.wordCount <= 2) {
       const mergedText = `${current.text} ${next.text}`.trim();
       const mergedWordCount = current.wordCount + next.wordCount;
 
@@ -179,10 +182,28 @@ function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[
 
       logger.debug(
         "Segmentation",
-        `Merged short sentences: "${current.text}" + "${next.text}" → "${mergedText}"`
+        `Merged very short sentence (≤2 words): "${current.text}" + "${next.text}" → "${mergedText}"`
       );
 
-      // Skip next sentence since we merged it
+      i += 2;
+    }
+    // Rule 2: Both sentences are short (≤5 words), merge them
+    else if (next && current.wordCount <= 5 && next.wordCount <= 5) {
+      const mergedText = `${current.text} ${next.text}`.trim();
+      const mergedWordCount = current.wordCount + next.wordCount;
+
+      merged.push({
+        text: mergedText,
+        startWordIndex: current.startWordIndex,
+        endWordIndex: next.endWordIndex,
+        wordCount: mergedWordCount,
+      });
+
+      logger.debug(
+        "Segmentation",
+        `Merged short sentences (both ≤5 words): "${current.text}" + "${next.text}" → "${mergedText}"`
+      );
+
       i += 2;
     } else {
       // Keep current sentence as-is

@@ -21,6 +21,7 @@ export interface AssemblyAITranscriptResponse {
   status: "queued" | "processing" | "completed" | "error";
   text: string;
   words: AssemblyAIWord[];
+  audio_duration: number | null; // Duration of audio file in seconds
   error?: string;
 }
 

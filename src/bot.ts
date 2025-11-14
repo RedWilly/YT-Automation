@@ -211,7 +211,7 @@ async function processAudioFile(
       step: "Processing Transcript",
       message: "Segmenting transcript into scenes...",
     });
-    const { segments, formattedTranscript } = processTranscript(transcript.words);
+    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
     logger.step("Bot", `Created ${segments.length} segments`);
 
     // Step 4: Generate image search queries with LLM

@@ -34,7 +34,7 @@
  *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
  *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const TRANSCRIPT_ID: string = "168d5288-37a2-4bdf-84b0-21c19c4d580f";
+const TRANSCRIPT_ID: string = "b77d9a1b-ab8e-4fbc-92e7-c663f53c10bd";
 const UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
@@ -179,7 +179,7 @@ async function runTestWorkflow(): Promise<void> {
     // Step 3: Validate and process transcript
     logger.step("Test", "Step 3: Processing transcript into segments");
     validateTranscriptData(transcript.words);
-    const { segments, formattedTranscript } = processTranscript(transcript.words);
+    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
     logger.success("Test", `Created ${segments.length} segments`);
 
     // Step 4: Generate image search queries with DeepSeek

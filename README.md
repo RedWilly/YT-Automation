@@ -1,160 +1,90 @@
-# YouTube Automation Workflow (v2v)
+# v2v
 
-Automated workflow to convert voice-over audio into videos with AI-generated visual scenes.
+Turn audio into videos with AI-generated visuals and word-by-word captions.
 
+Automatically convert audio files into engaging videos with AI-generated visuals 
+and karaoke-style word-by-word captions. Perfect for content creators, podcasters, 
+and anyone who wants to turn audio content into shareable videos.
 
-## Prerequisites
+Simply send an audio file to a Telegram bot and receive a fully produced video 
+with matching images and synchronized captions. The bot uses AssemblyAI for 
+accurate transcription, DeepSeek AI for generating scene descriptions, and FFmpeg 
+for professional video rendering.
 
-- [Bun](https://bun.sh) v1.3.1 or higher
-- [FFmpeg](https://ffmpeg.org/) installed and available in PATH
-- Telegram Bot Token (from [@BotFather](https://t.me/botfather))
-- AssemblyAI API Key
-- DeepSeek API Key
+Features unlimited AI image generation via Cloudflare Workers, optional object 
+storage integration (MinIO/AWS S3), and customizable caption styling. Built with 
+TypeScript and Bun for high performance.
 
-## Installation
+**[Setup Guide](SETUP.md)** • **[License](LICENSE.md)**
 
-1. **Install dependencies:**
+---
 
+## What it does
+
+Send an audio file to a Telegram bot and get back a video with matching visuals and highlighted captions.
+
+1. Upload audio through Telegram
+2. AI transcribes it with word-level timestamps
+3. AI generates visual descriptions for each scene
+4. Images are created or downloaded automatically
+5. Video is rendered with word-by-word highlighted captions
+6. Finished video is sent back to you
+
+**Processing time:** 3-7 minutes for a typical 2-minute audio file.
+
+## Quick Start
+
+**Prerequisites:**
+- [Bun](https://bun.sh) runtime
+- [FFmpeg](https://ffmpeg.org/) for video processing
+- Telegram bot token ([get one from @BotFather](https://t.me/botfather))
+- API keys for AssemblyAI and DeepSeek
+
+**Install:**
 ```bash
 bun install
+bun font/add.ts  # Install caption font
 ```
 
-2. **Configure environment variables:**
+**Configure:**
 
-Copy the `.env` file and fill in your API keys:
-
+Copy `.env.example` to `.env` and add your API keys:
 ```env
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-
-# AssemblyAI Configuration
-ASSEMBLYAI_API_KEY=a91397..your_key_here
-
-# DeepSeek LLM Configuration
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+TELEGRAM_BOT_TOKEN=your_bot_token
+ASSEMBLYAI_API_KEY=your_assemblyai_key
+DEEPSEEK_API_KEY=your_deepseek_key
 ```
 
-3. **Install FFmpeg (Windows):**
-
-Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH, or use:
-
-```powershell
-winget install FFmpeg
-```
-
-## Usage
-
-### Production Mode (Telegram Bot)
-
-1. **Start the bot:**
-
+**Run:**
 ```bash
-bun run index.ts
+bun start
 ```
 
-2. **Use the Telegram bot:**
+See the **[Setup Guide](SETUP.md)** for detailed instructions, optional features, and API service setup.
 
-- Open your bot in Telegram
-- Send `/start` to see instructions
-- Send `/upload` and then upload your audio file
-- Wait for the bot to process and return your video
+## Features
 
-### Test Mode (Local Development)
+- **Word-by-word captions** - Karaoke-style highlighting synced to audio
+- **AI-generated visuals** - Automatic scene descriptions and image generation
+- **Flexible image sources** - Use AI generation or web search
+- **Pan effects** - Optional subtle motion on images
+- **Object storage** - Auto-upload to MinIO or AWS S3
+- **Debug mode** - Detailed logging for development
 
-For faster development and testing without Telegram:
+## Telegram Commands
 
-1. **Place an audio file in `tmp/audio/` directory:**
+- `/start` - Get started
+- `/upload` - Upload an audio file to convert
+- `/cleanup` - Clear temporary files
 
-```bash
-# Example: copy your test audio file
-cp my-test-audio.mp3 tmp/audio/
-```
+## Services Used
 
-2. **Run the test workflow:**
-
-```bash
-# Test with a specific audio file
-bun test-workflow.ts tmp/audio/my-test-audio.mp3
-
-# Or let it auto-detect the first audio file in tmp/audio/
-bun test-workflow.ts
-```
-
-3. **Check the output:**
-
-The test workflow will:
-- ✅ Transcribe the audio with AssemblyAI
-- ✅ Generate image search queries with DeepSeek
-- ✅ Download images from DuckDuckGo
-- ✅ Generate the final video with FFmpeg
-- ✅ Save the video to `tmp/video/`
-
-
-## Workflow Steps
-
-1. **Receive Audio** - Telegram bot receives voice/audio file
-2. **Upload to AssemblyAI** - Audio uploaded for transcription
-3. **Transcribe** - AssemblyAI transcribes the audio
-4. **Chunk Transcript** - Split into 100-word segments with timestamps
-5. **Generate Queries** - DeepSeek LLM creates visual search queries
-6. **Download Images** - DuckDuckGo image search and download
-7. **Generate Video** - FFmpeg combines images with audio
-8. **Send Video** - Telegram bot sends completed video
-
-## Development
-
-This project was created using `bun init` in bun v1.3.1. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
-
-### Debug Mode
-
-Control logging verbosity with the `DEBUG` environment variable in `.env`:
-
-**Lite Mode** (`DEBUG=false` - default):
-```
-[Bot] 📥 Audio downloaded
-[AssemblyAI] ⏳ Uploading audio file
-[AssemblyAI] ✓ Audio uploaded successfully
-[Transcript] ⏳ Processing 81 words into segments
-[Transcript] ✓ Created 2 segments total
-[DeepSeek] ⏳ Generating image search queries
-[Video] ✓ Video generated successfully
-```
-
-**Debug Mode** (`DEBUG=true`):
-```
-[Bot] 📥 Audio downloaded
-[Bot] 🔍 Audio file saved to: C:\Users\...\tmp\audio\voice_123.ogg
-[AssemblyAI] ⏳ Uploading audio file
-[AssemblyAI] 🔍 Audio file path: C:\Users\...\tmp\audio\voice_123.ogg
-[AssemblyAI] ✓ Audio uploaded successfully
-[AssemblyAI] 🔍 Upload URL: https://cdn.assemblyai.com/upload/abc123
-[Transcript] ⏳ Processing 81 words into segments
-[Transcript] 🔍 Segment 1: 50 words, 0ms-15000ms
-[Transcript] 🔍 Segment 2: 31 words, 15000ms-27360ms
-[DeepSeek] 🔍 Formatted transcript:
-[0–15000 ms]: Each wave crashes upon the shore...
-[DeepSeek] 📄 Raw response content: [{"start":0,"end":15000,...}]
-[Video] 🔍 FFmpeg command: ffmpeg -loop 1 -t 15 -i image1.jpg...
-```
-
-Set `DEBUG=true` in `.env` for detailed logs during development, or `DEBUG=false` for clean production logs.
-
-### Performance Optimizations
-
-The codebase follows performance best practices:
-- Typed arrays for numeric data where applicable
-- Object pooling for frequently allocated objects
-- Efficient loops with cached lengths
-- Minimal temporary object creation
-- Proper memory management
+- **AssemblyAI** - Audio transcription with word-level timing
+- **DeepSeek** - LLM for scene descriptions (affordable alternative to OpenAI)
+- **Cloudflare Workers** (optional) - Unlimited AI image generation
+- **MinIO/AWS S3** (optional) - Object storage for finished videos
+- **Telegram** - Bot interface
 
 ## License
 
-This project is `Licensed under OCL v1.0`.
-
-- ✅ Free for personal, educational, and non-commercial use
-- ✅ Modify and distribute freely for non-commercial purposes
-- ✅ Commercial use welcome with contribution requirement
-
-For commercial use, please review the [LICENSE](LICENSE) file to learn how to contribute back to the project.
+Licensed under OCL v1.0. Free for personal and non-commercial use. Commercial use is allowed if you contribute back to the project. See [LICENSE.md](LICENSE.md) for details.

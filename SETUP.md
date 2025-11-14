@@ -1,172 +1,191 @@
-# Setup Guide - YouTube Automation Workflow
+# Setup Guide
 
-## Step-by-Step Setup Instructions
+Get v2v running on your machine in a few minutes.
 
-### 1. Install Prerequisites
+## Prerequisites
 
-#### Install Bun (if not already installed)
+You'll need these installed first:
+
+**Bun** (JavaScript runtime):
 ```powershell
-# Windows (PowerShell)
+# Windows
 irm bun.sh/install.ps1 | iex
 ```
 
-#### Install FFmpeg
+**FFmpeg** (video processing):
 ```powershell
-# Option 1: Using winget
+# Windows - pick one:
 winget install FFmpeg
 
-# Option 2: Manual installation
-# Download from https://ffmpeg.org/download.html
-# Extract and add to PATH
+# Or download from https://ffmpeg.org/download.html
 ```
 
-Verify FFmpeg installation:
+Verify FFmpeg works:
 ```powershell
 ffmpeg -version
 ```
 
-### 2. Get API Keys
+## Get Your API Keys
 
-#### Telegram Bot Token
-1. Open Telegram and search for [@BotFather](https://t.me/botfather)
-2. Send `/newbot` command
-3. Follow the prompts to create your bot
-4. Copy the bot token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+### Required Services
 
-#### AssemblyAI API Key
-1. Sign up at [AssemblyAI](https://www.assemblyai.com/)
-2. Go to your dashboard
-3. Copy your API key
+**Telegram Bot**
+1. Message [@BotFather](https://t.me/botfather) on Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy your bot token (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
-#### DeepSeek API Key
-1. Sign up at [DeepSeek](https://platform.deepseek.com/)
-2. Go to API Keys section
-3. Create a new API key
-4. Copy the key
+**AssemblyAI** (Audio transcription)
+1. Sign up at [assemblyai.com](https://www.assemblyai.com/)
+2. Grab your API key from the dashboard
+3. Free tier includes 5 hours of transcription
 
-### 3. Configure Environment Variables
+**DeepSeek** (LLM for scene descriptions)
+1. Sign up at [platform.deepseek.com](https://platform.deepseek.com/)
+2. Create an API key in the API Keys section
+3. Very affordable pricing (much cheaper than OpenAI)
 
-Edit the `.env` file in the project root:
+### Optional Services
 
+**Cloudflare Workers** (Unlimited AI image generation)
+
+If you want AI-generated images instead of web search, you'll need to set up a Cloudflare Worker.
+
+Watch this tutorial to set it up: **[Unlimited AI Images with Cloudflare Workers](https://www.youtube.com/watch?v=VliEpQl06pE)**
+
+Once set up, add to your `.env`:
 ```env
-# Telegram Bot Configuration
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-
-# AssemblyAI Configuration
-ASSEMBLYAI_API_KEY=a91397..your_key_here
-
-# DeepSeek LLM Configuration
-DEEPSEEK_API_KEY=sk-your-deepseek-api-key-here
-DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+USE_AI_IMAGE=true
+WORKER_API_URL=https://your-worker.username.workers.dev/
+WORKER_API_KEY=your_worker_api_key
 ```
 
-### 4. Install Dependencies
+**MinIO or AWS S3** (Video storage)
 
+If you want to automatically upload finished videos to object storage (useful for downstream processing like YouTube uploads via n8n):
+
+*Option 1: Self-hosted MinIO*
+1. Install MinIO on your server: [min.io/download](https://min.io/download)
+2. Create a bucket (e.g., `finished-videos`)
+3. Generate access and secret keys
+
+*Option 2: AWS S3*
+1. Create an S3 bucket in AWS
+2. Generate IAM credentials with S3 write permissions
+3. Use your S3 endpoint and credentials
+
+Add to your `.env`:
+```env
+MINIO_ENABLED=true
+MINIO_ENDPOINT=https://minio.yourdomain.com  # or S3 endpoint
+MINIO_ACCESS_KEY=your_access_key
+MINIO_SECRET_KEY=your_secret_key
+MINIO_BUCKET=finished-videos
+MINIO_REGION=us-east-1  # optional
+```
+
+## Configure the Project
+
+**Install dependencies:**
 ```bash
 bun install
 ```
 
-This will install:
-- `telegraf` - Telegram bot framework
-- `dotenv` - Environment variable loader
-- Other required dependencies
-
-### 5. Test the Setup
-
-Run the bot:
+**Install the caption font:**
 ```bash
-bun run index.ts
+bun font/add.ts
+```
+
+**Set up your environment:**
+
+Copy `.env.example` to `.env` and add your keys:
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+ASSEMBLYAI_API_KEY=your_assemblyai_key_here
+DEEPSEEK_API_KEY=your_deepseek_key_here
+```
+
+Check `.env.example` for all available options (captions, pan effects, AI images, etc.).
+
+## Run It
+
+Start the bot:
+```bash
+bun start
 ```
 
 You should see:
 ```
-==================================================
-YouTube Automation Workflow
-==================================================
-
+[Main] ==================================================
+[Main] v2v - Audio to Video Bot
+[Main] ==================================================
 [Bot] Starting Telegram bot...
 [Bot] Bot is running! Send /start to begin.
 ```
 
-### 6. Use the Bot
+## Use the Bot
 
-1. Open Telegram and find your bot (search for the username you created)
-2. Send `/start` to see the welcome message
-3. Send `/upload` to begin the workflow
-4. Upload an audio or voice file
-5. Wait for the bot to process (this may take several minutes)
-6. Receive your completed video!
+1. Find your bot on Telegram (search for the username you created)
+2. Send `/start` to get started
+3. Send `/upload` and upload an audio file
+4. Wait a few minutes while it processes
+5. Get your video back
 
-## Workflow Timeline
+## How Long Does It Take?
 
 For a typical 2-minute audio file:
-- **Upload & Transcription**: 1-3 minutes
-- **AI Processing**: 30-60 seconds
-- **Image Download**: 1-2 minutes (depends on number of segments)
-- **Video Generation**: 30-60 seconds
-- **Total**: ~3-7 minutes
+- Transcription: 1-3 minutes
+- AI processing: 30-60 seconds
+- Image generation/download: 1-2 minutes
+- Video rendering: 30-60 seconds
+- **Total: 3-7 minutes**
 
 ## Troubleshooting
 
-### Bot doesn't respond
-- Check that `TELEGRAM_BOT_TOKEN` is correct in `.env`
-- Verify the bot is running (`bun run index.ts`)
-- Check console for error messages
+**Bot doesn't respond**
+- Double-check your `TELEGRAM_BOT_TOKEN` in `.env`
+- Make sure the bot is running
+- Look for errors in the console
 
-### FFmpeg errors
-- Verify FFmpeg is installed: `ffmpeg -version`
-- Ensure FFmpeg is in your PATH
-- On Windows, restart your terminal after installing FFmpeg
+**FFmpeg errors**
+- Run `ffmpeg -version` to verify it's installed
+- Make sure it's in your PATH
+- Restart your terminal after installing
 
-### Transcription fails
-- Verify `ASSEMBLYAI_API_KEY` is correct
-- Check your AssemblyAI account has credits
-- Ensure audio file is in a supported format (mp3, wav, ogg, etc.)
+**Transcription fails**
+- Verify your AssemblyAI key is correct
+- Check you have credits in your account
+- Make sure your audio file is a supported format (mp3, wav, ogg, etc.)
 
-### Image download fails
-- DuckDuckGo may rate-limit requests
-- Check your internet connection
-- The bot will continue even if some images fail
-
-### DeepSeek API errors
-- Verify `DEEPSEEK_API_KEY` is correct
-- Check your DeepSeek account has credits
-- Ensure the API endpoint is accessible
+**DeepSeek API errors**
+- Check your API key is correct
+- Verify you have credits
+- Make sure the API endpoint is accessible
 
 ## File Locations
 
-- **Audio files**: `tmp/audio/`
-- **Downloaded images**: `tmp/images/`
-- **Generated videos**: `tmp/video/`
+The bot creates these directories automatically:
+- `tmp/audio/` - Uploaded audio files
+- `tmp/images/` - Downloaded or generated images
+- `tmp/video/` - Finished videos
 
-These directories are automatically created and are excluded from git (in `.gitignore`).
+These are in `.gitignore` so they won't be committed.
 
-## Next Steps
+## Optional Features
 
-Once you've verified the workflow works:
+Once you have the basics working, check out these features in `.env.example`:
 
-1. **Test with different audio files** to ensure reliability
-2. **Monitor the console output** to understand the workflow
-3. **Check the generated videos** for quality
-4. **Adjust parameters** in `src/constants.ts` if needed:
-   - `POLL_INTERVAL_MS` - Change polling frequency (default: 15 seconds)
-   - `MAX_POLL_ATTEMPTS` - Change max wait time (default: 60 attempts = 15 minutes)
-   - Segmentation is now sentence-based (automatic, no manual configuration needed)
+- **Captions** (`CAPTIONS_ENABLED`) - Word-by-word highlighted captions
+- **Pan Effect** (`PAN_EFFECT`) - Subtle vertical pan on images
+- **AI Images** (`USE_AI_IMAGE`) - Generate images with AI instead of web search
+- **MinIO Upload** (`MINIO_ENABLED`) - Auto-upload videos to object storage
+- **Debug Mode** (`DEBUG`) - Detailed logs for development
 
-## Future Enhancements
+## Need Help?
 
-- **YouTube Upload**: Replace Telegram video send with YouTube API upload
-- **Cleanup**: Add automatic cleanup of `tmp/` directories after successful upload
-- **Queue System**: Handle multiple requests concurrently
-- **Progress Tracking**: More detailed progress updates
-- **Error Recovery**: Retry failed steps automatically
-- **Custom Styling**: Add text overlays, transitions, effects to videos
-
-## Support
-
-If you encounter issues:
-1. Check the console output for detailed error messages
-2. Verify all API keys are correct
-3. Ensure all prerequisites are installed
-4. Check that the `tmp/` directories exist and are writable
+If something's not working:
+1. Check the console for error messages
+2. Verify all your API keys are correct
+3. Make sure FFmpeg and Bun are installed
+4. Check that `tmp/` directories exist and are writable
 

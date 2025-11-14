@@ -1,6 +1,9 @@
 {
   "name": "v2v",
   "module": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

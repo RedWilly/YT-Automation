@@ -22,29 +22,54 @@ export function processTranscript(
 ): SegmentProcessingResult {
   logger.step("Transcript", `Processing ${words.length} words into sentence-based segments`);
 
+  // CRITICAL FIX: Normalize timestamps so first segment starts at 0ms
+  //
+  // Problem: AssemblyAI may return timestamps that don't start at 0ms
+  // This causes all segments to be offset, breaking image-audio alignment
+  const firstWord = words[0];
+  if (!firstWord) {
+    throw new Error("No words in transcript");
+  }
+  const timeOffset = firstWord.start;
+
+  if (timeOffset > 0) {
+    logger.debug("Transcript", `Normalizing timestamps (offset: ${timeOffset}ms → 0ms)`);
+  }
+
   // Use sentence-based segmentation
   const sentenceDetections = segmentBySentences(words);
 
   // Convert sentence detections to transcript segments with timing
-  const segments: TranscriptSegment[] = sentenceDetections.map((sentence, index) => {
-    const { start, end } = getSentenceTimestamps(
+  const segments: TranscriptSegment[] = [];
+  let previousEnd = 0;
+
+  for (let index = 0; index < sentenceDetections.length; index++) {
+    const sentence = sentenceDetections[index];
+    if (!sentence) continue;
+
+    const { end } = getSentenceTimestamps(
       words,
       sentence.startWordIndex,
       sentence.endWordIndex
     );
+    const normalizedEnd = end - timeOffset;
+    const adjustedStart = index === 0 ? 0 : previousEnd;
+    const adjustedEnd = normalizedEnd;
 
     logger.debug(
       "Transcript",
-      `Segment ${index + 1}: "${sentence.text.substring(0, 50)}..." (${sentence.wordCount} words, ${start}ms-${end}ms)`
+      `Segment ${index + 1}: "${sentence.text.substring(0, 50)}..." (${sentence.wordCount} words, ${adjustedStart}ms-${adjustedEnd}ms)`
     );
 
-    return {
+    segments.push({
       index: index + 1,
       text: sentence.text,
-      start,
-      end,
-    };
-  });
+      start: adjustedStart,
+      end: adjustedEnd,
+    });
+
+    previousEnd = adjustedEnd;
+  }
 
   logger.success("Transcript", `Created ${segments.length} sentence-based segments`);
 

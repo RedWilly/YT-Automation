@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  v2v-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: v2v-bot
+    restart: unless-stopped
+
+    # Environment variables from .env file
+    env_file:
+      - .env
+

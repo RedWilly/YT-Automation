@@ -85,6 +85,10 @@ MINIO_REGION=us-east-1  # optional
 
 ## Configure the Project
 
+You can run v2v either directly with Bun or using Docker. Choose the method that works best for you.
+
+### Option 1: Run with Bun (Local)
+
 **Install dependencies:**
 ```bash
 bun install
@@ -107,9 +111,7 @@ DEEPSEEK_API_KEY=your_deepseek_key_here
 
 Check `.env.example` for all available options (captions, pan effects, AI images, etc.).
 
-## Run It
-
-Start the bot:
+**Start the bot:**
 ```bash
 bun start
 ```
@@ -122,6 +124,43 @@ You should see:
 [Bot] Starting Telegram bot...
 [Bot] Bot is running! Send /start to begin.
 ```
+
+### Option 2: Run with Docker
+
+**Prerequisites:**
+- [Docker](https://docs.docker.com/get-docker/) installed
+- [Docker Compose](https://docs.docker.com/compose/install/) installed
+
+**Set up your environment:**
+
+Copy `.env.example` to `.env` and add your keys (same as Option 1).
+
+**Build and run:**
+```bash
+docker-compose up -d
+```
+
+**View logs:**
+```bash
+docker-compose logs -f
+```
+
+**Stop the bot:**
+```bash
+docker-compose down
+```
+
+**Rebuild after code changes:**
+```bash
+docker-compose up -d --build
+```
+
+**What's included:**
+- FFmpeg and Resolve-Bold font are pre-installed
+- Everything starts fresh on each restart
+- Perfect for deployment platforms like Coolify
+
+See **[DOCKER.md](DOCKER.md)** for more details and Coolify setup.
 
 ## Use the Bot
 

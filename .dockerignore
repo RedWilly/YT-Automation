@@ -1,0 +1,55 @@
+# Node modules (will be installed in container)
+node_modules
+
+# Temporary files
+tmp/audio/*
+tmp/images/*
+tmp/video/*
+
+# Keep the tmp directories but ignore contents
+!tmp/audio/.gitkeep
+!tmp/images/.gitkeep
+!tmp/video/.gitkeep
+
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+SETUP.md
+LICENSE.md
+GITHUB_DESCRIPTION.txt
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (will be passed via docker-compose)
+.env
+.env.local
+.env.*.local
+
+# Test files
+test-workflow.ts
+*.test.ts
+*.spec.ts
+
+# Build artifacts
+dist
+build
+*.log
+
+# Docker files (no need to copy into image)
+Dockerfile
+docker-compose.yml
+.dockerignore
+

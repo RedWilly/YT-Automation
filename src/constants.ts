@@ -19,7 +19,7 @@ export const TMP_IMAGES_DIR = "tmp/images";
 export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
-export const POLL_INTERVAL_MS = 1000; // 5 seconds between poll attempts
+export const POLL_INTERVAL_MS = 2200; // 2.2 seconds between poll attempts
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration

@@ -15,7 +15,7 @@ Features unlimited AI image generation via Cloudflare Workers, optional object
 storage integration (MinIO/AWS S3), and customizable caption styling. Built with 
 TypeScript and Bun for high performance.
 
-**[Setup Guide](SETUP.md)** • **[License](LICENSE.md)**
+**[Setup Guide](SETUP.md)** • **[Docker Guide](DOCKER.md)** • **[License](LICENSE.md)**
 
 ---
 
@@ -34,11 +34,32 @@ Send an audio file to a Telegram bot and get back a video with matching visuals 
 
 ## Quick Start
 
+### Run with Docker (Recommended)
+
+**Prerequisites:**
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- Telegram bot token ([get one from @BotFather](https://t.me/botfather))
+- API keys for AssemblyAI and DeepSeek
+
+**Setup:**
+```bash
+cp .env.example .env
+# Edit .env and add your API keys
+```
+
+**Run:**
+```bash
+docker-compose up -d
+```
+
+See **[DOCKER.md](DOCKER.md)** for detailed Docker instructions.
+
+### Run with Bun (Local)
+
 **Prerequisites:**
 - [Bun](https://bun.sh) runtime
 - [FFmpeg](https://ffmpeg.org/) for video processing
-- Telegram bot token ([get one from @BotFather](https://t.me/botfather))
-- API keys for AssemblyAI and DeepSeek
+- Telegram bot token and API keys
 
 **Install:**
 ```bash
@@ -47,12 +68,9 @@ bun font/add.ts  # Install caption font
 ```
 
 **Configure:**
-
-Copy `.env.example` to `.env` and add your API keys:
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token
-ASSEMBLYAI_API_KEY=your_assemblyai_key
-DEEPSEEK_API_KEY=your_deepseek_key
+```bash
+cp .env.example .env
+# Edit .env and add your API keys
 ```
 
 **Run:**

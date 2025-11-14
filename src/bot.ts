@@ -3,7 +3,7 @@
  */
 
 import { getTelegramBot, getFileUrl, type Context } from "./utils/telegram.ts";
-import { TMP_AUDIO_DIR, USE_AI_IMAGE, MINIO_ENABLED } from "./constants.ts";
+import { TMP_AUDIO_DIR, USE_AI_IMAGE, MINIO_ENABLED, CAPTIONS_ENABLED } from "./constants.ts";
 import { transcribeAudio } from "./services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
@@ -14,6 +14,7 @@ import {
 import { generateVideo, validateVideoInputs } from "./services/video.ts";
 import { cleanupTempFiles } from "./services/cleanup.ts";
 import { uploadVideoToMinIO } from "./services/minio.ts";
+import { generateCaptions } from "./services/captions.ts";
 import { ProgressTracker } from "./services/progress.ts";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
@@ -301,16 +302,28 @@ async function processAudioFile(
     validateDownloadedImages(downloadedImages);
     logger.step("Bot", `Downloaded ${downloadedImages.length} images`);
 
-    // Step 6: Generate video with FFmpeg
+    // Step 6: Generate captions (if enabled)
+    let assFilePath: string | undefined;
+    if (CAPTIONS_ENABLED) {
+      await progress.update({
+        step: "Generating Captions",
+        message: "Creating word-by-word highlighted captions...",
+      });
+      const captionResult = await generateCaptions(segments, transcript.words);
+      assFilePath = captionResult.assFilePath;
+      logger.step("Bot", `Captions created: ${captionResult.groups.length} groups`);
+    }
+
+    // Step 7: Generate video with FFmpeg
     await progress.update({
       step: "Generating Video",
       message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
     });
     validateVideoInputs(downloadedImages, audioFilePath);
-    const videoResult = await generateVideo(downloadedImages, audioFilePath);
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, assFilePath);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
-    // Step 7: Upload to MinIO (if enabled)
+    // Step 8: Upload to MinIO (if enabled)
     if (MINIO_ENABLED) {
       await progress.update({
         step: "Uploading to MinIO",
@@ -326,7 +339,7 @@ async function processAudioFile(
       }
     }
 
-    // Step 8: Send completion message with video path
+    // Step 9: Send completion message with video path
     let completionMessage = `✅ Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``;
 
     if (MINIO_ENABLED && videoResult.minioUpload?.success) {

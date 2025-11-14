@@ -34,7 +34,7 @@
  *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
  *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const TRANSCRIPT_ID: string = "b77d9a1b-ab8e-4fbc-92e7-c663f53c10bd";
+const TRANSCRIPT_ID: string = "05841374-893b-4b1d-bad0-783690c46f9b";
 const UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
@@ -43,7 +43,8 @@ import { generateImageQueries, validateImageQueries } from "./src/services/deeps
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
 import { uploadVideoToMinIO } from "./src/services/minio.ts";
-import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
+import { generateCaptions } from "./src/services/captions.ts";
+import { TMP_AUDIO_DIR, MINIO_ENABLED, CAPTIONS_ENABLED } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -200,16 +201,28 @@ async function runTestWorkflow(): Promise<void> {
     validateDownloadedImages(downloadedImages);
     logger.success("Test", `Downloaded ${downloadedImages.length} images`);
 
-    // Step 6: Generate video with FFmpeg
-    logger.step("Test", "Step 6: Generating video with FFmpeg");
+    // Step 6: Generate captions (if enabled)
+    let assFilePath: string | undefined;
+    if (CAPTIONS_ENABLED) {
+      logger.step("Test", "Step 6: Generating captions");
+      const captionResult = await generateCaptions(segments, transcript.words);
+      assFilePath = captionResult.assFilePath;
+      logger.success("Test", `Captions created: ${captionResult.groups.length} groups`);
+      logger.log("Test", `ASS file: ${assFilePath}`);
+    } else {
+      logger.log("Test", "⏭️  Skipping caption generation (CAPTIONS_ENABLED=false)");
+    }
+
+    // Step 7: Generate video with FFmpeg
+    logger.step("Test", "Step 7: Generating video with FFmpeg");
     validateVideoInputs(downloadedImages, audioFilePath);
-    const videoResult = await generateVideo(downloadedImages, audioFilePath);
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, assFilePath);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 
-    // Step 7: Upload to MinIO (if enabled)
+    // Step 8: Upload to MinIO (if enabled)
     if (MINIO_ENABLED) {
-      logger.step("Test", "Step 7: Uploading to MinIO");
+      logger.step("Test", "Step 8: Uploading to MinIO");
       const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
 
       if (minioResult.success) {
@@ -237,6 +250,11 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `   • Words transcribed: ${transcript.words.length}`);
     logger.log("Test", `   • Segments created: ${segments.length}`);
     logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
+    if (CAPTIONS_ENABLED && assFilePath) {
+      logger.log("Test", `   • Captions: Enabled (word-by-word highlighting)`);
+    } else {
+      logger.log("Test", `   • Captions: Disabled`);
+    }
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
     logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
     if (MINIO_ENABLED && videoResult.minioUpload?.success) {

@@ -2,7 +2,7 @@
  * Video generation service using FFmpeg
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, PAN_EFFECT } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, PAN_EFFECT, CAPTIONS_ENABLED } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
 import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -92,11 +92,13 @@ function calculatePanParams(duration: number): PanParams {
  * Generate video from images and audio using FFmpeg with chunked rendering
  * @param images - Array of downloaded images with timing information
  * @param audioFilePath - Path to the audio file
+ * @param assFilePath - Optional path to ASS subtitle file for captions
  * @returns Video generation result with path and duration
  */
 export async function generateVideo(
   images: DownloadedImage[],
-  audioFilePath: string
+  audioFilePath: string,
+  assFilePath?: string
 ): Promise<VideoGenerationResult> {
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
@@ -105,6 +107,13 @@ export async function generateVideo(
     logger.log("Video", "🎬 Pan effect enabled - applying subtle vertical motion to images");
   } else {
     logger.log("Video", "📷 Pan effect disabled - using static images");
+  }
+
+  if (CAPTIONS_ENABLED && assFilePath) {
+    logger.log("Video", "📝 Captions enabled - adding word-by-word highlighted subtitles");
+    logger.debug("Video", `ASS file: ${assFilePath}`);
+  } else {
+    logger.log("Video", "📝 Captions disabled - video only");
   }
 
   // Sort images by start time to ensure correct order
@@ -124,11 +133,11 @@ export async function generateVideo(
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, outputPath);
+    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, assFilePath);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
     const { filterComplex } = createFilterComplex(sortedImages);
-    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath);
+    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath, assFilePath);
   }
 
   logger.success("Video", `Video generated successfully`);
@@ -228,12 +237,14 @@ function createFilterComplex(
  * @param audioFilePath - Path to audio file
  * @param filterComplex - FFmpeg filter complex string
  * @param outputPath - Output video path
+ * @param assFilePath - Optional path to ASS subtitle file
  */
 async function runFFmpeg(
   images: DownloadedImage[],
   audioFilePath: string,
   filterComplex: string,
-  outputPath: string
+  outputPath: string,
+  assFilePath?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Build input arguments
@@ -260,11 +271,24 @@ async function runFFmpeg(
     // Add audio input
     inputArgs.push("-i", audioFilePath);
 
+    // Modify filter complex to add subtitles if ASS file is provided
+    let finalFilterComplex = filterComplex;
+    if (CAPTIONS_ENABLED && assFilePath) {
+      // Add subtitles filter after the video output
+      // Replace [outv] with intermediate output, then apply subtitles
+      finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
+      // Escape the ASS file path for Windows (replace backslashes with forward slashes and escape colons)
+      const escapedAssPath = assFilePath.replace(/\\/g, "/").replace(/:/g, "\\:");
+      // NOTE: Do NOT use force_style parameter - it overrides inline styling tags in the ASS file
+      // The ASS file already contains all the styling information for word-by-word highlighting
+      finalFilterComplex += `;[video_no_subs]subtitles='${escapedAssPath}'[outv]`;
+    }
+
     // Build complete FFmpeg arguments with memory-efficient settings
     const ffmpegArgs = [
       ...inputArgs,
       "-filter_complex",
-      filterComplex,
+      finalFilterComplex,
       "-map",
       "[outv]",
       "-map",
@@ -348,11 +372,13 @@ async function runFFmpeg(
  * @param images - Sorted array of images
  * @param audioFilePath - Path to audio file
  * @param outputPath - Final output video path
+ * @param assFilePath - Optional path to ASS subtitle file
  */
 async function renderVideoInChunks(
   images: DownloadedImage[],
   audioFilePath: string,
-  outputPath: string
+  outputPath: string,
+  assFilePath?: string
 ): Promise<void> {
   // Split images into chunks
   const chunks: DownloadedImage[][] = [];
@@ -384,7 +410,7 @@ async function renderVideoInChunks(
     // Create filter complex for this chunk
     const { filterComplex } = createFilterComplex(chunk);
 
-    // Render this chunk with the corresponding audio segment
+    // Render this chunk with the corresponding audio segment (no subtitles yet)
     await runFFmpegChunk(chunk, audioFilePath, filterComplex, chunkPath, chunkStartTime, chunkDuration);
 
     logger.success("Video", `Chunk ${i + 1}/${chunks.length} completed`);
@@ -392,7 +418,27 @@ async function renderVideoInChunks(
 
   // Concatenate all chunks into final video
   logger.step("Video", `Concatenating ${chunks.length} chunks into final video...`);
-  await concatenateChunks(chunkPaths, outputPath);
+
+  // If captions are enabled, concatenate to a temp file first, then add subtitles
+  const tempOutputPath = CAPTIONS_ENABLED && assFilePath
+    ? join(TMP_VIDEO_DIR, `temp_no_subs_${timestamp}.mp4`)
+    : outputPath;
+
+  await concatenateChunks(chunkPaths, tempOutputPath);
+
+  // Add subtitles to the concatenated video if enabled
+  if (CAPTIONS_ENABLED && assFilePath) {
+    logger.step("Video", "Adding subtitles to concatenated video...");
+    await addSubtitlesToVideo(tempOutputPath, assFilePath, outputPath);
+
+    // Delete temp file without subtitles
+    try {
+      await unlink(tempOutputPath);
+      logger.debug("Video", `Deleted temp file: ${tempOutputPath}`);
+    } catch (error) {
+      logger.warn("Video", `Failed to delete temp file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
 
   // Cleanup chunk files
   logger.debug("Video", `Cleaning up ${chunkPaths.length} temporary chunk files...`);
@@ -607,6 +653,69 @@ async function concatenateChunks(
     ffmpeg.on("error", (error) => {
       logger.error("Video", `Failed to start FFmpeg concatenation: ${error.message}`);
       reject(new Error(`Failed to start FFmpeg concatenation: ${error.message}`));
+    });
+  });
+}
+
+/**
+ * Add subtitles to an existing video file
+ * @param inputVideoPath - Path to input video file
+ * @param assFilePath - Path to ASS subtitle file
+ * @param outputVideoPath - Path to output video file with subtitles
+ */
+async function addSubtitlesToVideo(
+  inputVideoPath: string,
+  assFilePath: string,
+  outputVideoPath: string
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // Escape the ASS file path for Windows (replace backslashes with forward slashes and escape colons)
+    const escapedAssPath = assFilePath.replace(/\\/g, "/").replace(/:/g, "\\:");
+
+    const ffmpegArgs = [
+      "-i",
+      inputVideoPath,
+      "-vf",
+      // NOTE: Do NOT use force_style parameter - it overrides inline styling tags in the ASS file
+      // The ASS file already contains all the styling information for word-by-word highlighting
+      `subtitles='${escapedAssPath}'`,
+      "-c:a",
+      "copy", // Copy audio without re-encoding
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-y",
+      outputVideoPath,
+    ];
+
+    logger.debug("Video", `Adding subtitles: ffmpeg ${ffmpegArgs.join(" ")}`);
+
+    const ffmpeg = spawn("ffmpeg", ffmpegArgs);
+
+    let stderrOutput = "";
+
+    ffmpeg.stderr.on("data", (data) => {
+      const output = data.toString();
+      stderrOutput += output;
+    });
+
+    ffmpeg.on("close", (code) => {
+      if (code === 0) {
+        logger.success("Video", "Subtitles added successfully");
+        resolve();
+      } else {
+        logger.error("Video", `Failed to add subtitles (exit code ${code})`);
+        logger.debug("Video", `FFmpeg stderr:\n${stderrOutput}`);
+        reject(new Error(`FFmpeg subtitle overlay exited with code ${code}`));
+      }
+    });
+
+    ffmpeg.on("error", (error) => {
+      logger.error("Video", `Failed to start FFmpeg for subtitles: ${error.message}`);
+      reject(new Error(`Failed to start FFmpeg for subtitles: ${error.message}`));
     });
   });
 }

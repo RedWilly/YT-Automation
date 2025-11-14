@@ -34,7 +34,7 @@
  *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
  *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const TRANSCRIPT_ID: string = "";
+const TRANSCRIPT_ID: string = "168d5288-37a2-4bdf-84b0-21c19c4d580f";
 const UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";

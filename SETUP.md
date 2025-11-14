@@ -149,9 +149,9 @@ Once you've verified the workflow works:
 2. **Monitor the console output** to understand the workflow
 3. **Check the generated videos** for quality
 4. **Adjust parameters** in `src/constants.ts` if needed:
-   - `WORDS_PER_SEGMENT` - Change segment size (default: 100 words)
-   - `POLL_INTERVAL_MS` - Change polling frequency (default: 10 seconds)
-   - `MAX_POLL_ATTEMPTS` - Change max wait time (default: 60 attempts = 10 minutes)
+   - `POLL_INTERVAL_MS` - Change polling frequency (default: 15 seconds)
+   - `MAX_POLL_ATTEMPTS` - Change max wait time (default: 60 attempts = 15 minutes)
+   - Segmentation is now sentence-based (automatic, no manual configuration needed)
 
 ## Future Enhancements
 

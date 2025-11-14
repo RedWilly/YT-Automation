@@ -19,7 +19,6 @@ export const TMP_IMAGES_DIR = "tmp/images";
 export const TMP_VIDEO_DIR = "tmp/video";
 
 // Processing Configuration
-export const WORDS_PER_SEGMENT = 110;
 export const POLL_INTERVAL_MS = 15000; // 15 seconds when usinng flux or turbo you can use 10000=10second
 export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
@@ -28,9 +27,9 @@ export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (pre
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
-export const WORKER_API_URL = process.env.WORKER_API_URL || "https://image-api.charlesattoh3.workers.dev/";
+export const WORKER_API_URL = process.env.WORKER_API_URL || "";
 export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
-export const AI_IMAGE_STYLE = "in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions";
+export const AI_IMAGE_STYLE = "in the style of minimalist editorial ink and watercolor illustration, clean precise ink outlines, subtle translucent watercolor washes, limited muted color palette, airy composition, flat yet realistic shading, infographic-style clarity, modern minimalistic storytelling, elegant and uncluttered visual design, soft diffused sunlight";
 
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";

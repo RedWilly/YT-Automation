@@ -1,8 +1,8 @@
 /**
- * Transcript processing service for chunking words into segments
+ * Transcript processing service for intelligent sentence-based segmentation
  */
 
-import { WORDS_PER_SEGMENT } from "../constants.ts";
+import { segmentBySentences, getSentenceTimestamps } from "./segmentation.ts";
 import type {
   AssemblyAIWord,
   TranscriptSegment,
@@ -11,49 +11,42 @@ import type {
 import * as logger from "../logger.ts";
 
 /**
- * Chunk words into segments and generate formatted transcript
+ * Process transcript words into intelligent sentence-based segments
+ * Uses smart sentence detection with abbreviation handling and short sentence merging
+ *
  * @param words - Array of words from AssemblyAI transcription
  * @returns Segments array and formatted transcript string
  */
 export function processTranscript(
   words: AssemblyAIWord[]
 ): SegmentProcessingResult {
-  logger.step("Transcript", `Processing ${words.length} words into segments`, `${WORDS_PER_SEGMENT} words per segment`);
+  logger.step("Transcript", `Processing ${words.length} words into sentence-based segments`);
 
-  const segments: TranscriptSegment[] = [];
-  let currentChunk: string[] = [];
-  let lastEnd = 0;
+  // Use sentence-based segmentation
+  const sentenceDetections = segmentBySentences(words);
 
-  const wordsLength = words.length;
+  // Convert sentence detections to transcript segments with timing
+  const segments: TranscriptSegment[] = sentenceDetections.map((sentence, index) => {
+    const { start, end } = getSentenceTimestamps(
+      words,
+      sentence.startWordIndex,
+      sentence.endWordIndex
+    );
 
-  for (let i = 0; i < wordsLength; i++) {
-    const word = words[i];
-    if (!word) continue;
+    logger.debug(
+      "Transcript",
+      `Segment ${index + 1}: "${sentence.text.substring(0, 50)}..." (${sentence.wordCount} words, ${start}ms-${end}ms)`
+    );
 
-    currentChunk.push(word.text);
+    return {
+      index: index + 1,
+      text: sentence.text,
+      start,
+      end,
+    };
+  });
 
-    // Create segment when chunk is full or at the last word
-    if (currentChunk.length === WORDS_PER_SEGMENT || i === wordsLength - 1) {
-      const text = currentChunk.join(" ");
-      const start = lastEnd;
-      const end = word.end;
-
-      segments.push({
-        index: segments.length + 1,
-        text,
-        start,
-        end,
-      });
-
-      logger.debug("Transcript", `Segment ${segments.length}: ${currentChunk.length} words, ${start}ms-${end}ms`);
-
-      // Reset for next chunk - create new array
-      currentChunk = [];
-      lastEnd = end;
-    }
-  }
-
-  logger.success("Transcript", `Created ${segments.length} segments total`);
+  logger.success("Transcript", `Created ${segments.length} sentence-based segments`);
 
   // Generate formatted transcript
   const formattedTranscript = generateFormattedTranscript(segments);

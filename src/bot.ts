@@ -3,7 +3,7 @@
  */
 
 import { getTelegramBot, getFileUrl, type Context } from "./utils/telegram.ts";
-import { TMP_AUDIO_DIR, YOUTUBE_AUTO_POST, USE_AI_IMAGE } from "./constants.ts";
+import { TMP_AUDIO_DIR, USE_AI_IMAGE } from "./constants.ts";
 import { transcribeAudio } from "./services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
@@ -12,14 +12,12 @@ import {
   validateDownloadedImages,
 } from "./services/images.ts";
 import { generateVideo, validateVideoInputs } from "./services/video.ts";
-import { uploadToYouTube } from "./services/youtube.ts";
 import { cleanupTempFiles } from "./services/cleanup.ts";
 import { ProgressTracker } from "./services/progress.ts";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import * as logger from "./logger.ts";
-import type { YouTubeUploadResult } from "./types.ts";
 
 /**
  * Create and configure the Telegram bot
@@ -269,42 +267,10 @@ async function processAudioFile(
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
-    // Step 7: Conditionally upload to YouTube based on YOUTUBE_AUTO_POST
-    let uploadResult: YouTubeUploadResult | null = null;
-
-    if (YOUTUBE_AUTO_POST) {
-      await progress.update({
-        step: "Uploading to YouTube",
-        message: "Uploading video to YouTube as private...",
-      });
-
-      // Generate video title from filename or use default
-      const videoTitle = `Automated Video - ${new Date().toLocaleDateString()}`;
-      uploadResult = await uploadToYouTube(videoResult.videoPath, {
-        title: videoTitle,
-        description: "Automatically generated video from audio transcription",
-        tags: ["automation", "ai-generated"],
-      });
-      logger.step("Bot", "Video uploaded to YouTube", uploadResult.videoUrl);
-
-      // Step 8: Cleanup temporary files (only after successful upload)
-      await progress.update({
-        step: "Cleanup",
-        message: "Cleaning up temporary files...",
-      });
-      await cleanupTempFiles(false); // Delete everything including final video
-      logger.step("Bot", "Cleanup completed");
-
-      // Step 9: Send completion message with YouTube URL
-      await progress.complete("Video uploaded successfully!", uploadResult.videoUrl);
-    } else {
-      // Auto-post is disabled - video generated but not uploaded
-      logger.step("Bot", "Auto-post disabled - video saved locally");
-
-      await progress.complete(
-        `Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\`\n\n⚠️ Auto-post is disabled. Video was not uploaded to YouTube.`
-      );
-    }
+    // Step 7: Send completion message with video path
+    await progress.complete(
+      `Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``
+    );
 
     logger.success("Bot", "Workflow completed successfully!");
   } catch (error) {

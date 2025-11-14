@@ -25,38 +25,12 @@ export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration
 export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)
-export const INCLUDE_DISCLAIMER = process.env.INCLUDE_DISCLAIMER === "true";
-export const DISCLAIMER_VIDEO_PATH = "asset/start.mov";
-
-// Ken Burns Effect Configuration
-export const ENABLE_KEN_BURNS = process.env.ENABLE_KEN_BURNS === "true";
-export const KEN_BURNS_STYLE = process.env.KEN_BURNS_STYLE || "random"; // Options: zoom_in, zoom_out, pan_left, pan_right, random
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
-export const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || "";
+export const WORKER_API_URL = process.env.WORKER_API_URL || "https://image-api.charlesattoh3.workers.dev/";
+export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 export const AI_IMAGE_STYLE = "in the style of a cinematic propaganda oil painting, mid-20th century illustration, painterly brush strokes, soft diffused lighting through windows, warm desaturated tones, storytelling composition, vintage printed texture, subtle grain, dramatic sunlight and shadow, nostalgic atmosphere, no text, no words, no letters, no captions";
-export const AI_IMAGE_MODEL = "gptimage"; // Options: flux, kontext, turbo, gptimage
-export const AI_IMAGE_WIDTH = 1920;
-export const AI_IMAGE_HEIGHT = 1080;
-export const AI_IMAGE_ASPECT = "16:9"; // For gptimage model only (options: 1:1, 16:9, 9:16, 4:3, 3:4)
-export const AI_IMAGE_NOLOGO = true; // thus when enabled removes pollinations watermarks
-
-// YouTube API Configuration
-export const YOUTUBE_AUTO_POST = process.env.YOUTUBE_AUTO_POST === "true";
-export const YOUTUBE_CLIENT_ID = process.env.YOUTUBE_CLIENT_ID || "";
-export const YOUTUBE_CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET || "";
-export const YOUTUBE_DEFAULT_CHANNEL = process.env.YOUTUBE_DEFAULT_CHANNEL || "";
-
-// Mossad Channel (Default)
-export const YOUTUBE_MOSSAD_ACCESS_TOKEN = process.env.YOUTUBE_MOSSAD_ACCESS_TOKEN || "";
-export const YOUTUBE_MOSSAD_REFRESH_TOKEN = process.env.YOUTUBE_MOSSAD_REFRESH_TOKEN || "";
-export const YOUTUBE_MOSSAD_CHANNEL_ID = process.env.YOUTUBE_MOSSAD_CHANNEL_ID || "";
-
-// Blind Spot Channel
-export const YOUTUBE_BLINDSPOT_ACCESS_TOKEN = process.env.YOUTUBE_BLINDSPOT_ACCESS_TOKEN || "";
-export const YOUTUBE_BLINDSPOT_REFRESH_TOKEN = process.env.YOUTUBE_BLINDSPOT_REFRESH_TOKEN || "";
-export const YOUTUBE_BLINDSPOT_CHANNEL_ID = process.env.YOUTUBE_BLINDSPOT_CHANNEL_ID || "";
 
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";

@@ -2,7 +2,7 @@
  * Video generation service using FFmpeg
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, INCLUDE_DISCLAIMER, DISCLAIMER_VIDEO_PATH, ENABLE_KEN_BURNS, KEN_BURNS_STYLE } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
 import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
 import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -23,13 +23,6 @@ export async function generateVideo(
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
 
-  // Log Ken Burns effect status
-  if (ENABLE_KEN_BURNS) {
-    logger.step("Video", `🎬 Ken Burns effect enabled: ${KEN_BURNS_STYLE}`);
-  } else {
-    logger.debug("Video", "Ken Burns effect disabled (static images)");
-  }
-
   // Sort images by start time to ensure correct order
   const sortedImages = [...images].sort((a, b) => a.start - b.start);
 
@@ -44,33 +37,14 @@ export async function generateVideo(
   const outputFilename = `video_${timestamp}.mp4`;
   const outputPath = join(TMP_VIDEO_DIR, outputFilename);
 
-  // Generate the main content video (without disclaimer)
-  const contentVideoPath = INCLUDE_DISCLAIMER
-    ? join(TMP_VIDEO_DIR, `content_${timestamp}.mp4`)
-    : outputPath;
-
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, contentVideoPath);
+    await renderVideoInChunks(sortedImages, audioFilePath, outputPath);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
     const { filterComplex } = createFilterComplex(sortedImages);
-    await runFFmpeg(sortedImages, audioFilePath, filterComplex, contentVideoPath);
-  }
-
-  // If disclaimer is enabled, prepend it to the content video
-  if (INCLUDE_DISCLAIMER) {
-    logger.step("Video", "Prepending disclaimer video to content");
-    await prependDisclaimerVideo(contentVideoPath, outputPath);
-
-    // Clean up temporary content video
-    try {
-      await unlink(contentVideoPath);
-      logger.debug("Video", `Deleted temporary content video: ${contentVideoPath}`);
-    } catch (error) {
-      logger.warn("Video", `Failed to delete temporary content video: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath);
   }
 
   logger.success("Video", `Video generated successfully`);
@@ -81,56 +55,6 @@ export async function generateVideo(
     videoPath: outputPath,
     duration: totalDuration,
   };
-}
-
-/**
- * Get Ken Burns effect filter based on style
- * @param style - Ken Burns effect style
- * @param duration - Duration of the effect in seconds
- * @param index - Image index for random variation
- * @returns Ken Burns zoompan filter string
- */
-function getKenBurnsFilter(style: string, duration: number, index: number): string {
-  const frames = Math.floor(duration * 30); // 30 fps
-
-  // Calculate smooth zoom increment based on duration
-  // Target: zoom from 1.0 to 1.15 (subtle 15% zoom) over the entire duration
-  const maxZoom = 1.15; // Reduced from 1.3 for less aggressive effect
-  const zoomRange = maxZoom - 1.0; // 0.15
-  const zoomIncrement = zoomRange / frames; // Smooth increment per frame
-
-  // Calculate smooth pan speed based on duration
-  // Pan across ~10% of image width over entire duration
-  const panDistance = 192; // 10% of 1920px width
-  const panSpeed = panDistance / frames; // Smooth pan speed per frame
-
-  // Different Ken Burns effects with smooth, duration-aware motion
-  const effects = {
-    // Smooth zoom in: gradually zoom from 1.0 to 1.15 over entire duration
-    zoom_in: `zoompan=z='min(1.0+on*${zoomIncrement},${maxZoom})':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
-
-    // Smooth zoom out: gradually zoom from 1.15 to 1.0 over entire duration
-    zoom_out: `zoompan=z='max(${maxZoom}-on*${zoomIncrement},1.0)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
-
-    // Smooth pan left: pan from right to left at constant 1.1x zoom over entire duration
-    pan_left: `zoompan=z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)-on*${panSpeed}':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
-
-    // Smooth pan right: pan from left to right at constant 1.1x zoom over entire duration
-    pan_right: `zoompan=z='1.1':d=${frames}:x='iw/2-(iw/zoom/2)+on*${panSpeed}':y='ih/2-(ih/zoom/2)':s=1920x1080:fps=30`,
-  };
-
-  // Random mode: alternate between effects based on index
-  if (style === "random") {
-    const effectKeys = Object.keys(effects) as Array<keyof typeof effects>;
-    const randomEffect = effectKeys[index % effectKeys.length];
-    if (randomEffect) {
-      return effects[randomEffect];
-    }
-    return effects.zoom_in;
-  }
-
-  // Return specific effect or default to zoom_in
-  return effects[style as keyof typeof effects] || effects.zoom_in;
 }
 
 /**
@@ -154,19 +78,10 @@ function createFilterComplex(
     const duration = (image.end - image.start) / 1000; // Convert ms to seconds
     totalDuration += duration;
 
-    // Build filter chain for this image
-    let filterChain = `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2`;
-
-    // Add Ken Burns effect if enabled
-    if (ENABLE_KEN_BURNS) {
-      const kenBurnsFilter = getKenBurnsFilter(KEN_BURNS_STYLE, duration, i);
-      filterChain += `,${kenBurnsFilter}`;
-    }
-
-    // Add remaining filters
-    filterChain += `,setsar=1,fps=30,format=yuv420p[v${i}]`;
-
-    filters.push(filterChain);
+    // Scale image to fit 1920x1080 while maintaining aspect ratio, then pad
+    filters.push(
+      `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
+    );
   }
 
   // Concatenate all video segments
@@ -562,100 +477,6 @@ async function concatenateChunks(
     ffmpeg.on("error", (error) => {
       logger.error("Video", `Failed to start FFmpeg concatenation: ${error.message}`);
       reject(new Error(`Failed to start FFmpeg concatenation: ${error.message}`));
-    });
-  });
-}
-
-/**
- * Prepend disclaimer video to the content video
- * @param contentVideoPath - Path to the generated content video
- * @param outputPath - Final output video path (disclaimer + content)
- */
-async function prependDisclaimerVideo(
-  contentVideoPath: string,
-  outputPath: string
-): Promise<void> {
-  // Validate disclaimer video exists
-  if (!existsSync(DISCLAIMER_VIDEO_PATH)) {
-    logger.warn("Video", `Disclaimer video not found at ${DISCLAIMER_VIDEO_PATH}, skipping disclaimer`);
-    logger.warn("Video", "Renaming content video to output path instead");
-
-    // If disclaimer doesn't exist, just use the content video as final output
-    // This is already handled by the caller, so we just return
-    throw new Error(`Disclaimer video not found: ${DISCLAIMER_VIDEO_PATH}`);
-  }
-
-  logger.debug("Video", `Disclaimer video: ${DISCLAIMER_VIDEO_PATH}`);
-  logger.debug("Video", `Content video: ${contentVideoPath}`);
-  logger.debug("Video", `Output video: ${outputPath}`);
-
-  // Create concat list file with disclaimer first, then content
-  const concatListPath = join(TMP_VIDEO_DIR, `disclaimer_concat_${Date.now()}.txt`);
-
-  // Use absolute paths for concat list to avoid path resolution issues
-  const absoluteDisclaimerPath = resolve(DISCLAIMER_VIDEO_PATH);
-  const absoluteContentPath = resolve(contentVideoPath);
-
-  const concatContent = [
-    `file '${absoluteDisclaimerPath}'`,
-    `file '${absoluteContentPath}'`
-  ].join("\n");
-
-  await writeFile(concatListPath, concatContent, "utf-8");
-  logger.debug("Video", `Created disclaimer concat list: ${concatListPath}`);
-  logger.debug("Video", `Concat list content:\n${concatContent}`);
-
-  return new Promise((resolve, reject) => {
-    const ffmpegArgs = [
-      "-f",
-      "concat",
-      "-safe",
-      "0",
-      "-i",
-      concatListPath,
-      "-c",
-      "copy", // No re-encoding, just copy streams
-      "-y",
-      outputPath,
-    ];
-
-    logger.debug("Video", `FFmpeg disclaimer concat command: ffmpeg ${ffmpegArgs.join(" ")}`);
-
-    const ffmpeg = spawn("ffmpeg", ffmpegArgs);
-
-    let stderrOutput = "";
-
-    ffmpeg.stderr.on("data", (data) => {
-      stderrOutput += data.toString();
-    });
-
-    ffmpeg.on("close", async (code) => {
-      if (code === 0) {
-        logger.success("Video", "Disclaimer prepended successfully");
-
-        // Clean up concat list file
-        try {
-          await unlink(concatListPath);
-          logger.debug("Video", `Deleted concat list: ${concatListPath}`);
-        } catch (error) {
-          logger.warn("Video", `Failed to delete concat list: ${error instanceof Error ? error.message : String(error)}`);
-        }
-
-        resolve();
-      } else {
-        logger.error("Video", `Disclaimer concatenation failed with code ${code}`);
-        logger.debug("Video", `FFmpeg stderr:\n${stderrOutput}`);
-
-        // Keep concat list file for debugging
-        logger.warn("Video", `Concat list file kept for debugging: ${concatListPath}`);
-
-        reject(new Error(`FFmpeg disclaimer concatenation exited with code ${code}`));
-      }
-    });
-
-    ffmpeg.on("error", (error) => {
-      logger.error("Video", `Failed to start FFmpeg disclaimer concatenation: ${error.message}`);
-      reject(new Error(`Failed to start FFmpeg disclaimer concatenation: ${error.message}`));
     });
   });
 }

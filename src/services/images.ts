@@ -8,13 +8,9 @@ import {
   POLL_INTERVAL_MS,
   MAX_POLL_ATTEMPTS,
   USE_AI_IMAGE,
-  POLLINATIONS_API_KEY,
+  WORKER_API_URL,
+  WORKER_API_KEY,
   AI_IMAGE_STYLE,
-  AI_IMAGE_MODEL,
-  AI_IMAGE_WIDTH,
-  AI_IMAGE_HEIGHT,
-  AI_IMAGE_ASPECT,
-  AI_IMAGE_NOLOGO,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import { join, extname } from "node:path";
@@ -49,7 +45,7 @@ export async function downloadImagesForQueries(
 ): Promise<DownloadedImage[]> {
   // Log which mode we're using
   if (USE_AI_IMAGE) {
-    logger.step("Images", `🎨 AI Image Generation Mode: Using Pollinations.ai to generate ${queries.length} images`);
+    logger.step("Images", `🎨 AI Image Generation Mode: Using Cloudflare Worker to generate ${queries.length} images`);
   } else {
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
   }
@@ -98,7 +94,7 @@ export async function downloadImagesForQueries(
 }
 
 /**
- * Generate a single AI image for a query using Pollinations.ai with retry logic
+ * Generate a single AI image for a query using Cloudflare Worker with retry logic
  * Follows the same retry pattern as downloadImageForQuery for consistency
  * @param queryData - Image search query with timestamps
  * @returns Generated image information
@@ -119,40 +115,23 @@ async function generateAIImageForQuery(
       const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
-      // Build Pollinations.ai API URL
-      const baseUrl = "https://image.pollinations.ai/prompt/";
-
-      // gptimage model uses aspect ratio instead of width/height
-      // Other models (flux, kontext, turbo) use width/height
-      let url: string;
-      if (AI_IMAGE_MODEL === "gptimage") {
-        url =
-          baseUrl +
-          encodeURIComponent(fullPrompt) +
-          `?model=${AI_IMAGE_MODEL}&aspect=${AI_IMAGE_ASPECT}&nologo=${AI_IMAGE_NOLOGO}`;
-        logger.debug("AI-Images", `Using aspect ratio ${AI_IMAGE_ASPECT} for gptimage model`);
-      } else {
-        url =
-          baseUrl +
-          encodeURIComponent(fullPrompt) +
-          `?model=${AI_IMAGE_MODEL}&width=${AI_IMAGE_WIDTH}&height=${AI_IMAGE_HEIGHT}&nologo=${AI_IMAGE_NOLOGO}`;
-        logger.debug("AI-Images", `Using dimensions ${AI_IMAGE_WIDTH}x${AI_IMAGE_HEIGHT} for ${AI_IMAGE_MODEL} model`);
-      }
-
-      logger.debug("AI-Images", `API URL: ${url}`);
-
-      // Make request to Pollinations.ai
-      const response = await fetch(url, {
+      // Make request to Cloudflare Worker
+      const response = await fetch(WORKER_API_URL, {
+        method: "POST",
         headers: {
-          "x-pollinations-token": POLLINATIONS_API_KEY,
+          "Authorization": `Bearer ${WORKER_API_KEY}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          prompt: fullPrompt,
+        }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         logger.error("AI-Images", `API request failed: ${response.status} ${response.statusText}`);
         logger.debug("AI-Images", `Response body: ${errorText}`);
-        throw new Error(`Pollinations.ai API request failed: ${response.status} ${response.statusText}`);
+        throw new Error(`Cloudflare Worker API request failed: ${response.status} ${response.statusText}`);
       }
 
       // Get image data
@@ -160,7 +139,7 @@ async function generateAIImageForQuery(
 
       // Sanitize query for filename
       const sanitizedQuery = sanitizeFilename(query);
-      const filename = `ai_${sanitizedQuery}.png`;
+      const filename = `ai_${sanitizedQuery}.jpg`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
       // Save the image

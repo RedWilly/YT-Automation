@@ -8,38 +8,45 @@
  */
 
 /**
- * ASSEMBLYAI UPLOAD URL CACHE
+ * ASSEMBLYAI TRANSCRIPT CACHE
  *
- * To avoid repeatedly uploading the same audio file during testing:
+ * To avoid wasting credits by re-transcribing the same audio file during testing:
  *
+ * Priority order (checked in this order):
+ * 1. TRANSCRIPT_ID - If set, fetches existing transcript directly (no upload, no transcription)
+ * 2. UPLOAD_URL - If set, skips upload but requests new transcription (uses 1 credit)
+ * 3. Neither set - Uploads audio and requests transcription (uses 1 credit)
+ *
+ * Usage:
  * 1. First run (or when testing new audio file):
- *    - Set to empty string: const ASSEMBLYAI_UPLOAD_URL = "";
- *    - The workflow will upload the audio file and log the upload URL
- *    - Copy the upload URL from the logs
+ *    - Leave both empty: const TRANSCRIPT_ID = ""; const UPLOAD_URL = "";
+ *    - The workflow will upload and transcribe, then log both values
  *
- * 2. Subsequent runs with same audio file:
- *    - Paste the upload URL here: const ASSEMBLYAI_UPLOAD_URL = "https://cdn.assemblyai.com/upload/...";
- *    - The workflow will skip the upload step and use the cached URL
- *    - This saves API quota and speeds up testing
+ * 2. Subsequent runs with same audio file (BEST - saves credits):
+ *    - Copy the transcript ID: const TRANSCRIPT_ID = "abc123...";
+ *    - This fetches the existing transcript without using any credits
  *
- * Example:
- *   const ASSEMBLYAI_UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
+ * 3. If you need to re-transcribe with different settings:
+ *    - Use upload URL only: const UPLOAD_URL = "https://cdn.assemblyai.com/upload/...";
+ *    - This skips upload but creates new transcription (uses 1 credit)
+ *
+ * Examples:
+ *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
+ *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const ASSEMBLYAI_UPLOAD_URL: string = "";
+const TRANSCRIPT_ID: string = "";
+const UPLOAD_URL: string = "";
 
-import { requestTranscription, pollForCompletion, uploadAudio } from "./src/services/assemblyai.ts";
+import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./src/services/deepseek.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
-import { uploadToYouTube } from "./src/services/youtube.ts";
-import { cleanupTempFiles } from "./src/services/cleanup.ts";
-import { TMP_AUDIO_DIR, YOUTUBE_AUTO_POST } from "./src/constants.ts";
+import { TMP_AUDIO_DIR } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { YouTubeUploadResult } from "./src/types.ts";
 
 /**
  * Get audio file path from command line argument or find first file in tmp/audio/
@@ -107,13 +114,26 @@ async function runTestWorkflow(): Promise<void> {
 
     let transcript;
 
-    // Check if we have a cached upload URL
-    if (ASSEMBLYAI_UPLOAD_URL && ASSEMBLYAI_UPLOAD_URL.trim() !== "") {
-      logger.log("Test", "📦 Using cached AssemblyAI upload URL (skipping upload step)");
-      logger.debug("Test", `Cached URL: ${ASSEMBLYAI_UPLOAD_URL}`);
+    // Priority 1: Check if we have a cached transcript ID (best - no credits used)
+    if (TRANSCRIPT_ID && TRANSCRIPT_ID.trim() !== "") {
+      logger.log("Test", "🎯 Using cached transcript ID (fetching existing transcript - no credits used)");
+      logger.debug("Test", `Transcript ID: ${TRANSCRIPT_ID}`);
+
+      // Fetch existing transcript directly - no upload, no transcription
+      transcript = await getTranscript(TRANSCRIPT_ID);
+      logger.success("Test", "✅ Transcript fetched successfully!");
+      logger.log("Test", `📊 Status: ${transcript.status}`);
+
+    // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)
+    } else if (UPLOAD_URL && UPLOAD_URL.trim() !== "") {
+      logger.log("Test", "📦 Using cached upload URL (skipping upload, requesting transcription - uses 1 credit)");
+      logger.debug("Test", `Upload URL: ${UPLOAD_URL}`);
 
       // Skip upload, use cached URL directly for transcription
-      const transcriptResponse = await requestTranscription(ASSEMBLYAI_UPLOAD_URL);
+      const transcriptResponse = await requestTranscription(UPLOAD_URL);
+      logger.log("Test", "💡 TIP: To avoid using credits in future runs, copy this transcript ID:");
+      logger.log("Test", `📋 TRANSCRIPT_ID = "${transcriptResponse.id}";`);
+      logger.log("Test", "");
 
       // Poll for completion if not already completed
       if (transcriptResponse.status === "completed") {
@@ -122,19 +142,23 @@ async function runTestWorkflow(): Promise<void> {
       } else {
         transcript = await pollForCompletion(transcriptResponse.id);
       }
+
+    // Priority 3: No cache - upload and transcribe (uses 1 credit)
     } else {
-      logger.log("Test", "📤 No cached upload URL found - uploading audio file to AssemblyAI");
+      logger.log("Test", "📤 No cache found - uploading audio and requesting transcription (uses 1 credit)");
 
       // Upload the audio file
       const uploadUrl = await uploadAudio(audioFilePath);
       logger.success("Test", "✅ Audio uploaded successfully!");
-      logger.log("Test", "");
-      logger.log("Test", "💡 TIP: To skip upload in future test runs, copy this URL:");
-      logger.log("Test", `📋 ASSEMBLYAI_UPLOAD_URL = "${uploadUrl}";`);
-      logger.log("Test", "");
 
       // Request transcription with the new upload URL
       const transcriptResponse = await requestTranscription(uploadUrl);
+
+      logger.log("Test", "");
+      logger.log("Test", "💡 TIP: To save credits in future test runs, copy these values:");
+      logger.log("Test", `📋 TRANSCRIPT_ID = "${transcriptResponse.id}";  // Best option - no credits used`);
+      logger.log("Test", `📋 UPLOAD_URL = "${uploadUrl}";  // Alternative - skips upload but uses 1 credit`);
+      logger.log("Test", "");
 
       // Poll for completion if not already completed
       if (transcriptResponse.status === "completed") {
@@ -180,31 +204,7 @@ async function runTestWorkflow(): Promise<void> {
     validateVideoInputs(downloadedImages, audioFilePath);
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.success("Test", `Video generated successfully!`);
-
-    // Step 7: Conditionally upload to YouTube based on YOUTUBE_AUTO_POST
-    let uploadResult: YouTubeUploadResult | null = null;
-
-    if (YOUTUBE_AUTO_POST) {
-      logger.step("Test", "Step 7: Uploading video to YouTube");
-      const videoTitle = `Test Video - ${new Date().toLocaleDateString()}`;
-      uploadResult = await uploadToYouTube(videoResult.videoPath, {
-        title: videoTitle,
-        description: "Test video generated automatically from audio transcription",
-        tags: ["test", "automation", "ai-generated"],
-      });
-      logger.success("Test", `Video uploaded to YouTube!`);
-      logger.log("Test", `YouTube URL: ${uploadResult.videoUrl}`);
-
-      // Step 8: Cleanup temporary files (only after successful upload)
-      logger.step("Test", "Step 8: Cleaning up temporary files");
-      const cleanupResult = await cleanupTempFiles(false); // Delete everything including final video
-      logger.success("Test", `Cleanup completed: ${cleanupResult.deletedFiles.length} files deleted`);
-      logger.log("Test", `Disk space freed: ${(cleanupResult.totalSize / 1024 / 1024).toFixed(2)} MB`);
-    } else {
-      logger.step("Test", "Step 7: Auto-post disabled - video saved locally");
-      logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
-      logger.log("Test", `⚠️ Auto-post is disabled. Video was not uploaded to YouTube.`);
-    }
+    logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 
     // Summary
     const endTime = Date.now();
@@ -220,14 +220,6 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
     logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
-
-    if (YOUTUBE_AUTO_POST && uploadResult) {
-      logger.log("Test", `   • YouTube URL: ${uploadResult.videoUrl}`);
-      logger.log("Test", `   • Upload status: ✅ Uploaded successfully`);
-    } else {
-      logger.log("Test", `   • Upload status: ⚠️ Auto-post disabled - not uploaded`);
-    }
-
     logger.log("Test", `   • Total processing time: ${totalTime} seconds`);
     logger.log("Test", "=".repeat(60));
 

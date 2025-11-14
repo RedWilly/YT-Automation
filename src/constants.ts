@@ -35,3 +35,11 @@ export const AI_IMAGE_STYLE = "in the style of minimalist editorial ink and wate
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";
 
+// MinIO Object Storage Configuration
+export const MINIO_ENABLED = process.env.MINIO_ENABLED === "true";
+export const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || "";
+export const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY || "";
+export const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY || "";
+export const MINIO_BUCKET = process.env.MINIO_BUCKET || "finished-videos";
+export const MINIO_REGION = process.env.MINIO_REGION || "us-east-1";
+

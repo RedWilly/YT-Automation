@@ -3,7 +3,7 @@
  */
 
 import { getTelegramBot, getFileUrl, type Context } from "./utils/telegram.ts";
-import { TMP_AUDIO_DIR, USE_AI_IMAGE } from "./constants.ts";
+import { TMP_AUDIO_DIR, USE_AI_IMAGE, MINIO_ENABLED } from "./constants.ts";
 import { transcribeAudio } from "./services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
@@ -13,6 +13,7 @@ import {
 } from "./services/images.ts";
 import { generateVideo, validateVideoInputs } from "./services/video.ts";
 import { cleanupTempFiles } from "./services/cleanup.ts";
+import { uploadVideoToMinIO } from "./services/minio.ts";
 import { ProgressTracker } from "./services/progress.ts";
 import { join } from "node:path";
 import { createWriteStream } from "node:fs";
@@ -35,6 +36,7 @@ export function createBot() {
   // Register command handlers
   bot.command("start", handleStartCommand);
   bot.command("upload", handleUploadCommand);
+  bot.command("cleanup", handleCleanupCommand);
 
   // Handle voice and audio messages - these must come before the generic message handler
   bot.on("voice", handleVoiceMessage);
@@ -68,6 +70,9 @@ async function handleStartCommand(ctx: Context): Promise<void> {
       "5. 💾 Save video locally\n\n" +
       `📊 Settings:\n` +
       `   • Image source: ${imageMode}\n\n` +
+      "📝 Commands:\n" +
+      "   • /upload - Start the workflow\n" +
+      "   • /cleanup - Remove all temporary files\n\n" +
       "Just send your audio file to get started!"
   );
 }
@@ -88,6 +93,46 @@ async function handleUploadCommand(ctx: Context): Promise<void> {
       "5. 💾 Save video locally\n\n" +
       "This may take a few minutes... I'll keep you updated!"
   );
+}
+
+/**
+ * Handle /cleanup command
+ * Removes all temporary files from tmp/audio/, tmp/images/, and tmp/video/ directories
+ */
+async function handleCleanupCommand(ctx: Context): Promise<void> {
+  logger.log("Bot", "Received /cleanup command");
+
+  try {
+    await ctx.reply("🧹 Starting cleanup of temporary files...");
+
+    // Call the cleanup service
+    const result = await cleanupTempFiles(false); // Don't keep final video
+
+    // Calculate statistics
+    const totalSizeMB = (result.totalSize / 1024 / 1024).toFixed(2);
+    const audioFiles = result.deletedFiles.filter((f) => f.includes(TMP_AUDIO_DIR)).length;
+    const imageFiles = result.deletedFiles.filter((f) => f.includes("tmp/images")).length;
+    const videoFiles = result.deletedFiles.filter((f) => f.includes("tmp/video")).length;
+
+    // Build success message
+    let message = `✅ Cleanup completed successfully!\n\n`;
+    message += `📊 Summary:\n`;
+    message += `   • Audio files deleted: ${audioFiles}\n`;
+    message += `   • Image files deleted: ${imageFiles}\n`;
+    message += `   • Video files deleted: ${videoFiles}\n`;
+    message += `   • Total files deleted: ${result.deletedFiles.length}\n`;
+    message += `   • Space freed: ${totalSizeMB} MB\n`;
+
+    if (result.failedFiles.length > 0) {
+      message += `\n⚠️ Failed to delete ${result.failedFiles.length} files`;
+    }
+
+    await ctx.reply(message);
+    logger.success("Bot", `Cleanup completed: ${result.deletedFiles.length} files deleted (${totalSizeMB} MB)`);
+  } catch (error) {
+    logger.error("Bot", "Error in handleCleanupCommand", error);
+    await ctx.reply(`❌ Cleanup failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 /**
@@ -265,10 +310,32 @@ async function processAudioFile(
     const videoResult = await generateVideo(downloadedImages, audioFilePath);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
-    // Step 7: Send completion message with video path
-    await progress.complete(
-      `Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``
-    );
+    // Step 7: Upload to MinIO (if enabled)
+    if (MINIO_ENABLED) {
+      await progress.update({
+        step: "Uploading to MinIO",
+        message: "Uploading video to MinIO object storage...",
+      });
+      const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
+
+      if (minioResult.success) {
+        logger.success("Bot", `Video uploaded to MinIO: ${minioResult.url}`);
+        videoResult.minioUpload = minioResult;
+      } else {
+        logger.warn("Bot", `MinIO upload failed: ${minioResult.error}`);
+      }
+    }
+
+    // Step 8: Send completion message with video path
+    let completionMessage = `✅ Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``;
+
+    if (MINIO_ENABLED && videoResult.minioUpload?.success) {
+      completionMessage += `\n\n☁️ Uploaded to MinIO:\n\`${videoResult.minioUpload.url}\``;
+      completionMessage += `\n📦 Bucket: ${videoResult.minioUpload.bucket}`;
+      completionMessage += `\n🔑 Object key: ${videoResult.minioUpload.objectKey}`;
+    }
+
+    await progress.complete(completionMessage);
 
     logger.success("Bot", "Workflow completed successfully!");
   } catch (error) {

@@ -98,6 +98,17 @@ export interface VideoSegment {
 export interface VideoGenerationResult {
   videoPath: string;
   duration: number;
+  minioUpload?: MinIOUploadResult;
+}
+
+// MinIO Types
+export interface MinIOUploadResult {
+  success: boolean;
+  objectKey: string;
+  url: string;
+  bucket: string;
+  size: number;
+  error?: string;
 }
 
 // Cleanup Types

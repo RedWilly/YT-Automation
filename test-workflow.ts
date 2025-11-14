@@ -42,7 +42,8 @@ import { processTranscript, validateTranscriptData } from "./src/services/transc
 import { generateImageQueries, validateImageQueries } from "./src/services/deepseek.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
-import { TMP_AUDIO_DIR } from "./src/constants.ts";
+import { uploadVideoToMinIO } from "./src/services/minio.ts";
+import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -206,6 +207,24 @@ async function runTestWorkflow(): Promise<void> {
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 
+    // Step 7: Upload to MinIO (if enabled)
+    if (MINIO_ENABLED) {
+      logger.step("Test", "Step 7: Uploading to MinIO");
+      const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
+
+      if (minioResult.success) {
+        logger.success("Test", `Video uploaded to MinIO!`);
+        logger.log("Test", `MinIO URL: ${minioResult.url}`);
+        logger.log("Test", `Bucket: ${minioResult.bucket}`);
+        logger.log("Test", `Object key: ${minioResult.objectKey}`);
+        videoResult.minioUpload = minioResult;
+      } else {
+        logger.warn("Test", `MinIO upload failed: ${minioResult.error}`);
+      }
+    } else {
+      logger.log("Test", "⏭️  Skipping MinIO upload (MINIO_ENABLED=false)");
+    }
+
     // Summary
     const endTime = Date.now();
     const totalTime = ((endTime - startTime) / 1000).toFixed(2);
@@ -220,6 +239,10 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
     logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
+    if (MINIO_ENABLED && videoResult.minioUpload?.success) {
+      logger.log("Test", `   • MinIO URL: ${videoResult.minioUpload.url}`);
+      logger.log("Test", `   • MinIO bucket: ${videoResult.minioUpload.bucket}`);
+    }
     logger.log("Test", `   • Total processing time: ${totalTime} seconds`);
     logger.log("Test", "=".repeat(60));
 

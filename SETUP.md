@@ -220,6 +220,30 @@ Once you have the basics working, check out these features in `.env.example`:
 - **MinIO Upload** (`MINIO_ENABLED`) - Auto-upload videos to object storage
 - **Debug Mode** (`DEBUG`) - Detailed logs for development
 
+## Restrict Bot Access (optional)
+
+Limit who can use the bot by allowlisting user IDs and/or group chat IDs in your `.env`.
+
+```env
+# Comma-separated numeric IDs
+# Allow a single user and a single group
+ALLOWED_USER_IDS=123456789
+ALLOWED_CHAT_IDS=-1001234567890
+
+# Multiple users or groups are supported (comma-separated; spaces are OK)
+ALLOWED_USER_IDS=123456789, 987654321
+ALLOWED_CHAT_IDS=-1001234567890, -1005556667777
+```
+
+Notes:
+- If both lists are empty, the bot is open to everyone.
+- If either list has values, an update is allowed when the user ID is in `ALLOWED_USER_IDS` OR the chat ID is in `ALLOWED_CHAT_IDS`.
+- Supergroup IDs typically start with `-100`.
+
+Find your IDs:
+- User ID: message `@userinfobot` or `@getidsbot` in Telegram.
+- Group chat ID: add `@getidsbot` to the group and send any message.
+
 ## Need Help?
 
 If something's not working:

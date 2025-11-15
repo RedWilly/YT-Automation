@@ -8,6 +8,32 @@ export const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 // AssemblyAI Configuration
 export const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || "";
 
+/**
+ * Parse a comma-separated list of numeric IDs from an environment variable into a number array.
+ * Ensures only safe integers are included and ignores empty entries.
+ * @param envValue - Raw environment variable string (e.g., "123, -1009876543210")
+ * @returns Parsed list of numeric IDs
+ */
+export function parseIdList(envValue?: string): number[] {
+  if (!envValue) return [];
+
+  const items = envValue.split(",");
+  const values: number[] = [];
+  for (const item of items) {
+    const raw = item.trim();
+    if (raw.length === 0) continue;
+    const n = Number(raw);
+    if (Number.isFinite(n) && Number.isSafeInteger(n)) {
+      values.push(n);
+    }
+  }
+  return values;
+}
+
+// Telegram Access Control (optional). If both lists are empty, all users/chats are allowed.
+export const ALLOWED_USER_IDS = parseIdList(process.env.ALLOWED_USER_IDS);
+export const ALLOWED_CHAT_IDS = parseIdList(process.env.ALLOWED_CHAT_IDS);
+
 // DeepSeek LLM Configuration
 export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL;

@@ -4,7 +4,7 @@
  */
 
 import { Telegraf, type Context } from "telegraf";
-import { TELEGRAM_BOT_TOKEN } from "../constants.ts";
+import { TELEGRAM_BOT_TOKEN, ALLOWED_CHAT_IDS, ALLOWED_USER_IDS } from "../constants.ts";
 import * as logger from "../logger.ts";
 
 // Singleton instance
@@ -20,8 +20,43 @@ export function getTelegramBot(): Telegraf {
       throw new Error("TELEGRAM_BOT_TOKEN is not set in environment variables");
     }
 
-    botInstance = new Telegraf(TELEGRAM_BOT_TOKEN);
-    logger.debug("Telegram", "Bot instance created");
+    botInstance = new Telegraf(TELEGRAM_BOT_TOKEN, {
+      // Fix timeout error: Set handler timeout to 30 minutes (1800 seconds)
+      // This prevents "Promise timed out after 90000 milliseconds" errors
+      // when processing long-running workflows (transcription, image generation, video rendering)
+      handlerTimeout: 1_800_000, // 30 minutes
+    });
+    logger.debug("Telegram", "Bot instance created with 10-minute handler timeout");
+
+    // Access control middleware: only allow updates from allowed users/chats when set
+    botInstance.use(async (ctx: Context, next) => {
+      const chatId = ctx.chat?.id;
+      const userId = ctx.from?.id;
+
+      const hasUserAllowlist = ALLOWED_USER_IDS.length > 0;
+      const hasChatAllowlist = ALLOWED_CHAT_IDS.length > 0;
+
+      let authorized = true;
+      if (hasUserAllowlist || hasChatAllowlist) {
+        authorized = false;
+        if (hasChatAllowlist && typeof chatId === "number" && ALLOWED_CHAT_IDS.includes(chatId)) {
+          authorized = true;
+        }
+        if (!authorized && hasUserAllowlist && typeof userId === "number" && ALLOWED_USER_IDS.includes(userId)) {
+          authorized = true;
+        }
+      }
+
+      if (!authorized) {
+        logger.warn(
+          "Telegram",
+          `Blocked update from user ${String(userId ?? "unknown")} in chat ${String(chatId ?? "unknown")}`
+        );
+        return; // Drop silently
+      }
+
+      return await next();
+    });
   }
 
   return botInstance;
@@ -84,6 +119,143 @@ export async function getFileUrl(fileId: string): Promise<string> {
   const bot = getTelegramBot();
   const file = await bot.telegram.getFile(fileId);
   return `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+}
+
+/**
+ * Download file from Telegram
+ * @param fileId - Telegram file ID
+ * @param filename - Filename to save as
+ * @param tmpDir - Directory to save file in
+ * @returns Path to downloaded file
+ */
+export async function downloadTelegramFile(
+  fileId: string,
+  filename: string,
+  tmpDir: string
+): Promise<string> {
+  const { createWriteStream } = await import("node:fs");
+  const { pipeline } = await import("node:stream/promises");
+  const { join } = await import("node:path");
+  const { mkdir } = await import("node:fs/promises");
+
+  const fileUrl = await getFileUrl(fileId);
+
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download file from Telegram: ${response.status}`);
+  }
+
+  // Ensure directory exists
+  await mkdir(tmpDir, { recursive: true });
+
+  const filePath = join(tmpDir, filename);
+
+  // Download and save file
+  if (response.body) {
+    const fileStream = createWriteStream(filePath);
+    await pipeline(response.body as any, fileStream);
+  } else {
+    throw new Error("No response body from Telegram file download");
+  }
+
+  return filePath;
+}
+
+/**
+ * Extract filename from Content-Disposition header or URL
+ * @param response - Fetch response object
+ * @param url - Original URL
+ * @returns Sanitized filename
+ */
+export function extractFilenameFromResponse(response: Response, url: string): string {
+  // Try to get filename from Content-Disposition header (like browsers do)
+  const contentDisposition = response.headers.get("content-disposition");
+  if (contentDisposition) {
+    // Match filename="..." or filename*=UTF-8''...
+    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=["']?([^"'\n;]+)["']?/i);
+    const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/i);
+
+    let filename = filenameStarMatch?.[1] || filenameMatch?.[1];
+
+    if (filename) {
+      // Decode URI encoding if present
+      try {
+        filename = decodeURIComponent(filename);
+      } catch {
+        // If decoding fails, use as-is
+      }
+
+      // Sanitize the filename for filesystem safety
+      filename = filename.replace(/[<>:"|?*\/\\]/g, "_");
+
+      // Check if it has an audio extension
+      const hasAudioExt = /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus)$/i.test(filename);
+      if (hasAudioExt && filename.length < 255) {
+        return filename;
+      }
+    }
+  }
+
+  // Fallback: try to extract from URL path
+  const urlObj = new URL(url);
+  const pathParts = urlObj.pathname.split("/");
+  let urlFilename = pathParts[pathParts.length - 1] || "";
+
+  // Remove query parameters
+  urlFilename = urlFilename.split("?")[0] || "";
+
+  // Sanitize
+  urlFilename = urlFilename.replace(/[<>:"|?*\/\\]/g, "_");
+
+  // Check if valid
+  const hasAudioExt = /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus)$/i.test(urlFilename);
+  if (urlFilename.length > 0 && urlFilename.length < 255 && hasAudioExt) {
+    return urlFilename;
+  }
+
+  // Last resort: generate timestamp-based filename
+  const timestamp = Date.now();
+  return `audio_url_${timestamp}.mp3`;
+}
+
+/**
+ * Download audio file from a URL (e.g., Cloudflare R2, S3 presigned URL)
+ * @param url - URL to download from
+ * @param tmpDir - Directory to save file in
+ * @returns Path to downloaded file
+ */
+export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise<string> {
+  const { createWriteStream } = await import("node:fs");
+  const { pipeline } = await import("node:stream/promises");
+  const { join } = await import("node:path");
+  const { mkdir } = await import("node:fs/promises");
+
+  logger.log("Telegram", `Downloading audio from URL: ${url}`);
+
+  // Ensure the directory exists
+  await mkdir(tmpDir, { recursive: true });
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download file from URL: ${response.status} ${response.statusText}`);
+  }
+
+  // Extract filename from response headers or URL (like browsers do)
+  const filename = extractFilenameFromResponse(response, url);
+  const filePath = join(tmpDir, filename);
+
+  logger.debug("Telegram", `Saving audio to: ${filePath}`);
+
+  // Download and save file
+  if (response.body) {
+    const fileStream = createWriteStream(filePath);
+    await pipeline(response.body as any, fileStream);
+  } else {
+    throw new Error("No response body from URL download");
+  }
+
+  logger.success("Telegram", `Audio downloaded from URL: ${filePath}`);
+  return filePath;
 }
 
 /**

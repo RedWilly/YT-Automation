@@ -87,7 +87,23 @@ See the **[Setup Guide](SETUP.md)** for detailed instructions, optional features
 - **Flexible image sources** - Use AI generation or web search
 - **Pan effects** - Optional subtle motion on images
 - **Object storage** - Auto-upload to MinIO or AWS S3
+- **File support** - Handles audio files up to 20MB via Telegram Bot API or unlimited size via presigned URLs
 - **Debug mode** - Detailed logging for development
+
+## File Size Limits
+
+**Telegram Bot API Limit:** 20MB maximum file size for downloads.
+
+**For larger files**, you have two options:
+1. **Compress your audio** to under 20MB before sending
+2. **Use a file hosting service** (Google Drive, Dropbox, WeTransfer) and send the download link instead
+
+e.g
+```
+ /url https://your-presigned-url.com/large-audio.mp3
+```
+
+or to type in /url and paste the URL in the next message
 
 ## Telegram Commands
 

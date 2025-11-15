@@ -17,6 +17,9 @@ import type {
 } from "../types.ts";
 import * as logger from "../logger.ts";
 
+// Maximum number of retry attempts for DeepSeek requests per batch
+const DEEPSEEK_MAX_RETRIES = 2;
+
 /**
  * Build system prompt for the LLM with conditional AI style integration
  * @param useAiImage - Whether AI image generation is enabled
@@ -244,51 +247,20 @@ EXAMPLE INPUT:
 
 EXAMPLE OUTPUT (NOTICE: Every query has PERSON + ACTION):
 [
-  {
-    "start": 0,
-    "end": 5400,
-    "query": "Dr. Sarah Chen presenting research at conference podium Geneva"
-  },
-  {
-    "start": 5400,
-    "end": 10800,
-    "query": "scientist explaining data charts on screen to audience"
-  },
-  {
-    "start": 10800,
-    "end": 16200,
-    "query": "research team examining water samples in laboratory California"
-  },
-  {
-    "start": 16200,
-    "end": 21600,
-    "query": "scientists using microscopes analyzing microplastic particles"
-  }
+{"start":0,"end":5400,"query":"Dr. Sarah Chen presenting research at conference podium Geneva"},
+{"start":5400,"end":10800,"query":"scientist explaining data charts on screen to audience"},
+{"start":10800,"end":16200,"query":"research team examining water samples in laboratory California"},
+{"start":16200,"end":21600,"query":"scientists using microscopes analyzing microplastic particles"},
 ]
 
 WRONG OUTPUT (MISSING PEOPLE/ACTIONS - DO NOT DO THIS):
 [
-  {
-    "start": 0,
-    "end": 5400,
-    "query": "conference podium Geneva"  ❌ NO PERSON! NO ACTION!
-  },
-  {
-    "start": 5400,
-    "end": 10800,
-    "query": "data charts screen"  ❌ NO PERSON! NO ACTION!
-  },
-  {
-    "start": 10800,
-    "end": 16200,
-    "query": "laboratory water samples California"  ❌ NO PERSON! NO ACTION!
-  },
-  {
-    "start": 16200,
-    "end": 21600,
-    "query": "microscopes microplastic particles"  ❌ NO PERSON! NO ACTION!
-  }
-]`;
+{"start":0,"end":5400,"query":"speaker presenting at conference podium Geneva"},
+{"start":5400,"end":10800,"query":"scientist explaining data charts on screen"},
+{"start":10800,"end":16200,"query":"research team examining water samples in laboratory California"},
+{"start":16200,"end":21600,"query":"scientists using microscopes analyzing microplastic particles"}
+]
+❌ NO PERSON! NO ACTION!`;
 }
 
 /**
@@ -391,37 +363,7 @@ export async function generateImageQueries(
   const batchSize = DEEPSEEK_SEGMENTS_PER_BATCH;
   if (segmentCount <= batchSize) {
     const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount);
-    const requestBody: DeepSeekRequest = {
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 8000,
-    };
-
-    const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to generate image queries: ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as DeepSeekResponse;
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error("No content in DeepSeek response");
-    }
-    logger.raw("DeepSeek", "Raw response content", content);
-    const queries = parseImageQueries(content);
+    const queries = await callDeepSeekWithRetry(systemPrompt, userPrompt, "", DEEPSEEK_MAX_RETRIES);
     logger.success("DeepSeek", `Generated ${queries.length} image search queries`);
     return queries;
   }
@@ -443,39 +385,8 @@ export async function generateImageQueries(
     );
 
     const userPrompt = buildUserPrompt(batchFormatted, batchLines.length);
-
-    const requestBody: DeepSeekRequest = {
-      model: DEEPSEEK_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.4,
-      max_tokens: 8000,
-    };
-
-    const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to generate image queries (batch ${batchIndex + 1}): ${response.status} - ${errorText}`);
-    }
-
-    const data = (await response.json()) as DeepSeekResponse;
-    const content = data.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error(`No content in DeepSeek response for batch ${batchIndex + 1}`);
-    }
-
-    logger.raw("DeepSeek", `Raw response content (batch ${batchIndex + 1})`, content);
-    const queries = parseImageQueries(content);
+    const label = ` (batch ${batchIndex + 1})`;
+    const queries = await callDeepSeekWithRetry(systemPrompt, userPrompt, label, DEEPSEEK_MAX_RETRIES);
     // Basic per-batch validation
     if (queries.length !== batchLines.length) {
       logger.warn(
@@ -493,6 +404,86 @@ export async function generateImageQueries(
   );
 
   return batches;
+}
+
+/**
+ * Call DeepSeek chat API with retry logic and parse the image queries.
+ * Retries are useful when the model returns malformed or noisy JSON.
+ *
+ * @param systemPrompt - System-level prompt for DeepSeek
+ * @param userPrompt - User-level prompt containing the transcript batch
+ * @param label - Label for logging context (e.g., "" or " (batch 2)")
+ * @param maxRetries - Maximum number of additional retry attempts
+ * @returns Parsed image search queries from DeepSeek
+ */
+async function callDeepSeekWithRetry(
+  systemPrompt: string,
+  userPrompt: string,
+  label: string,
+  maxRetries: number
+): Promise<ImageSearchQuery[]> {
+  const totalAttempts = maxRetries + 1;
+  let attempt = 0;
+  let lastError: unknown;
+
+  while (attempt < totalAttempts) {
+    attempt++;
+
+    try {
+      const requestBody: DeepSeekRequest = {
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.4,
+        max_tokens: 8000,
+      };
+
+      const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Failed to generate image queries${label}: ${response.status} - ${errorText}`
+        );
+      }
+
+      const data = (await response.json()) as DeepSeekResponse;
+      const content = data.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error(`No content in DeepSeek response${label}`);
+      }
+
+      logger.raw("DeepSeek", `Raw response content${label}`, content);
+      const queries = parseImageQueries(content);
+      return queries;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= totalAttempts) {
+        throw error instanceof Error ? error : new Error(String(error));
+      }
+
+      logger.warn(
+        "DeepSeek",
+        `Retrying DeepSeek request${label} (attempt ${attempt + 1}/${totalAttempts}) due to error: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Unknown error in callDeepSeekWithRetry");
 }
 
 /**
@@ -521,15 +512,22 @@ function parseImageQueries(content: string): ImageSearchQuery[] {
   } catch (error) {
     lastError = error;
 
-    // Fallback: try to extract the first JSON array from noisy content
-    const arrayMatch = jsonContent.match(/\[\s*{[\s\S]*}\s*]/m);
-    if (arrayMatch && arrayMatch[0]) {
-      const arrayText = arrayMatch[0].trim();
-      try {
-        parsedValue = JSON.parse(arrayText);
-        jsonContent = arrayText; // For logging in case of later validation errors
-      } catch (innerError) {
-        lastError = innerError;
+    // Fallback: try to extract JSON arrays from noisy content and parse the first valid one
+    const arrayMatches = jsonContent.match(/\[[\s\S]*?]/g);
+    if (arrayMatches) {
+      for (const candidate of arrayMatches) {
+        const candidateText = candidate.trim();
+        try {
+          const candidateValue = JSON.parse(candidateText) as unknown;
+          if (Array.isArray(candidateValue)) {
+            parsedValue = candidateValue;
+            jsonContent = candidateText; // For logging in case of later validation errors
+            lastError = undefined;
+            break;
+          }
+        } catch (innerError) {
+          lastError = innerError;
+        }
       }
     }
   }

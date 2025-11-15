@@ -26,7 +26,7 @@ export function getTelegramBot(): Telegraf {
       // when processing long-running workflows (transcription, image generation, video rendering)
       handlerTimeout: 1_800_000, // 30 minutes
     });
-    logger.debug("Telegram", "Bot instance created with 10-minute handler timeout");
+    logger.debug("Telegram", "Bot instance created with 30-minute handler timeout");
 
     // Access control middleware: only allow updates from allowed users/chats when set
     botInstance.use(async (ctx: Context, next) => {

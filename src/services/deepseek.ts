@@ -6,6 +6,7 @@ import {
   DEEPSEEK_API_KEY,
   DEEPSEEK_BASE_URL,
   DEEPSEEK_MODEL,
+  DEEPSEEK_SEGMENTS_PER_BATCH,
   USE_AI_IMAGE,
   AI_IMAGE_STYLE,
 } from "../constants.ts";
@@ -32,7 +33,8 @@ The AI will generate images based on your queries, so include the style in each 
 
 REQUIRED STYLE INTEGRATION:
 • Append the style descriptor to every query
-• Example query format: "[subject and action], ${aiImageStyle}"
+• Example query format: "[subject and action] only"
+DO NOT INCLUDE IMAGE GENERATION STYLE but only the query
 • This ensures all AI-generated images match the desired visual aesthetic`
     : `YOUR IMAGE SEARCH CONTEXT: Web-based image search (DuckDuckGo)
 
@@ -49,7 +51,7 @@ SEARCH OPTIMIZATION:
 ${styleGuidance}
 
 YOUR TASK:
-1. Read the ENTIRE transcript first to understand the full narrative, context, and tone
+1. Read all provided transcript segments first to understand the narrative, context, and tone
 2. Extract key details from each segment: PEOPLE, TITLES/ROLES, OBJECTS, ACTIONS, LOCATIONS, ENVIRONMENTAL DETAILS
 3. Generate EXACTLY ONE image search query per transcript segment using extracted details
 4. Use EXACT timestamps from each segment (do not modify them)
@@ -198,13 +200,13 @@ Before generating queries, identify:
 9. **Recurring elements:** Which characters, locations, or themes appear multiple times?
 10. **Scene continuity:** Which segments are consecutive in same location/context?
 
-OUTPUT RULES:
+OUTPUT RULES (HARD CONSTRAINTS):
 • Generate EXACTLY ONE query per segment (match count perfectly)
 • Copy start/end timestamps exactly as provided
 • Keep queries under 10 words (unless style descriptor requires more)
 • Use concrete nouns (people, objects, places, actions)
 • NO abstract concepts, NO camera directions
-• Output ONLY the JSON array, no explanations
+• Output MUST be a single valid JSON array only (no text before or after)
 
 WORKFLOW (FOLLOW THIS ORDER):
 1. **READ FULL TRANSCRIPT** - Understand complete narrative, context, characters, locations
@@ -294,13 +296,13 @@ WRONG OUTPUT (MISSING PEOPLE/ACTIONS - DO NOT DO THIS):
  */
 function buildUserPrompt(formattedTranscript: string, segmentCount: number): string {
   return `TRANSCRIPT WITH TIMESTAMPS:
-Below is the complete transcript divided into ${segmentCount} segments.
+Below are ${segmentCount} consecutive segments from the transcript.
 Each segment format: [start_ms–end_ms]: transcript text
 
 ${formattedTranscript}
 
 INSTRUCTIONS:
-1. **READ THE FULL TRANSCRIPT FIRST** - Understand the complete narrative, context, characters, and locations
+1. **READ ALL SEGMENTS IN THIS BATCH FIRST** - Understand the narrative, context, characters, and locations within these segments
 
 2. **IDENTIFY CONSISTENCY ELEMENTS:**
    - Which characters appear multiple times? (use same descriptors for them)
@@ -312,7 +314,7 @@ INSTRUCTIONS:
    - Note recurring locations - maintain same environmental details
    - Note contextual elements to maintain throughout
 
-4. **GENERATE EXACTLY ${segmentCount} IMAGE SEARCH QUERIES** (one per segment):
+4. **GENERATE EXACTLY ${segmentCount} IMAGE SEARCH QUERIES** (one per segment in this batch):
 
    **CRITICAL REQUIREMENT - EVERY QUERY MUST HAVE:**
    ✅ **PERSON** (name, title, or description when people are present)
@@ -345,13 +347,14 @@ CRITICAL CONSISTENCY RULES:
 - If multiple segments are in same location → maintain same atmosphere/descriptors
 - If segments are consecutive in same scene → maintain visual continuity
 
-OUTPUT FORMAT:
-Return ONLY a valid JSON array with ${segmentCount} objects, each containing:
-- "start": timestamp in milliseconds (exact copy)
-- "end": timestamp in milliseconds (exact copy)
-- "query": the image search query string
+OUTPUT FORMAT (STRICT - FOLLOW EXACTLY):
+- EXACTLY ${segmentCount} JSON objects in a single array
+- Each object: "start" (ms), "end" (ms), "query" (string)
+- NO explanations, notes, or analysis
+- NO markdown, no text before the array, no text after the array
+- Output MUST be valid JSON
 
-No explanations, no markdown formatting, no preamble - ONLY the JSON array.`;
+Return ONLY the JSON array.`;
 }
 
 /**
@@ -362,70 +365,134 @@ No explanations, no markdown formatting, no preamble - ONLY the JSON array.`;
 export async function generateImageQueries(
   formattedTranscript: string
 ): Promise<ImageSearchQuery[]> {
-  // Count segments in the formatted transcript
-  const segmentCount = (formattedTranscript.match(/\[/g) || []).length;
+  // Split transcript into segment lines
+  const lines = formattedTranscript
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  const segmentCount = lines.length;
   logger.step("DeepSeek", `Generating image search queries`, `${segmentCount} segments`);
-  logger.debug("DeepSeek", `Formatted transcript:\n${formattedTranscript}`);
 
   // Build system prompt with conditional AI style integration
   const systemPrompt = buildSystemPrompt(USE_AI_IMAGE, AI_IMAGE_STYLE);
-  const userPrompt = buildUserPrompt(formattedTranscript, segmentCount);
 
   // Log whether AI style is being used
   if (USE_AI_IMAGE) {
-    logger.log("DeepSeek", `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(0, 50)}..."`);
+    logger.log(
+      "DeepSeek",
+      `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(0, 50)}..."`
+    );
   } else {
     logger.log("DeepSeek", `🔍 Web image search enabled - optimizing queries for search results`);
   }
 
-  const requestBody: DeepSeekRequest = {
-    model: DEEPSEEK_MODEL,
-    messages: [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: userPrompt,
-      },
-    ],
-    temperature: 0.4,
-    max_tokens: 4000,
-  };
+  // If small enough, single request
+  const batchSize = DEEPSEEK_SEGMENTS_PER_BATCH;
+  if (segmentCount <= batchSize) {
+    const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount);
+    const requestBody: DeepSeekRequest = {
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.4,
+      max_tokens: 8000,
+    };
 
-  const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-  });
+    const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to generate image queries: ${response.status} - ${errorText}`
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to generate image queries: ${response.status} - ${errorText}`);
+    }
+
+    const data = (await response.json()) as DeepSeekResponse;
+    const content = data.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No content in DeepSeek response");
+    }
+    logger.raw("DeepSeek", "Raw response content", content);
+    const queries = parseImageQueries(content);
+    logger.success("DeepSeek", `Generated ${queries.length} image search queries`);
+    return queries;
+  }
+
+  // Batching path
+  const batches: ImageSearchQuery[] = [];
+  const totalBatches = Math.ceil(segmentCount / batchSize);
+
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    const start = batchIndex * batchSize;
+    const end = Math.min(start + batchSize, segmentCount);
+    const batchLines = lines.slice(start, end);
+    const batchFormatted = batchLines.join("\n");
+
+    logger.step(
+      "DeepSeek",
+      `Processing batch ${batchIndex + 1}/${totalBatches}`,
+      `Segments ${start + 1}-${end}`
     );
+
+    const userPrompt = buildUserPrompt(batchFormatted, batchLines.length);
+
+    const requestBody: DeepSeekRequest = {
+      model: DEEPSEEK_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.4,
+      max_tokens: 8000,
+    };
+
+    const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to generate image queries (batch ${batchIndex + 1}): ${response.status} - ${errorText}`);
+    }
+
+    const data = (await response.json()) as DeepSeekResponse;
+    const content = data.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error(`No content in DeepSeek response for batch ${batchIndex + 1}`);
+    }
+
+    logger.raw("DeepSeek", `Raw response content (batch ${batchIndex + 1})`, content);
+    const queries = parseImageQueries(content);
+    // Basic per-batch validation
+    if (queries.length !== batchLines.length) {
+      logger.warn(
+        "DeepSeek",
+        `Expected ${batchLines.length} queries in batch ${batchIndex + 1}, got ${queries.length}`
+      );
+    }
+    validateImageQueries(queries);
+    batches.push(...queries);
   }
 
-  const data = (await response.json()) as DeepSeekResponse;
+  logger.success(
+    "DeepSeek",
+    `Generated ${batches.length} image search queries across ${totalBatches} batches`
+  );
 
-  // Extract the content from the response
-  const content = data.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error("No content in DeepSeek response");
-  }
-
-  logger.raw("DeepSeek", "Raw response content", content);
-
-  // Parse the JSON response
-  const queries = parseImageQueries(content);
-
-  logger.success("DeepSeek", `Generated ${queries.length} image search queries`);
-
-  return queries;
+  return batches;
 }
 
 /**
@@ -445,9 +512,31 @@ function parseImageQueries(content: string): ImageSearchQuery[] {
     jsonContent = jsonContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
   }
 
-  try {
-    const parsed = JSON.parse(jsonContent) as ImageSearchQuery[];
+  // First attempt: parse the whole content as JSON
+  let parsedValue: unknown;
+  let lastError: unknown;
 
+  try {
+    parsedValue = JSON.parse(jsonContent);
+  } catch (error) {
+    lastError = error;
+
+    // Fallback: try to extract the first JSON array from noisy content
+    const arrayMatch = jsonContent.match(/\[\s*{[\s\S]*}\s*]/m);
+    if (arrayMatch && arrayMatch[0]) {
+      const arrayText = arrayMatch[0].trim();
+      try {
+        parsedValue = JSON.parse(arrayText);
+        jsonContent = arrayText; // For logging in case of later validation errors
+      } catch (innerError) {
+        lastError = innerError;
+      }
+    }
+  }
+
+  const parsed = parsedValue as ImageSearchQuery[];
+
+  try {
     // Validate the structure
     if (!Array.isArray(parsed)) {
       throw new Error("Response is not an array");
@@ -466,7 +555,7 @@ function parseImageQueries(content: string): ImageSearchQuery[] {
 
     return parsed;
   } catch (error) {
-    logger.error("DeepSeek", "Failed to parse JSON response", error);
+    logger.error("DeepSeek", "Failed to parse JSON response", lastError ?? error);
     logger.debug("DeepSeek", `Content was: ${jsonContent}`);
     throw new Error(
       `Failed to parse image queries from LLM response: ${error instanceof Error ? error.message : String(error)}`

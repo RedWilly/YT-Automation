@@ -37,6 +37,7 @@ const COMMON_ABBREVIATIONS = [
   "p.m.",
   "A.M.",
   "P.M.",
+  "J.P."
 ];
 
 /**
@@ -147,7 +148,7 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
  *
  * Rules:
  * 1. If sentence has ≤2 words, ALWAYS merge with next sentence (if exists)
- * 2. If sentence has ≤5 words AND next sentence has ≤5 words, merge them
+ * 2. If sentence has ≤6 words AND next sentence has ≤6 words, merge them
  *
  * @param sentences - Array of detected sentences
  * @returns Array of sentences after merging short ones
@@ -187,8 +188,8 @@ function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[
 
       i += 2;
     }
-    // Rule 2: Both sentences are short (≤5 words), merge them
-    else if (next && current.wordCount <= 5 && next.wordCount <= 5) {
+    // Rule 2: Both sentences are short (≤6 words), merge them
+    else if (next && current.wordCount <= 6 && next.wordCount <= 6) {
       const mergedText = `${current.text} ${next.text}`.trim();
       const mergedWordCount = current.wordCount + next.wordCount;
 

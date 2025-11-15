@@ -38,6 +38,16 @@ export const ALLOWED_CHAT_IDS = parseIdList(process.env.ALLOWED_CHAT_IDS);
 export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL;
 export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "";
+// Max number of transcript segments to send to DeepSeek per batch
+const _SEGMENTS_PER_BATCH_RAW = process.env.DEEPSEEK_SEGMENTS_PER_BATCH;
+let _segmentsPerBatch = 60;
+if (typeof _SEGMENTS_PER_BATCH_RAW === "string" && _SEGMENTS_PER_BATCH_RAW.trim().length > 0) {
+  const parsed = Number.parseInt(_SEGMENTS_PER_BATCH_RAW.trim(), 10);
+  if (Number.isFinite(parsed) && parsed > 0 && Number.isSafeInteger(parsed)) {
+    _segmentsPerBatch = parsed;
+  }
+}
+export const DEEPSEEK_SEGMENTS_PER_BATCH: number = _segmentsPerBatch;
 
 // Directory Paths
 export const TMP_AUDIO_DIR = "tmp/audio";

@@ -220,6 +220,21 @@ Once you have the basics working, check out these features in `.env.example`:
 - **MinIO Upload** (`MINIO_ENABLED`) - Auto-upload videos to object storage
 - **Debug Mode** (`DEBUG`) - Detailed logs for development
 
+## Long Transcripts (DeepSeek batching)
+
+For very long videos, DeepSeek can refuse to produce thousands of queries in a single request. The bot automatically splits the transcript into batches. You can control the batch size via `.env`:
+
+```env
+# Max number of segments sent to DeepSeek per request
+# Lower this if the model returns partials or errors; raise cautiously for speed
+DEEPSEEK_SEGMENTS_PER_BATCH=60
+```
+
+Tips:
+- Start with 60. If you still see refusal/partial outputs, try 40.
+- Larger batches are faster but risk hitting token limits.
+- The prompt enforces exact counts per batch to avoid partial JSON.
+
 ## Restrict Bot Access (optional)
 
 Limit who can use the bot by allowlisting user IDs and/or group chat IDs in your `.env`.

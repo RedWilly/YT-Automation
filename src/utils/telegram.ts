@@ -21,12 +21,13 @@ export function getTelegramBot(): Telegraf {
     }
 
     botInstance = new Telegraf(TELEGRAM_BOT_TOKEN, {
-      // Fix timeout error: Set handler timeout to 30 minutes (1800 seconds)
+      // Fix timeout error: Set handler timeout to 14 hours (50400 seconds)
       // This prevents "Promise timed out after 90000 milliseconds" errors
       // when processing long-running workflows (transcription, image generation, video rendering)
-      handlerTimeout: 1_800_000, // 30 minutes
+      //for longer video ( 1hr+)
+      handlerTimeout: 50_400_000, // 14 hours
     });
-    logger.debug("Telegram", "Bot instance created with 30-minute handler timeout");
+    logger.debug("Telegram", "Bot instance created with 14-hour handler timeout");
 
     // Access control middleware: only allow updates from allowed users/chats when set
     botInstance.use(async (ctx: Context, next) => {

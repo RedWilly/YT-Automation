@@ -3,12 +3,13 @@
  */
 
 import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, PAN_EFFECT, CAPTIONS_ENABLED } from "../constants.ts";
-import type { DownloadedImage, VideoGenerationResult } from "../types.ts";
+import type { DownloadedImage, VideoGenerationResult, AssemblyAIWord, TranscriptSegment } from "../types.ts";
 import { join, basename, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import * as logger from "../logger.ts";
+import { generateCaptions } from "./captions.ts";
 
 /**
  * Pan direction for vertical pan effect
@@ -98,7 +99,8 @@ function calculatePanParams(duration: number): PanParams {
 export async function generateVideo(
   images: DownloadedImage[],
   audioFilePath: string,
-  assFilePath?: string
+  words: AssemblyAIWord[],
+  segments: TranscriptSegment[]
 ): Promise<VideoGenerationResult> {
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
@@ -109,9 +111,8 @@ export async function generateVideo(
     logger.log("Video", "📷 Pan effect disabled - using static images");
   }
 
-  if (CAPTIONS_ENABLED && assFilePath) {
+  if (CAPTIONS_ENABLED) {
     logger.log("Video", "📝 Captions enabled - adding word-by-word highlighted subtitles");
-    logger.debug("Video", `ASS file: ${assFilePath}`);
   } else {
     logger.log("Video", "📝 Captions disabled - video only");
   }
@@ -133,10 +134,15 @@ export async function generateVideo(
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, assFilePath);
+    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
     const { filterComplex } = createFilterComplex(sortedImages);
+    let assFilePath: string | undefined;
+    if (CAPTIONS_ENABLED) {
+      const captionResult = await generateCaptions(segments, words);
+      assFilePath = captionResult.assFilePath;
+    }
     await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath, assFilePath);
   }
 
@@ -378,7 +384,8 @@ async function renderVideoInChunks(
   images: DownloadedImage[],
   audioFilePath: string,
   outputPath: string,
-  assFilePath?: string
+  words: AssemblyAIWord[],
+  segments: TranscriptSegment[]
 ): Promise<void> {
   // Split images into chunks
   const chunks: DownloadedImage[][] = [];
@@ -394,14 +401,14 @@ async function renderVideoInChunks(
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
-    if (!chunk) continue;
+    if (!chunk || chunk.length === 0) continue;
 
     logger.step("Video", `Rendering chunk ${i + 1}/${chunks.length} (${chunk.length} images)...`);
 
     // Calculate audio segment timing for this chunk
-    const chunkStartTime = chunk[0]!.start / 1000; // Convert ms to seconds
-    const chunkEndTime = chunk[chunk.length - 1]!.end / 1000;
-    const chunkDuration = chunkEndTime - chunkStartTime;
+    const chunkStartTime = chunk[0]!.start;
+    const chunkEndTime = chunk[chunk.length - 1]!.end;
+    const chunkDuration = (chunkEndTime - chunkStartTime) / 1000;
 
     // Generate chunk output path
     const chunkPath = join(TMP_VIDEO_DIR, `chunk_${timestamp}_${i}.mp4`);
@@ -410,42 +417,44 @@ async function renderVideoInChunks(
     // Create filter complex for this chunk
     const { filterComplex } = createFilterComplex(chunk);
 
-    // Render this chunk with the corresponding audio segment (no subtitles yet)
-    await runFFmpegChunk(chunk, audioFilePath, filterComplex, chunkPath, chunkStartTime, chunkDuration);
+    let chunkAssPath: string | undefined;
+    if (CAPTIONS_ENABLED) {
+      // Filter words and segments for this chunk
+      const chunkWords = words.filter(w => w.start >= chunkStartTime && w.end <= chunkEndTime);
+      const chunkSegments = segments.filter(s => s.start >= chunkStartTime && s.end <= chunkEndTime);
+
+      if (chunkWords.length > 0 && chunkSegments.length > 0) {
+        // Make timestamps relative to the chunk start time
+        const relativeWords = chunkWords.map(w => ({ ...w, start: w.start - chunkStartTime, end: w.end - chunkStartTime }));
+        const relativeSegments = chunkSegments.map(s => ({ ...s, start: s.start - chunkStartTime, end: s.end - chunkStartTime }));
+
+        const captionResult = await generateCaptions(relativeSegments, relativeWords, `captions_${timestamp}_${i}.ass`);
+        chunkAssPath = captionResult.assFilePath;
+      }
+    }
+
+    // Render this chunk with the corresponding audio segment and captions
+    await runFFmpegChunk(chunk, audioFilePath, filterComplex, chunkPath, chunkStartTime / 1000, chunkDuration, chunkAssPath);
 
     logger.success("Video", `Chunk ${i + 1}/${chunks.length} completed`);
   }
 
   // Concatenate all chunks into final video
   logger.step("Video", `Concatenating ${chunks.length} chunks into final video...`);
+  await concatenateChunks(chunkPaths, outputPath);
 
-  // If captions are enabled, concatenate to a temp file first, then add subtitles
-  const tempOutputPath = CAPTIONS_ENABLED && assFilePath
-    ? join(TMP_VIDEO_DIR, `temp_no_subs_${timestamp}.mp4`)
-    : outputPath;
-
-  await concatenateChunks(chunkPaths, tempOutputPath);
-
-  // Add subtitles to the concatenated video if enabled
-  if (CAPTIONS_ENABLED && assFilePath) {
-    logger.step("Video", "Adding subtitles to concatenated video...");
-    await addSubtitlesToVideo(tempOutputPath, assFilePath, outputPath);
-
-    // Delete temp file without subtitles
-    try {
-      await unlink(tempOutputPath);
-      logger.debug("Video", `Deleted temp file: ${tempOutputPath}`);
-    } catch (error) {
-      logger.warn("Video", `Failed to delete temp file: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  // Cleanup chunk files
-  logger.debug("Video", `Cleaning up ${chunkPaths.length} temporary chunk files...`);
+  // Cleanup chunk files and temporary ASS files
+  logger.debug("Video", `Cleaning up ${chunkPaths.length} temporary chunk and caption files...`);
   for (const chunkPath of chunkPaths) {
     try {
       await unlink(chunkPath);
       logger.debug("Video", `Deleted ${chunkPath}`);
+      
+      const assPath = chunkPath.replace('.mp4', '.ass').replace('chunk_', 'captions_');
+      if (existsSync(assPath)) {
+        await unlink(assPath);
+        logger.debug("Video", `Deleted ${assPath}`);
+      }
     } catch (error) {
       logger.warn("Video", `Failed to delete chunk file ${chunkPath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -462,6 +471,7 @@ async function renderVideoInChunks(
  * @param outputPath - Output path for this chunk
  * @param audioStartTime - Start time in audio file (seconds)
  * @param audioDuration - Duration of audio segment (seconds)
+ * @param assFilePath - Optional path to ASS subtitle file for this chunk
  */
 async function runFFmpegChunk(
   images: DownloadedImage[],
@@ -469,7 +479,8 @@ async function runFFmpegChunk(
   filterComplex: string,
   outputPath: string,
   audioStartTime: number,
-  audioDuration: number
+  audioDuration: number,
+  assFilePath?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Build input arguments
@@ -503,11 +514,19 @@ async function runFFmpegChunk(
       audioFilePath
     );
 
+    // Modify filter complex to add subtitles if ASS file is provided
+    let finalFilterComplex = filterComplex;
+    if (CAPTIONS_ENABLED && assFilePath) {
+      finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
+      const escapedAssPath = assFilePath.replace(/\\/g, "/").replace(/:/g, "\\:");
+      finalFilterComplex += `;[video_no_subs]subtitles='${escapedAssPath}'[outv]`;
+    }
+
     // Build complete FFmpeg arguments with memory-efficient settings
     const ffmpegArgs = [
       ...inputArgs,
       "-filter_complex",
-      filterComplex,
+      finalFilterComplex,
       "-map",
       "[outv]",
       "-map",

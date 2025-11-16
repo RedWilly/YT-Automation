@@ -47,6 +47,7 @@ import * as logger from "./src/logger.ts";
 import { readdir, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 /**
  * Get audio file path from command line argument or find first file in tmp/audio/
@@ -248,7 +249,8 @@ async function runCaptionTest(): Promise<void> {
 
     // Step 6: Generate video with captions
     logger.step("Test", "Step 6: Generating video with captions");
-    const videoResult = await generateVideo(mockImages, audioFilePath, transcript.words, segments);
+    const outputFileName = path.parse(audioFilePath).name;
+    const videoResult = await generateVideo(mockImages, audioFilePath, transcript.words, segments, outputFileName);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 

@@ -21,6 +21,7 @@ import { cleanupTempFiles } from "./services/cleanup.ts";
 import { uploadVideoToMinIO } from "./services/minio.ts";
 import { ProgressTracker } from "./services/progress.ts";
 import * as logger from "./logger.ts";
+import path from "node:path";
 
 /**
  * State management for tracking users waiting to provide URLs
@@ -394,7 +395,8 @@ async function processAudioFile(
       message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
     });
     validateVideoInputs(downloadedImages, audioFilePath);
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments);
+    const outputFileName = path.parse(audioFilePath).name;
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
     // Step 8: Upload to MinIO (if enabled)
@@ -522,7 +524,8 @@ async function processAudioFromUrl(
       message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
     });
     validateVideoInputs(downloadedImages, audioFilePath);
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments);
+    const outputFileName = path.parse(audioFilePath).name;
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
     logger.step("Bot", "Video created", videoResult.videoPath);
 
     // Step 8: Upload to MinIO (if enabled)

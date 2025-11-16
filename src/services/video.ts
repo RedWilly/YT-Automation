@@ -100,7 +100,8 @@ export async function generateVideo(
   images: DownloadedImage[],
   audioFilePath: string,
   words: AssemblyAIWord[],
-  segments: TranscriptSegment[]
+  segments: TranscriptSegment[],
+  outputFileName: string
 ): Promise<VideoGenerationResult> {
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
@@ -127,14 +128,13 @@ export async function generateVideo(
   }
 
   // Generate output filename
-  const timestamp = Date.now();
-  const outputFilename = `video_${timestamp}.mp4`;
-  const outputPath = join(TMP_VIDEO_DIR, outputFilename);
+  const finalOutputFilename = `${outputFileName}.mp4`;
+  const outputPath = join(TMP_VIDEO_DIR, finalOutputFilename);
 
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments);
+    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, outputFileName);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
     const { filterComplex } = createFilterComplex(sortedImages);
@@ -385,7 +385,8 @@ async function renderVideoInChunks(
   audioFilePath: string,
   outputPath: string,
   words: AssemblyAIWord[],
-  segments: TranscriptSegment[]
+  segments: TranscriptSegment[],
+  outputFileName: string
 ): Promise<void> {
   // Split images into chunks
   const chunks: DownloadedImage[][] = [];

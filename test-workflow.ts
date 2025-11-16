@@ -49,6 +49,7 @@ import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import path from "node:path";
 
 /**
  * Get audio file path from command line argument or find first file in tmp/audio/
@@ -216,7 +217,8 @@ async function runTestWorkflow(): Promise<void> {
     // Step 7: Generate video with FFmpeg
     logger.step("Test", "Step 7: Generating video with FFmpeg");
     validateVideoInputs(downloadedImages, audioFilePath);
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, assFilePath);
+    const outputFileName = path.parse(audioFilePath).name;
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 

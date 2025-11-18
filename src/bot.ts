@@ -4,24 +4,13 @@
 
 import {
   getTelegramBot,
-  downloadTelegramFile,
-  downloadAudioFromUrl,
   type Context,
 } from "./utils/telegram.ts";
-import { TMP_AUDIO_DIR, USE_AI_IMAGE, MINIO_ENABLED, CAPTIONS_ENABLED } from "./constants.ts";
-import { transcribeAudio } from "./services/assemblyai.ts";
-import { processTranscript, validateTranscriptData } from "./services/transcript.ts";
-import { generateImageQueries, validateImageQueries } from "./services/deepseek.ts";
-import {
-  downloadImagesForQueries,
-  validateDownloadedImages,
-} from "./services/images.ts";
-import { generateVideo, validateVideoInputs } from "./services/video.ts";
+import { USE_AI_IMAGE } from "./constants.ts";
 import { cleanupTempFiles } from "./services/cleanup.ts";
-import { uploadVideoToMinIO } from "./services/minio.ts";
-import { ProgressTracker } from "./services/progress.ts";
+import { WorkflowService } from "./services/workflow.ts";
+import { TMP_AUDIO_DIR } from "./constants.ts";
 import * as logger from "./logger.ts";
-import path from "node:path";
 
 /**
  * State management for tracking users waiting to provide URLs
@@ -82,19 +71,19 @@ async function handleStartCommand(ctx: Context): Promise<void> {
 
   await ctx.reply(
     "Welcome to YouTube Automation Bot! 🎥\n\n" +
-      "Send me an audio file to automatically:\n" +
-      "1. 🎙️ Transcribe your audio\n" +
-      "2. 🤖 Generate visual scenes with AI\n" +
-      "3. 🖼️ Get matching images\n" +
-      "4. 🎬 Create a video\n" +
-      "5. 💾 Save video locally\n\n" +
-      `📊 Settings:\n` +
-      `   • Image source: ${imageMode}\n\n` +
-      "📝 Commands:\n" +
-      "   • /upload - Upload audio via Telegram (max 20MB)\n" +
-      "   • /url - Provide a presigned URL for large files\n" +
-      "   • /cleanup - Remove all temporary files\n\n" +
-      "Just send your audio file to get started!"
+    "Send me an audio file to automatically:\n" +
+    "1. 🎙️ Transcribe your audio\n" +
+    "2. 🤖 Generate visual scenes with AI\n" +
+    "3. 🖼️ Get matching images\n" +
+    "4. 🎬 Create a video\n" +
+    "5. 💾 Save video locally\n\n" +
+    `📊 Settings:\n` +
+    `   • Image source: ${imageMode}\n\n` +
+    "📝 Commands:\n" +
+    "   • /upload - Upload audio via Telegram (max 20MB)\n" +
+    "   • /url - Provide a presigned URL for large files\n" +
+    "   • /cleanup - Remove all temporary files\n\n" +
+    "Just send your audio file to get started!"
   );
 }
 
@@ -102,17 +91,15 @@ async function handleStartCommand(ctx: Context): Promise<void> {
  * Handle /upload command
  */
 async function handleUploadCommand(ctx: Context): Promise<void> {
-  const imageMode = USE_AI_IMAGE ? "generate AI images" : "search for images online";
-
   await ctx.reply(
     "Please send me your audio or voice file now.\n\n" +
-      "I will:\n" +
-      "1. 🎙️ Transcribe your audio\n" +
-      "2. 🤖 Generate visual scenes\n" +
-      `3. 🖼️ ${USE_AI_IMAGE ? "Generate AI images" : "Search for images online"}\n` +
-      "4. 🎬 Create a video\n" +
-      "5. 💾 Save video locally\n\n" +
-      "This may take a few minutes... I'll keep you updated!"
+    "I will:\n" +
+    "1. 🎙️ Transcribe your audio\n" +
+    "2. 🤖 Generate visual scenes\n" +
+    `3. 🖼️ ${USE_AI_IMAGE ? "Generate AI images" : "Search for images online"}\n` +
+    "4. 🎬 Create a video\n" +
+    "5. 💾 Save video locally\n\n" +
+    "This may take a few minutes... I'll keep you updated!"
   );
 }
 
@@ -189,14 +176,14 @@ async function handleUrlCommand(ctx: Context): Promise<void> {
 
   await ctx.reply(
     "📎 Please send me a presigned URL to your audio file.\n\n" +
-      "This is useful for large files (>20MB) that can't be uploaded directly to Telegram.\n\n" +
-      "Supported sources:\n" +
-      "   • Cloudflare R2 presigned URLs\n" +
-      "   • AWS S3 presigned URLs\n" +
-      "   • MinIO presigned URLs\n" +
-      "   • Any direct download URL\n\n" +
-      "Just paste the URL in your next message.\n\n" +
-      "💡 Tip: You can also use `/url <your-url>` in one message."
+    "This is useful for large files (>20MB) that can't be uploaded directly to Telegram.\n\n" +
+    "Supported sources:\n" +
+    "   • Cloudflare R2 presigned URLs\n" +
+    "   • AWS S3 presigned URLs\n" +
+    "   • MinIO presigned URLs\n" +
+    "   • Any direct download URL\n\n" +
+    "Just paste the URL in your next message.\n\n" +
+    "💡 Tip: You can also use `/url <your-url>` in one message."
   );
 }
 
@@ -216,10 +203,10 @@ async function handleUrlInput(ctx: Context, url: string): Promise<void> {
   }
 
   try {
-    await processAudioFromUrl(ctx, url);
+    await WorkflowService.processAudioFromUrl(ctx, url);
   } catch (error) {
     logger.error("Bot", "Error in handleUrlInput", error);
-    await ctx.reply(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+    // Error is already reported to user by WorkflowService via ProgressTracker
   }
 }
 
@@ -238,10 +225,10 @@ async function handleVoiceMessage(ctx: Context): Promise<void> {
   logger.debug("Bot", `Processing voice file: ${voice.file_id}`);
 
   try {
-    await processAudioFile(ctx, voice.file_id, "voice.ogg");
+    await WorkflowService.processAudioFile(ctx, voice.file_id, "voice.ogg");
   } catch (error) {
     logger.error("Bot", "Error in handleVoiceMessage", error);
-    await ctx.reply(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+    // Error is already reported to user by WorkflowService via ProgressTracker
   }
 }
 
@@ -261,10 +248,10 @@ async function handleAudioMessage(ctx: Context): Promise<void> {
   logger.debug("Bot", `Processing audio file: ${filename} (${audio.file_id})`);
 
   try {
-    await processAudioFile(ctx, audio.file_id, filename);
+    await WorkflowService.processAudioFile(ctx, audio.file_id, filename);
   } catch (error) {
     logger.error("Bot", "Error in handleAudioMessage", error);
-    await ctx.reply(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
+    // Error is already reported to user by WorkflowService via ProgressTracker
   }
 }
 
@@ -287,7 +274,7 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
 
   // Check if it's an audio file
   const isAudio = mimeType.startsWith("audio/") ||
-                  filename.match(/\.(mp3|wav|ogg|m4a|aac|flac|wma|opus)$/i);
+    filename.match(/\.(mp3|wav|ogg|m4a|aac|flac|wma|opus)$/i);
 
   if (!isAudio) {
     logger.debug("Bot", "Document is not an audio file, ignoring");
@@ -298,267 +285,10 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
   logger.debug("Bot", `Processing audio document: ${filename} (${document.file_id})`);
 
   try {
-    await processAudioFile(ctx, document.file_id, filename);
+    await WorkflowService.processAudioFile(ctx, document.file_id, filename);
   } catch (error) {
     logger.error("Bot", "Error in handleDocumentMessage", error);
-    await ctx.reply(`❌ Error: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
- * Process audio file through the complete workflow
- */
-async function processAudioFile(
-  ctx: Context,
-  fileId: string,
-  filename: string
-): Promise<void> {
-  // Initialize progress tracker
-  const progress = new ProgressTracker(ctx);
-  await progress.start("🎙️ Audio received, starting processing...");
-
-  try {
-    // Step 1: Download audio file from Telegram
-    await progress.update({
-      step: "Downloading Audio",
-      message: "Downloading audio file from Telegram...",
-    });
-    const audioFilePath = await downloadTelegramFile(fileId, filename, TMP_AUDIO_DIR);
-    logger.step("Bot", "Audio downloaded", audioFilePath);
-
-    // Step 2: Transcribe audio with AssemblyAI
-    await progress.update({
-      step: "Transcription",
-      message: "Transcribing audio with AssemblyAI...\nThis may take a few minutes.",
-    });
-    const transcript = await transcribeAudio(audioFilePath);
-    logger.step("Bot", "Transcription completed", `${transcript.text.substring(0, 100)}...`);
-
-    // Validate transcript data
-    validateTranscriptData(transcript.words);
-
-    // Step 3: Process transcript into segments
-    await progress.update({
-      step: "Processing Transcript",
-      message: "Segmenting transcript into scenes...",
-    });
-    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
-    logger.step("Bot", `Created ${segments.length} segments`);
-
-    // Step 4: Generate image search queries with LLM
-    await progress.update({
-      step: "Generating Image Queries",
-      message: "Using AI to generate visual scene descriptions...",
-    });
-    const imageQueries = await generateImageQueries(formattedTranscript);
-    validateImageQueries(imageQueries);
-    logger.step("Bot", `Generated ${imageQueries.length} image queries`);
-
-    // Validate that we have exactly one query per segment
-    if (imageQueries.length !== segments.length) {
-      throw new Error(
-        `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
-      );
-    }
-    logger.success("Bot", `Query count matches segment count (${segments.length})`);
-
-    // Validate that timestamps match
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const query = imageQueries[i];
-      if (!segment || !query) continue;
-
-      if (query.start !== segment.start || query.end !== segment.end) {
-        logger.warn(
-          "Bot",
-          `Timestamp mismatch at segment ${i + 1}: ` +
-          `Expected [${segment.start}-${segment.end}ms], ` +
-          `Got [${query.start}-${query.end}ms]`
-        );
-      }
-    }
-
-    // Step 5: Search and download images
-    await progress.update({
-      step: "Downloading Images",
-      message: `Searching and downloading ${imageQueries.length} images...`,
-      current: 0,
-      total: imageQueries.length,
-    });
-    const downloadedImages = await downloadImagesForQueries(imageQueries);
-    validateDownloadedImages(downloadedImages);
-    logger.step("Bot", `Downloaded ${downloadedImages.length} images`);
-
-    // Step 6: Generate video with FFmpeg
-    await progress.update({
-      step: "Generating Video",
-      message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
-    });
-    validateVideoInputs(downloadedImages, audioFilePath);
-    const outputFileName = path.parse(audioFilePath).name;
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
-    logger.step("Bot", "Video created", videoResult.videoPath);
-
-    // Step 8: Upload to MinIO (if enabled)
-    if (MINIO_ENABLED) {
-      await progress.update({
-        step: "Uploading to MinIO",
-        message: "Uploading video to MinIO object storage...",
-      });
-      const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
-
-      if (minioResult.success) {
-        logger.success("Bot", `Video uploaded to MinIO: ${minioResult.url}`);
-        videoResult.minioUpload = minioResult;
-      } else {
-        logger.warn("Bot", `MinIO upload failed: ${minioResult.error}`);
-      }
-    }
-
-    // Step 9: Send completion message with video path
-    let completionMessage = `✅ Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``;
-
-    if (MINIO_ENABLED && videoResult.minioUpload?.success) {
-      completionMessage += `\n\n☁️ Uploaded to MinIO:\n\`${videoResult.minioUpload.url}\``;
-      completionMessage += `\n📦 Bucket: ${videoResult.minioUpload.bucket}`;
-      completionMessage += `\n🔑 Object key: ${videoResult.minioUpload.objectKey}`;
-    }
-
-    await progress.complete(completionMessage);
-
-    logger.success("Bot", "Workflow completed successfully!");
-  } catch (error) {
-    logger.error("Bot", "Error processing audio", error);
-    await progress.error(error instanceof Error ? error : new Error(String(error)));
-  }
-}
-
-
-
-/**
- * Process audio file from URL through the complete workflow
- */
-async function processAudioFromUrl(
-  ctx: Context,
-  url: string
-): Promise<void> {
-  // Initialize progress tracker
-  const progress = new ProgressTracker(ctx);
-  await progress.start("📎 URL received, starting processing...");
-
-  try {
-    // Step 1: Download audio file from URL
-    await progress.update({
-      step: "Downloading Audio",
-      message: "Downloading audio file from URL...",
-    });
-    const audioFilePath = await downloadAudioFromUrl(url, TMP_AUDIO_DIR);
-    logger.step("Bot", "Audio downloaded", audioFilePath);
-
-    // Step 2: Transcribe audio with AssemblyAI
-    await progress.update({
-      step: "Transcription",
-      message: "Transcribing audio with AssemblyAI...\nThis may take a few minutes.",
-    });
-    const transcript = await transcribeAudio(audioFilePath);
-    logger.step("Bot", "Transcription completed", `${transcript.text.substring(0, 100)}...`);
-
-    // Validate transcript data
-    validateTranscriptData(transcript.words);
-
-    // Step 3: Process transcript into segments
-    await progress.update({
-      step: "Processing Transcript",
-      message: "Segmenting transcript into scenes...",
-    });
-    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
-    logger.step("Bot", `Created ${segments.length} segments`);
-
-    // Step 4: Generate image search queries with LLM
-    await progress.update({
-      step: "Generating Image Queries",
-      message: "Using AI to generate visual scene descriptions...",
-    });
-    const imageQueries = await generateImageQueries(formattedTranscript);
-    validateImageQueries(imageQueries);
-    logger.step("Bot", `Generated ${imageQueries.length} image queries`);
-
-    // Validate that we have exactly one query per segment
-    if (imageQueries.length !== segments.length) {
-      throw new Error(
-        `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
-      );
-    }
-    logger.success("Bot", `Query count matches segment count (${segments.length})`);
-
-    // Validate that timestamps match
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const query = imageQueries[i];
-      if (!segment || !query) continue;
-
-      if (query.start !== segment.start || query.end !== segment.end) {
-        logger.warn(
-          "Bot",
-          `Timestamp mismatch at segment ${i + 1}: ` +
-          `Expected [${segment.start}-${segment.end}ms], ` +
-          `Got [${query.start}-${query.end}ms]`
-        );
-      }
-    }
-
-    // Step 5: Search and download images
-    await progress.update({
-      step: "Downloading Images",
-      message: `Searching and downloading ${imageQueries.length} images...`,
-      current: 0,
-      total: imageQueries.length,
-    });
-    const downloadedImages = await downloadImagesForQueries(imageQueries);
-    validateDownloadedImages(downloadedImages);
-    logger.step("Bot", `Downloaded ${downloadedImages.length} images`);
-
-    // Step 6: Generate video with FFmpeg
-    await progress.update({
-      step: "Generating Video",
-      message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
-    });
-    validateVideoInputs(downloadedImages, audioFilePath);
-    const outputFileName = path.parse(audioFilePath).name;
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
-    logger.step("Bot", "Video created", videoResult.videoPath);
-
-    // Step 8: Upload to MinIO (if enabled)
-    if (MINIO_ENABLED) {
-      await progress.update({
-        step: "Uploading to MinIO",
-        message: "Uploading video to MinIO object storage...",
-      });
-      const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
-
-      if (minioResult.success) {
-        logger.success("Bot", `Video uploaded to MinIO: ${minioResult.url}`);
-        videoResult.minioUpload = minioResult;
-      } else {
-        logger.warn("Bot", `MinIO upload failed: ${minioResult.error}`);
-      }
-    }
-
-    // Step 9: Send completion message with video path
-    let completionMessage = `✅ Video generated successfully!\n\n📁 Video saved at:\n\`${videoResult.videoPath}\``;
-
-    if (MINIO_ENABLED && videoResult.minioUpload?.success) {
-      completionMessage += `\n\n☁️ Uploaded to MinIO:\n\`${videoResult.minioUpload.url}\``;
-      completionMessage += `\n📦 Bucket: ${videoResult.minioUpload.bucket}`;
-      completionMessage += `\n🔑 Object key: ${videoResult.minioUpload.objectKey}`;
-    }
-
-    await progress.complete(completionMessage);
-
-    logger.success("Bot", "Workflow completed successfully!");
-  } catch (error) {
-    logger.error("Bot", "Error processing audio from URL", error);
-    await progress.error(error instanceof Error ? error : new Error(String(error)));
+    // Error is already reported to user by WorkflowService via ProgressTracker
   }
 }
 

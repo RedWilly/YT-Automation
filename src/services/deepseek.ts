@@ -206,7 +206,7 @@ Before generating queries, identify:
 OUTPUT RULES (HARD CONSTRAINTS):
 • Generate EXACTLY ONE query per segment (match count perfectly)
 • Copy start/end timestamps exactly as provided
-• Keep queries under 17 words (unless style descriptor requires more)
+• Each query MUST be more than 10 words but less than 17 words (unless style descriptor requires more)
 • Use concrete nouns (people, objects, places, actions)
 • NO abstract concepts, NO camera directions
 • Output MUST be a single valid JSON array only (no text before or after)
@@ -266,7 +266,10 @@ WRONG OUTPUT (MISSING PEOPLE/ACTIONS - DO NOT DO THIS):
 /**
  * Enhanced user prompt for DeepSeek image query generation
  */
-function buildUserPrompt(formattedTranscript: string, segmentCount: number): string {
+function buildUserPrompt(
+  formattedTranscript: string,
+  segmentCount: number
+): string {
   return `TRANSCRIPT WITH TIMESTAMPS:
 Below are ${segmentCount} consecutive segments from the transcript.
 Each segment format: [start_ms–end_ms]: transcript text
@@ -312,7 +315,7 @@ INSTRUCTIONS:
 
 5. Use the EXACT timestamps provided (do not modify them)
 
-6. Keep each query under 17 words (unless style descriptor requires more)
+6. Each query MUST be more than 10 words but less than 17 words (unless style descriptor requires more)
 
 CRITICAL CONSISTENCY RULES:
 - If a specific person appears in multiple segments → use same name/title in all queries
@@ -344,7 +347,11 @@ export async function generateImageQueries(
     .filter((l) => l.length > 0);
 
   const segmentCount = lines.length;
-  logger.step("DeepSeek", `Generating image search queries`, `${segmentCount} segments`);
+  logger.step(
+    "DeepSeek",
+    `Generating image search queries`,
+    `${segmentCount} segments`
+  );
 
   // Build system prompt with conditional AI style integration
   const systemPrompt = buildSystemPrompt(USE_AI_IMAGE, AI_IMAGE_STYLE);
@@ -353,18 +360,32 @@ export async function generateImageQueries(
   if (USE_AI_IMAGE) {
     logger.log(
       "DeepSeek",
-      `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(0, 50)}..."`
+      `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(
+        0,
+        50
+      )}..."`
     );
   } else {
-    logger.log("DeepSeek", `🔍 Web image search enabled - optimizing queries for search results`);
+    logger.log(
+      "DeepSeek",
+      `🔍 Web image search enabled - optimizing queries for search results`
+    );
   }
 
   // If small enough, single request
   const batchSize = DEEPSEEK_SEGMENTS_PER_BATCH;
   if (segmentCount <= batchSize) {
     const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount);
-    const queries = await callDeepSeekWithRetry(systemPrompt, userPrompt, "", DEEPSEEK_MAX_RETRIES);
-    logger.success("DeepSeek", `Generated ${queries.length} image search queries`);
+    const queries = await callDeepSeekWithRetry(
+      systemPrompt,
+      userPrompt,
+      "",
+      DEEPSEEK_MAX_RETRIES
+    );
+    logger.success(
+      "DeepSeek",
+      `Generated ${queries.length} image search queries`
+    );
     return queries;
   }
 
@@ -386,12 +407,19 @@ export async function generateImageQueries(
 
     const userPrompt = buildUserPrompt(batchFormatted, batchLines.length);
     const label = ` (batch ${batchIndex + 1})`;
-    const queries = await callDeepSeekWithRetry(systemPrompt, userPrompt, label, DEEPSEEK_MAX_RETRIES);
+    const queries = await callDeepSeekWithRetry(
+      systemPrompt,
+      userPrompt,
+      label,
+      DEEPSEEK_MAX_RETRIES
+    );
     // Basic per-batch validation
     if (queries.length !== batchLines.length) {
       logger.warn(
         "DeepSeek",
-        `Expected ${batchLines.length} queries in batch ${batchIndex + 1}, got ${queries.length}`
+        `Expected ${batchLines.length} queries in batch ${
+          batchIndex + 1
+        }, got ${queries.length}`
       );
     }
     validateImageQueries(queries);
@@ -474,7 +502,9 @@ async function callDeepSeekWithRetry(
 
       logger.warn(
         "DeepSeek",
-        `Retrying DeepSeek request${label} (attempt ${attempt + 1}/${totalAttempts}) due to error: ${
+        `Retrying DeepSeek request${label} (attempt ${
+          attempt + 1
+        }/${totalAttempts}) due to error: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -553,10 +583,16 @@ function parseImageQueries(content: string): ImageSearchQuery[] {
 
     return parsed;
   } catch (error) {
-    logger.error("DeepSeek", "Failed to parse JSON response", lastError ?? error);
+    logger.error(
+      "DeepSeek",
+      "Failed to parse JSON response",
+      lastError ?? error
+    );
     logger.debug("DeepSeek", `Content was: ${jsonContent}`);
     throw new Error(
-      `Failed to parse image queries from LLM response: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to parse image queries from LLM response: ${
+        error instanceof Error ? error.message : String(error)
+      }`
     );
   }
 }

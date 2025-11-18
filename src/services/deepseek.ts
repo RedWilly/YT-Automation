@@ -206,7 +206,7 @@ Before generating queries, identify:
 OUTPUT RULES (HARD CONSTRAINTS):
 • Generate EXACTLY ONE query per segment (match count perfectly)
 • Copy start/end timestamps exactly as provided
-• Keep queries under 10 words (unless style descriptor requires more)
+• Keep queries under 17 words (unless style descriptor requires more)
 • Use concrete nouns (people, objects, places, actions)
 • NO abstract concepts, NO camera directions
 • Output MUST be a single valid JSON array only (no text before or after)
@@ -312,7 +312,7 @@ INSTRUCTIONS:
 
 5. Use the EXACT timestamps provided (do not modify them)
 
-6. Keep each query under 10 words (unless style descriptor requires more)
+6. Keep each query under 17 words (unless style descriptor requires more)
 
 CRITICAL CONSISTENCY RULES:
 - If a specific person appears in multiple segments → use same name/title in all queries
@@ -592,12 +592,12 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
       throw new Error(`Empty query string at index ${i}`);
     }
 
-    // Warn if query exceeds 10 words
+    // Warn if query exceeds 17 words
     const wordCount = query.query.split(/\s+/).length;
-    if (wordCount > 10) {
+    if (wordCount > 17) {
       logger.warn(
         "DeepSeek",
-        `Query at index ${i} exceeds 10 words (${wordCount} words): "${query.query}"`
+        `Query at index ${i} exceeds 17 words (${wordCount} words): "${query.query}"`
       );
     }
   }

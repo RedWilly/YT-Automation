@@ -67,7 +67,7 @@ export const CAPTIONS_ENABLED = process.env.CAPTIONS_ENABLED === "true"; // Enab
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
 export const WORKER_API_URL = process.env.WORKER_API_URL || "";
 export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
-export const AI_IMAGE_STYLE = "in the style of minimalist editorial ink and watercolor illustration, clean precise ink outlines, subtle translucent watercolor washes, limited muted color palette, airy composition, flat yet realistic shading, infographic-style clarity, modern minimalistic storytelling, elegant and uncluttered visual design, soft diffused sunlight";
+export const AI_IMAGE_STYLE = process.env.AI_IMAGE_STYLE || "";
 
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";

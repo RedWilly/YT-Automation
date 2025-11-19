@@ -1,6 +1,7 @@
 /**
  * Test workflow script for local development
  * Runs the complete YouTube automation workflow without Telegram bot
+ * Supports caching to avoid wasting AssemblyAI credits
  *
  * Usage:
  *   bun test-workflow.ts <audio-file-path>
@@ -43,8 +44,7 @@ import { generateImageQueries, validateImageQueries } from "./src/services/deeps
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
 import { uploadVideoToMinIO } from "./src/services/minio.ts";
-import { generateCaptions } from "./src/services/captions.ts";
-import { TMP_AUDIO_DIR, MINIO_ENABLED, CAPTIONS_ENABLED } from "./src/constants.ts";
+import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -58,7 +58,7 @@ import path from "node:path";
 async function getAudioFilePath(): Promise<string> {
   // Check if audio file path provided as command line argument
   const argPath = process.argv[2];
-  
+
   if (argPath) {
     const fullPath = join(process.cwd(), argPath);
     if (!existsSync(fullPath)) {
@@ -70,7 +70,7 @@ async function getAudioFilePath(): Promise<string> {
 
   // Find first audio file in tmp/audio/ directory
   logger.log("Test", `No audio file specified, searching in ${TMP_AUDIO_DIR}`);
-  
+
   if (!existsSync(TMP_AUDIO_DIR)) {
     throw new Error(`Audio directory not found: ${TMP_AUDIO_DIR}. Please create it and add an audio file.`);
   }
@@ -78,12 +78,12 @@ async function getAudioFilePath(): Promise<string> {
   const files = await readdir(TMP_AUDIO_DIR);
   const audioFiles = files.filter(file => {
     const ext = file.toLowerCase();
-    return ext.endsWith('.mp3') || 
-           ext.endsWith('.wav') || 
-           ext.endsWith('.ogg') || 
-           ext.endsWith('.m4a') || 
-           ext.endsWith('.flac') ||
-           ext.endsWith('.aac');
+    return ext.endsWith('.mp3') ||
+      ext.endsWith('.wav') ||
+      ext.endsWith('.ogg') ||
+      ext.endsWith('.m4a') ||
+      ext.endsWith('.flac') ||
+      ext.endsWith('.aac');
   });
 
   if (audioFiles.length === 0) {
@@ -94,6 +94,7 @@ async function getAudioFilePath(): Promise<string> {
   const fullPath = join(TMP_AUDIO_DIR, audioFile);
   logger.log("Test", `Found audio file: ${audioFile}`);
   return fullPath;
+
 }
 
 /**
@@ -101,36 +102,41 @@ async function getAudioFilePath(): Promise<string> {
  */
 async function runTestWorkflow(): Promise<void> {
   const startTime = Date.now();
-  
+
   logger.log("Test", "=".repeat(60));
   logger.log("Test", "🧪 Starting Test Workflow");
   logger.log("Test", "=".repeat(60));
 
   try {
-    // Step 1: Get audio file path
-    logger.step("Test", "Step 1: Getting audio file");
-    const audioFilePath = await getAudioFilePath();
-    logger.success("Test", `Audio file ready: ${audioFilePath}`);
-
-    // Step 2: Transcribe audio with AssemblyAI
-    logger.step("Test", "Step 2: Transcribing audio with AssemblyAI");
-
+    let audioFilePath: string;
     let transcript;
+    let outputFileName = "output_video";
+
+    // Step 1: Determine audio source and get transcript
+    logger.step("Test", "Step 1: Determining audio source");
 
     // Priority 1: Check if we have a cached transcript ID (best - no credits used)
     if (TRANSCRIPT_ID && TRANSCRIPT_ID.trim() !== "") {
       logger.log("Test", "🎯 Using cached transcript ID (fetching existing transcript - no credits used)");
       logger.debug("Test", `Transcript ID: ${TRANSCRIPT_ID}`);
 
-      // Fetch existing transcript directly - no upload, no transcription
+      // Fetch existing transcript directly
       transcript = await getTranscript(TRANSCRIPT_ID);
       logger.success("Test", "✅ Transcript fetched successfully!");
       logger.log("Test", `📊 Status: ${transcript.status}`);
 
-    // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)
+      // Use the audio URL from the transcript
+      audioFilePath = transcript.audio_url;
+      logger.log("Test", `🔗 Using remote audio URL from transcript: ${audioFilePath}`);
+      outputFileName = `video_${TRANSCRIPT_ID}`;
+
+      // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)
     } else if (UPLOAD_URL && UPLOAD_URL.trim() !== "") {
       logger.log("Test", "📦 Using cached upload URL (skipping upload, requesting transcription - uses 1 credit)");
       logger.debug("Test", `Upload URL: ${UPLOAD_URL}`);
+
+      audioFilePath = UPLOAD_URL;
+      outputFileName = `video_upload_${Date.now()}`;
 
       // Skip upload, use cached URL directly for transcription
       const transcriptResponse = await requestTranscription(UPLOAD_URL);
@@ -138,7 +144,7 @@ async function runTestWorkflow(): Promise<void> {
       logger.log("Test", `📋 TRANSCRIPT_ID = "${transcriptResponse.id}";`);
       logger.log("Test", "");
 
-      // Poll for completion if not already completed
+      // Poll for completion
       if (transcriptResponse.status === "completed") {
         logger.success("Test", "Transcription already completed");
         transcript = transcriptResponse;
@@ -146,15 +152,22 @@ async function runTestWorkflow(): Promise<void> {
         transcript = await pollForCompletion(transcriptResponse.id);
       }
 
-    // Priority 3: No cache - upload and transcribe (uses 1 credit)
+      // Priority 3: No cache - find local file, upload and transcribe (uses 1 credit)
     } else {
-      logger.log("Test", "📤 No cache found - uploading audio and requesting transcription (uses 1 credit)");
+      logger.log("Test", "📂 No cache found - searching for local audio file");
+
+      // Find local file
+      audioFilePath = await getAudioFilePath();
+      logger.success("Test", `Local audio file found: ${audioFilePath}`);
+      outputFileName = path.parse(audioFilePath).name;
+
+      logger.log("Test", "📤 Uploading audio and requesting transcription (uses 1 credit)");
 
       // Upload the audio file
       const uploadUrl = await uploadAudio(audioFilePath);
       logger.success("Test", "✅ Audio uploaded successfully!");
 
-      // Request transcription with the new upload URL
+      // Request transcription
       const transcriptResponse = await requestTranscription(uploadUrl);
 
       logger.log("Test", "");
@@ -163,7 +176,7 @@ async function runTestWorkflow(): Promise<void> {
       logger.log("Test", `📋 UPLOAD_URL = "${uploadUrl}";  // Alternative - skips upload but uses 1 credit`);
       logger.log("Test", "");
 
-      // Poll for completion if not already completed
+      // Poll for completion
       if (transcriptResponse.status === "completed") {
         logger.success("Test", "Transcription already completed");
         transcript = transcriptResponse;
@@ -172,7 +185,7 @@ async function runTestWorkflow(): Promise<void> {
       }
     }
 
-    if (!transcript.words || transcript.words.length === 0) {
+    if (!transcript || !transcript.words || transcript.words.length === 0) {
       throw new Error("Transcription returned no words");
     }
 
@@ -185,59 +198,45 @@ async function runTestWorkflow(): Promise<void> {
     const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
     logger.success("Test", `Created ${segments.length} segments`);
 
-    // Step 4: Generate image search queries with DeepSeek
-    logger.step("Test", "Step 4: Generating image search queries with DeepSeek");
+    // Step 4: Generate image search queries with LLM
+    logger.step("Test", "Step 4: Generating image queries");
     const imageQueries = await generateImageQueries(formattedTranscript);
     validateImageQueries(imageQueries);
-    
+    logger.success("Test", `Generated ${imageQueries.length} image queries`);
+
+    // Validate that we have exactly one query per segment
     if (imageQueries.length !== segments.length) {
-      logger.warn("Test", `Query count (${imageQueries.length}) doesn't match segment count (${segments.length})`);
-    } else {
-      logger.success("Test", `Query count matches segment count (${segments.length})`);
+      throw new Error(
+        `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
+      );
     }
 
-    // Step 5: Download images from DuckDuckGo
-    logger.step("Test", "Step 5: Downloading images from DuckDuckGo");
+    // Step 5: Search and download images
+    logger.step("Test", "Step 5: Downloading images");
     const downloadedImages = await downloadImagesForQueries(imageQueries);
     validateDownloadedImages(downloadedImages);
     logger.success("Test", `Downloaded ${downloadedImages.length} images`);
 
-    // Step 6: Generate captions (if enabled)
-    let assFilePath: string | undefined;
-    if (CAPTIONS_ENABLED) {
-      logger.step("Test", "Step 6: Generating captions");
-      const captionResult = await generateCaptions(segments, transcript.words);
-      assFilePath = captionResult.assFilePath;
-      logger.success("Test", `Captions created: ${captionResult.groups.length} groups`);
-      logger.log("Test", `ASS file: ${assFilePath}`);
-    } else {
-      logger.log("Test", "⏭️  Skipping caption generation (CAPTIONS_ENABLED=false)");
-    }
-
-    // Step 7: Generate video with FFmpeg
-    logger.step("Test", "Step 7: Generating video with FFmpeg");
+    // Step 6: Generate video with FFmpeg
+    logger.step("Test", "Step 6: Generating video");
     validateVideoInputs(downloadedImages, audioFilePath);
-    const outputFileName = path.parse(audioFilePath).name;
+
     const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 
-    // Step 8: Upload to MinIO (if enabled)
+    // Step 7: Upload to MinIO (if enabled)
     if (MINIO_ENABLED) {
-      logger.step("Test", "Step 8: Uploading to MinIO");
+      logger.step("Test", "Step 7: Uploading to MinIO");
       const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
 
       if (minioResult.success) {
-        logger.success("Test", `Video uploaded to MinIO!`);
-        logger.log("Test", `MinIO URL: ${minioResult.url}`);
+        logger.success("Test", `Video uploaded to MinIO: ${minioResult.url}`);
         logger.log("Test", `Bucket: ${minioResult.bucket}`);
         logger.log("Test", `Object key: ${minioResult.objectKey}`);
-        videoResult.minioUpload = minioResult;
       } else {
         logger.warn("Test", `MinIO upload failed: ${minioResult.error}`);
       }
-    } else {
-      logger.log("Test", "⏭️  Skipping MinIO upload (MINIO_ENABLED=false)");
     }
 
     // Summary
@@ -248,21 +247,9 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", "✅ Test Workflow Completed Successfully!");
     logger.log("Test", "=".repeat(60));
     logger.log("Test", `📊 Summary:`);
-    logger.log("Test", `   • Audio file: ${audioFilePath}`);
-    logger.log("Test", `   • Words transcribed: ${transcript.words.length}`);
-    logger.log("Test", `   • Segments created: ${segments.length}`);
-    logger.log("Test", `   • Images downloaded: ${downloadedImages.length}`);
-    if (CAPTIONS_ENABLED && assFilePath) {
-      logger.log("Test", `   • Captions: Enabled (word-by-word highlighting)`);
-    } else {
-      logger.log("Test", `   • Captions: Disabled`);
-    }
+    logger.log("Test", `   • Audio source: ${audioFilePath.startsWith('http') ? 'Remote URL' : 'Local File'}`);
     logger.log("Test", `   • Video duration: ${videoResult.duration.toFixed(2)} seconds`);
     logger.log("Test", `   • Video path: ${videoResult.videoPath}`);
-    if (MINIO_ENABLED && videoResult.minioUpload?.success) {
-      logger.log("Test", `   • MinIO URL: ${videoResult.minioUpload.url}`);
-      logger.log("Test", `   • MinIO bucket: ${videoResult.minioUpload.bucket}`);
-    }
     logger.log("Test", `   • Total processing time: ${totalTime} seconds`);
     logger.log("Test", "=".repeat(60));
 
@@ -274,4 +261,3 @@ async function runTestWorkflow(): Promise<void> {
 
 // Run the test workflow
 runTestWorkflow();
-

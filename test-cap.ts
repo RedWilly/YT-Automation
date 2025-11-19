@@ -35,7 +35,7 @@
  *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
  *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const TRANSCRIPT_ID: string = "d6a07f53-7294-42e6-88de-ee824a2fd078";
+const TRANSCRIPT_ID: string = "05841374-893b-4b1d-bad0-783690c46f9b";
 const UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
@@ -56,7 +56,7 @@ import path from "node:path";
 async function getAudioFilePath(): Promise<string> {
   // Check if audio file path provided as command line argument
   const argPath = process.argv[2];
-  
+
   if (argPath) {
     const fullPath = join(process.cwd(), argPath);
     if (!existsSync(fullPath)) {
@@ -68,7 +68,7 @@ async function getAudioFilePath(): Promise<string> {
 
   // Find first audio file in tmp/audio/ directory
   logger.log("Test", `No audio file specified, searching in ${TMP_AUDIO_DIR}`);
-  
+
   if (!existsSync(TMP_AUDIO_DIR)) {
     throw new Error(`Audio directory not found: ${TMP_AUDIO_DIR}. Please create it and add an audio file.`);
   }
@@ -76,12 +76,12 @@ async function getAudioFilePath(): Promise<string> {
   const files = await readdir(TMP_AUDIO_DIR);
   const audioFiles = files.filter(file => {
     const ext = file.toLowerCase();
-    return ext.endsWith('.mp3') || 
-           ext.endsWith('.wav') || 
-           ext.endsWith('.ogg') || 
-           ext.endsWith('.m4a') || 
-           ext.endsWith('.flac') ||
-           ext.endsWith('.aac');
+    return ext.endsWith('.mp3') ||
+      ext.endsWith('.wav') ||
+      ext.endsWith('.ogg') ||
+      ext.endsWith('.m4a') ||
+      ext.endsWith('.flac') ||
+      ext.endsWith('.aac');
   });
 
   if (audioFiles.length === 0) {
@@ -101,20 +101,20 @@ async function getAudioFilePath(): Promise<string> {
  */
 async function createPlaceholderImage(): Promise<string> {
   const { spawn } = await import("node:child_process");
-  
+
   // Ensure images directory exists
   await mkdir(TMP_IMAGES_DIR, { recursive: true });
-  
+
   const placeholderPath = join(TMP_IMAGES_DIR, "placeholder.jpg");
-  
+
   // Check if placeholder already exists
   if (existsSync(placeholderPath)) {
     logger.debug("Test", `Using existing placeholder image: ${placeholderPath}`);
     return placeholderPath;
   }
-  
+
   logger.step("Test", "Creating placeholder image (1920x1440)...");
-  
+
   // Create a 1920x1440 solid color image using FFmpeg
   // This matches the expected aspect ratio for the video generation
   const ffmpegArgs = [
@@ -124,10 +124,10 @@ async function createPlaceholderImage(): Promise<string> {
     "-y",
     placeholderPath
   ];
-  
+
   return new Promise((resolve, reject) => {
     const ffmpeg = spawn("ffmpeg", ffmpegArgs);
-    
+
     ffmpeg.on("close", (code) => {
       if (code === 0) {
         logger.success("Test", `Placeholder image created: ${placeholderPath}`);
@@ -136,7 +136,7 @@ async function createPlaceholderImage(): Promise<string> {
         reject(new Error(`FFmpeg exited with code ${code}`));
       }
     });
-    
+
     ffmpeg.on("error", (error) => {
       reject(new Error(`Failed to create placeholder image: ${error.message}`));
     });
@@ -174,7 +174,7 @@ async function runCaptionTest(): Promise<void> {
       logger.success("Test", "✅ Transcript fetched successfully!");
       logger.log("Test", `📊 Status: ${transcript.status}`);
 
-    // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)
+      // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)
     } else if (UPLOAD_URL && UPLOAD_URL.trim() !== "") {
       logger.log("Test", "📦 Using cached upload URL (skipping upload, requesting transcription - uses 1 credit)");
       logger.debug("Test", `Upload URL: ${UPLOAD_URL}`);
@@ -193,7 +193,7 @@ async function runCaptionTest(): Promise<void> {
         transcript = await pollForCompletion(transcriptResponse.id);
       }
 
-    // Priority 3: No cache - upload and transcribe (uses 1 credit)
+      // Priority 3: No cache - upload and transcribe (uses 1 credit)
     } else {
       logger.log("Test", "📤 No cache found - uploading audio and requesting transcription (uses 1 credit)");
 

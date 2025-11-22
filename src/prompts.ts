@@ -9,19 +9,21 @@
  * @returns System prompt string
  */
 export function buildSystemPrompt(useAiImage: boolean, aiImageStyle: string): string {
-    // Conditional style guidance based on image source
-    const styleGuidance = useAiImage
-        ? `YOUR IMAGE GENERATION STYLE: ${aiImageStyle}
+   // Conditional style guidance based on image source
+   const styleGuidance = useAiImage
+      ? `YOUR IMAGE GENERATION STYLE: ${aiImageStyle}
 
-CRITICAL: Since you're generating queries for AI image generation, EVERY query MUST include the style descriptor.
-The AI will generate images based on your queries, so include the style in each query to ensure visual consistency.
+CRITICAL: Do NOT include this style description in your queries.
+The style will be applied automatically by the image generator.
 
-REQUIRED STYLE INTEGRATION:
-• Append the style descriptor to every query
-• Example query format: "[subject and action] only"
-DO NOT INCLUDE IMAGE GENERATION STYLE but only the query
-• This ensures all AI-generated images match the desired visual aesthetic`
-        : `YOUR IMAGE SEARCH CONTEXT: Web-based image search (DuckDuckGo)
+YOUR JOB: Provide the detailed visual description of the scene (Subject + Action + Context + Lighting/Atmosphere).
+The image generator will take your description and apply the "${aiImageStyle}" style to it.
+
+Example:
+- Style: "Cyberpunk"
+- Your Query: "A futuristic detective standing in rain-slicked neon street, holding a glowing device"
+- (The system will combine them later)`
+      : `YOUR IMAGE SEARCH CONTEXT: Web-based image search (DuckDuckGo)
 
 CRITICAL: Since you're generating queries for web image search, focus on descriptive, searchable terms.
 Avoid overly artistic or abstract style modifiers that might limit search results.
@@ -31,7 +33,7 @@ SEARCH OPTIMIZATION:
 • Include time period, setting, and visual context when relevant to the content
 • Avoid overly specific artistic styles unless central to the content`;
 
-    return `You are an expert visual researcher specializing in generating image search queries for video content.
+   return `You are an expert visual researcher specializing in generating image search queries for video content.
 
 ${styleGuidance}
 
@@ -246,70 +248,84 @@ WRONG OUTPUT (MISSING PEOPLE/ACTIONS - DO NOT DO THIS):
 }
 
 /**
- * Enhanced user prompt for DeepSeek image query generation
+ * Enhanced user prompt for AI image query generation
+ * Focused on subject/action extraction while master prompt handles style & logic
  */
 export function buildUserPrompt(
-    formattedTranscript: string,
-    segmentCount: number
+   formattedTranscript: string,
+   segmentCount: number,
+   useAiImage: boolean
 ): string {
-    return `TRANSCRIPT WITH TIMESTAMPS:
+   const wordCountInstruction = useAiImage
+      ? "7. EACH QUERY MUST BE MORE THAN 10 WORDS BUT LESS THAN 40 WORDS (detailed descriptions for AI generation)"
+      : "7. EACH QUERY MUST BE MORE THAN 5 WORDS BUT LESS THAN 10 WORDS (concise keywords for web search)";
+
+   return `TRANSCRIPT WITH TIMESTAMPS:
 Below are ${segmentCount} consecutive segments from the transcript.
 Each segment format: [start_ms–end_ms]: transcript text
 
 ${formattedTranscript}
 
 INSTRUCTIONS:
-1. **READ ALL SEGMENTS IN THIS BATCH FIRST** - Understand the narrative, context, characters, and locations within these segments
+1. READ ALL SEGMENTS FIRST - Understand the full narrative, context, characters, and locations.
 
-2. **IDENTIFY CONSISTENCY ELEMENTS:**
-   - Which characters appear multiple times? (use same descriptors for them)
-   - Which locations appear multiple times? (maintain same atmosphere)
-   - Which segments are consecutive in same scene? (maintain visual continuity)
+2. IDENTIFY CONSISTENCY ELEMENTS:
+   - Which characters appear multiple times? Use same descriptors for them.
+   - Which locations appear multiple times? Maintain same environmental details.
+   - Which segments are consecutive in same scene? Maintain visual continuity.
 
-3. **CREATE YOUR CONSISTENCY GUIDE:**
-   - Note recurring character names/titles - reuse exact same descriptors
-   - Note recurring locations - maintain same environmental details
-   - Note contextual elements to maintain throughout
+3. EXTRACT KEY ELEMENTS FROM EACH SEGMENT:
+   - People/characters: names, titles, roles (e.g., "Dr. Smith", "pilot", "scientist")
+   - Actions: verbs describing what they are doing (e.g., "examining samples", "operating machinery")
+   - Objects/equipment: relevant tools or items in the scene
+   - Location/context: where the action takes place
 
-4. **GENERATE EXACTLY ${segmentCount} IMAGE SEARCH QUERIES** (one per segment in this batch):
+4. GENERATE EXACTLY ${segmentCount} IMAGE QUERIES (one per segment):
 
-   **CRITICAL REQUIREMENT - EVERY QUERY MUST HAVE:**
-   ✅ **PERSON** (name, title, or description when people are present)
-   ✅ **ACTION** (verb: what they're doing)
-   ✅ **CONTEXT** (location/equipment/setting)
+   **CRITICAL REQUIREMENT - EVERY QUERY MUST INCLUDE:**
+   ✅ PERSON (name, title, or description when people are present)
+   ✅ ACTION (verb describing what they are doing)
+   ✅ RELEVANT OBJECTS/CONTEXT
 
-   **Query Format:** [PERSON] + [ACTION] + [CONTEXT]
+   **Query Format:** [PERSON/CHARACTER] + [ACTION VERB] + [OBJECTS/LOCATION/CONTEXT]
 
-   Examples:
-   ✅ "person speaking at conference podium"
-   ✅ "scientist examining laboratory equipment"
-   ✅ "teacher explaining diagram to students"
+   **IMPORTANT:** Do NOT include master style/logic instructions here; those are appended automatically by the system.
 
-   ❌ WRONG: "conference podium microphone" (NO PERSON! NO ACTION!)
-   ❌ WRONG: "laboratory equipment" (NO PERSON! NO ACTION!)
-   ❌ WRONG: "classroom diagram" (NO PERSON! NO ACTION!)
+5. USE CONSISTENCY ACROSS SEGMENTS:
+   - Same person = same descriptor
+   - Same location = same descriptors/atmosphere
+   - Consecutive segments = maintain scene continuity
 
-   - Extract specific details from EACH segment: names, titles, objects, actions, locations
-   - Apply your consistency guide across all queries
-   - Maintain character consistency (same person = same descriptors)
-   - Maintain location consistency (same place = same atmosphere)
-   - Maintain visual flow between consecutive segments
+6. USE EXACT TIMESTAMPS PROVIDED (do not modify)
 
-5. Use the EXACT timestamps provided (do not modify them)
+${wordCountInstruction}
 
-6. Each query MUST be more than 10 words but less than 17 words (unless style descriptor requires more)
+EXAMPLES:
 
-CRITICAL CONSISTENCY RULES:
-- If a specific person appears in multiple segments → use same name/title in all queries
-- If multiple segments are in same location → maintain same atmosphere/descriptors
-- If segments are consecutive in same scene → maintain visual continuity
+**Before → After Style Logic (subject/action clarity)**
 
-OUTPUT FORMAT (STRICT - FOLLOW EXACTLY):
+- Before (raw): "Japanese pilot on aircraft carrier deck looking at incoming P-38 fighters"  
+- After (enhanced query): "Japanese pilot standing on aircraft carrier deck, observing incoming P-38 fighters, pilots on deck"
+
+- Before (raw): "Pacific island coastline with 3 P-38 Lightning fighters, Japanese ships in the water"  
+- After (enhanced query): "Pacific island coastline with 3 P-38 fighters flying overhead, Japanese ships floating below"
+
+**Correct query examples:**
+✅ "Dr. Sarah Chen presenting research at conference podium Geneva"  
+✅ "Scientist explaining data charts on large screen to audience"  
+✅ "Research team examining water samples in laboratory California"  
+✅ "Scientists using microscopes analyzing microplastic particles"
+
+**Wrong query examples (missing people/actions):**
+❌ "Conference podium microphone"  
+❌ "Laboratory equipment test tubes"  
+❌ "Classroom diagram whiteboard"  
+❌ "Industrial machinery factory floor"
+
+OUTPUT FORMAT:
 - EXACTLY ${segmentCount} JSON objects in a single array
-- Each object: "start" (ms), "end" (ms), "query" (string)
-- NO explanations, notes, or analysis
+- Each object must have "start" (ms), "end" (ms), "query" (string)
+- NO explanations, notes, or extra text
 - NO markdown, no text before the array, no text after the array
-- Output MUST be valid JSON
-
-Return ONLY the JSON array.`;
+- Output must be valid JSON only`;
 }

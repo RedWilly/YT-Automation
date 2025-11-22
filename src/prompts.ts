@@ -13,14 +13,16 @@ export function buildSystemPrompt(useAiImage: boolean, aiImageStyle: string): st
    const styleGuidance = useAiImage
       ? `YOUR IMAGE GENERATION STYLE: ${aiImageStyle}
 
-CRITICAL: Since you're generating queries for AI image generation, EVERY query MUST include the style descriptor.
-The AI will generate images based on your queries, so include the style in each query to ensure visual consistency.
+CRITICAL: Do NOT include this style description in your queries.
+The style will be applied automatically by the image generator.
 
-REQUIRED STYLE INTEGRATION:
-• Append the style descriptor to every query
-• Example query format: "[subject and action] only"
-DO NOT INCLUDE IMAGE GENERATION STYLE but only the query
-• This ensures all AI-generated images match the desired visual aesthetic`
+YOUR JOB: Provide the detailed visual description of the scene (Subject + Action + Context + Lighting/Atmosphere).
+The image generator will take your description and apply the "${aiImageStyle}" style to it.
+
+Example:
+- Style: "Cyberpunk"
+- Your Query: "A futuristic detective standing in rain-slicked neon street, holding a glowing device"
+- (The system will combine them later)`
       : `YOUR IMAGE SEARCH CONTEXT: Web-based image search (DuckDuckGo)
 
 CRITICAL: Since you're generating queries for web image search, focus on descriptive, searchable terms.

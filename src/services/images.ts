@@ -353,7 +353,7 @@ async function downloadImage(imageUrl: string, query: string): Promise<string> {
   // Save the image
   await Bun.write(filePath, imageData);
 
-  console.log(`[Images] Saved image to: ${filePath}`);
+  logger.log("Images", `Saved image to: ${filePath}`);
 
   return filePath;
 }

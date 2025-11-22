@@ -65,7 +65,7 @@ export async function generateImageQueries(
   // If small enough, single request
   const batchSize = DEEPSEEK_SEGMENTS_PER_BATCH;
   if (segmentCount <= batchSize) {
-    const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount);
+    const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount, USE_AI_IMAGE);
     const queries = await callDeepSeekWithRetry(
       systemPrompt,
       userPrompt,
@@ -95,7 +95,7 @@ export async function generateImageQueries(
       `Segments ${start + 1}-${end}`
     );
 
-    const userPrompt = buildUserPrompt(batchFormatted, batchLines.length);
+    const userPrompt = buildUserPrompt(batchFormatted, batchLines.length, USE_AI_IMAGE);
     const label = ` (batch ${batchIndex + 1})`;
     const queries = await callDeepSeekWithRetry(
       systemPrompt,
@@ -314,12 +314,13 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
       throw new Error(`Empty query string at index ${i}`);
     }
 
-    // Warn if query exceeds 17 words
+    // Warn if query exceeds word count limits based on mode
     const wordCount = query.query.split(/\s+/).length;
-    if (wordCount > 17) {
+    const maxWords = USE_AI_IMAGE ? 40 : 10;
+    if (wordCount > maxWords) {
       logger.warn(
         "DeepSeek",
-        `Query at index ${i} exceeds 17 words (${wordCount} words): "${query.query}"`
+        `Query at index ${i} exceeds ${maxWords} words (${wordCount} words): "${query.query}"`
       );
     }
   }

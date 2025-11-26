@@ -90,6 +90,7 @@ export async function generateImageQueries(
     const end = Math.min(start + batchSize, segmentCount);
     const batchLines = lines.slice(start, end);
     const batchFormatted = batchLines.join("\n");
+    const expectedCount = batchLines.length;
 
     logger.step(
       "LLM",
@@ -97,22 +98,44 @@ export async function generateImageQueries(
       `Segments ${start + 1}-${end}`
     );
 
-    const userPrompt = buildUserPrompt(batchFormatted, batchLines.length, USE_AI_IMAGE);
+    const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE);
     const label = ` (batch ${batchIndex + 1})`;
-    const queries = await callLLMWithRetry(
-      systemPrompt,
-      userPrompt,
-      label,
-      LLM_MAX_RETRIES
-    );
-    // Basic per-batch validation
-    if (queries.length !== batchLines.length) {
-      logger.warn(
-        "LLM",
-        `Expected ${batchLines.length} queries in batch ${batchIndex + 1
-        }, got ${queries.length}`
+
+    // Retry logic for batches that don't return the expected number of queries
+    let queries: ImageSearchQuery[] = [];
+    let retryAttempt = 0;
+    const maxBatchRetries = LLM_MAX_RETRIES;
+
+    while (retryAttempt <= maxBatchRetries) {
+      queries = await callLLMWithRetry(
+        systemPrompt,
+        userPrompt,
+        label,
+        LLM_MAX_RETRIES
       );
+
+      // Check if we got the expected number of queries
+      if (queries.length === expectedCount) {
+        break; // Success! Exit retry loop
+      }
+
+      // If not the expected count and we have retries left
+      if (retryAttempt < maxBatchRetries) {
+        logger.warn(
+          "LLM",
+          `Expected ${expectedCount} queries in batch ${batchIndex + 1}, got ${queries.length}. Retrying batch (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
+        );
+        retryAttempt++;
+      } else {
+        // Final attempt failed, log warning and proceed
+        logger.warn(
+          "LLM",
+          `Expected ${expectedCount} queries in batch ${batchIndex + 1}, got ${queries.length} after ${maxBatchRetries + 1} attempts. Proceeding with partial results.`
+        );
+        break;
+      }
     }
+
     validateImageQueries(queries);
     batches.push(...queries);
   }

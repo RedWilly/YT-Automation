@@ -42,26 +42,26 @@ export interface SegmentProcessingResult {
   formattedTranscript: string;
 }
 
-// DeepSeek LLM Types
+// LLM Types
 export interface ImageSearchQuery {
   start: number;
   end: number;
   query: string;
 }
 
-export interface DeepSeekMessage {
+export interface LLMMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-export interface DeepSeekRequest {
+export interface LLMRequest {
   model: string;
-  messages: DeepSeekMessage[];
+  messages: LLMMessage[];
   temperature?: number;
   max_tokens?: number;
 }
 
-export interface DeepSeekResponse {
+export interface LLMResponse {
   id: string;
   object: string;
   created: number;

@@ -39,10 +39,17 @@ ffmpeg -version
 2. Grab your API key from the dashboard
 3. Free tier includes 5 hours of transcription
 
-**DeepSeek** (LLM for scene descriptions)
+**AI Provider** (LLM for scene descriptions)
+You can choose between **DeepSeek** (default) or **Kimi**.
+
+*Option A: DeepSeek*
 1. Sign up at [platform.deepseek.com](https://platform.deepseek.com/)
-2. Create an API key in the API Keys section
-3. Very affordable pricing (much cheaper than OpenAI)
+2. Create an API key
+3. Very affordable pricing
+
+*Option B: Kimi*
+1. Sign up at [platform.moonshot.cn](https://platform.moonshot.cn/)
+2. Create an API key
 
 ### Optional Services
 
@@ -106,7 +113,11 @@ Copy `.env.example` to `.env` and add your keys:
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 ASSEMBLYAI_API_KEY=your_assemblyai_key_here
+
+# Choose your provider: "deepseek" or "kimi"
+AI_PROVIDER=deepseek
 DEEPSEEK_API_KEY=your_deepseek_key_here
+# KIMI_API_KEY=your_kimi_key_here
 ```
 
 Check `.env.example` for all available options (captions, pan effects, AI images, etc.).
@@ -227,7 +238,7 @@ For very long videos, DeepSeek can refuse to produce thousands of queries in a s
 ```env
 # Max number of segments sent to DeepSeek per request
 # Lower this if the model returns partials or errors; raise cautiously for speed
-DEEPSEEK_SEGMENTS_PER_BATCH=60
+LLM_SEGMENTS_PER_BATCH=60
 ```
 
 Tips:

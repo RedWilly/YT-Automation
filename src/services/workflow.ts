@@ -11,7 +11,7 @@ import { TMP_AUDIO_DIR, MINIO_ENABLED } from "../constants.ts";
 import type { WorkflowResult } from "../types.ts";
 import { transcribeAudio } from "./assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./transcript.ts";
-import { generateImageQueries, validateImageQueries } from "./deepseek.ts";
+import { generateImageQueries, validateImageQueries } from "./llm.ts";
 import {
     downloadImagesForQueries,
     validateDownloadedImages,

@@ -8,7 +8,7 @@ and anyone who wants to turn audio content into shareable videos.
 
 Simply send an audio file to a Telegram bot and receive a fully produced video 
 with matching images and synchronized captions. The bot uses AssemblyAI for 
-accurate transcription, DeepSeek AI for generating scene descriptions, and FFmpeg 
+accurate transcription, and your choice of LLM (DeepSeek or Kimi) for generating scene descriptions, and FFmpeg 
 for professional video rendering.
 
 Features unlimited AI image generation via Cloudflare Workers, optional object 
@@ -39,7 +39,7 @@ Send an audio file to a Telegram bot and get back a video with matching visuals 
 **Prerequisites:**
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - Telegram bot token ([get one from @BotFather](https://t.me/botfather))
-- API keys for AssemblyAI and DeepSeek
+- API keys for AssemblyAI and your chosen AI provider (DeepSeek or Kimi)
 
 **Setup:**
 ```bash
@@ -114,7 +114,7 @@ or to type in /url and paste the URL in the next message
 ## Services Used
 
 - **AssemblyAI** - Audio transcription with word-level timing
-- **DeepSeek** - LLM for scene descriptions (affordable alternative to OpenAI)
+- **DeepSeek / Kimi** - LLM for scene descriptions (configurable provider)
 - **Cloudflare Workers** (optional) - Unlimited AI image generation
 - **MinIO/AWS S3** (optional) - Object storage for finished videos
 - **Telegram** - Bot interface

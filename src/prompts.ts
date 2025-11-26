@@ -257,7 +257,7 @@ export function buildUserPrompt(
    useAiImage: boolean
 ): string {
    const wordCountInstruction = useAiImage
-      ? "7. EACH QUERY MUST BE MORE THAN 10 WORDS BUT LESS THAN 40 WORDS (detailed descriptions for AI generation)"
+      ? "7. EACH QUERY MUST BE MORE THAN 20 WORDS BUT LESS THAN 40 WORDS (detailed descriptions for AI generation)"
       : "7. EACH QUERY MUST BE MORE THAN 5 WORDS BUT LESS THAN 10 WORDS (concise keywords for web search)";
 
    return `TRANSCRIPT WITH TIMESTAMPS:

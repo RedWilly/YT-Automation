@@ -1,3 +1,5 @@
+import * as logger from "./logger.ts";
+
 /**
  * Application constants and environment variables
  */
@@ -60,8 +62,8 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
 export const AI_PROVIDER = process.env.AI_PROVIDER as AIProvider;
 
 if (!AI_PROVIDER || !PROVIDER_CONFIGS[AI_PROVIDER]) {
-  console.error("❌ Invalid or missing AI_PROVIDER in .env file.");
-  console.error(`Supported providers: ${Object.keys(PROVIDER_CONFIGS).join(", ")}`);
+  logger.error("Config", "❌ Invalid or missing AI_PROVIDER in .env file.");
+  logger.error("Config", `Supported providers: ${Object.keys(PROVIDER_CONFIGS).join(", ")}`);
   process.exit(1);
 }
 

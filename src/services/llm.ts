@@ -1,26 +1,28 @@
 /**
- * DeepSeek LLM service for generating image search queries
+ * LLM service for generating image search queries
+ * Supports multiple providers (DeepSeek, Kimi, etc.) via configuration
  */
 
 import {
-  DEEPSEEK_API_KEY,
-  DEEPSEEK_BASE_URL,
-  DEEPSEEK_MODEL,
-  DEEPSEEK_SEGMENTS_PER_BATCH,
+  AI_API_KEY,
+  AI_BASE_URL,
+  AI_MODEL,
+  AI_PROVIDER,
+  LLM_SEGMENTS_PER_BATCH,
   USE_AI_IMAGE,
   AI_IMAGE_STYLE,
 } from "../constants.ts";
 import type {
-  DeepSeekRequest,
-  DeepSeekResponse,
+  LLMRequest,
+  LLMResponse,
   ImageSearchQuery,
 } from "../types.ts";
 import * as logger from "../logger.ts";
 
 import { buildSystemPrompt, buildUserPrompt } from "../prompts.ts";
 
-// Maximum number of retry attempts for DeepSeek requests per batch
-const DEEPSEEK_MAX_RETRIES = 2;
+// Maximum number of retry attempts for LLM requests per batch
+const LLM_MAX_RETRIES = 2;
 
 /**
  * Generate image search queries from formatted transcript
@@ -38,8 +40,8 @@ export async function generateImageQueries(
 
   const segmentCount = lines.length;
   logger.step(
-    "DeepSeek",
-    `Generating image search queries`,
+    "LLM",
+    `Generating image search queries using ${AI_PROVIDER}`,
     `${segmentCount} segments`
   );
 
@@ -49,7 +51,7 @@ export async function generateImageQueries(
   // Log whether AI style is being used
   if (USE_AI_IMAGE) {
     logger.log(
-      "DeepSeek",
+      "LLM",
       `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(
         0,
         50
@@ -57,23 +59,23 @@ export async function generateImageQueries(
     );
   } else {
     logger.log(
-      "DeepSeek",
+      "LLM",
       `🔍 Web image search enabled - optimizing queries for search results`
     );
   }
 
   // If small enough, single request
-  const batchSize = DEEPSEEK_SEGMENTS_PER_BATCH;
+  const batchSize = LLM_SEGMENTS_PER_BATCH;
   if (segmentCount <= batchSize) {
     const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount, USE_AI_IMAGE);
-    const queries = await callDeepSeekWithRetry(
+    const queries = await callLLMWithRetry(
       systemPrompt,
       userPrompt,
       "",
-      DEEPSEEK_MAX_RETRIES
+      LLM_MAX_RETRIES
     );
     logger.success(
-      "DeepSeek",
+      "LLM",
       `Generated ${queries.length} image search queries`
     );
     return queries;
@@ -90,23 +92,23 @@ export async function generateImageQueries(
     const batchFormatted = batchLines.join("\n");
 
     logger.step(
-      "DeepSeek",
+      "LLM",
       `Processing batch ${batchIndex + 1}/${totalBatches}`,
       `Segments ${start + 1}-${end}`
     );
 
     const userPrompt = buildUserPrompt(batchFormatted, batchLines.length, USE_AI_IMAGE);
     const label = ` (batch ${batchIndex + 1})`;
-    const queries = await callDeepSeekWithRetry(
+    const queries = await callLLMWithRetry(
       systemPrompt,
       userPrompt,
       label,
-      DEEPSEEK_MAX_RETRIES
+      LLM_MAX_RETRIES
     );
     // Basic per-batch validation
     if (queries.length !== batchLines.length) {
       logger.warn(
-        "DeepSeek",
+        "LLM",
         `Expected ${batchLines.length} queries in batch ${batchIndex + 1
         }, got ${queries.length}`
       );
@@ -116,7 +118,7 @@ export async function generateImageQueries(
   }
 
   logger.success(
-    "DeepSeek",
+    "LLM",
     `Generated ${batches.length} image search queries across ${totalBatches} batches`
   );
 
@@ -124,16 +126,16 @@ export async function generateImageQueries(
 }
 
 /**
- * Call DeepSeek chat API with retry logic and parse the image queries.
+ * Call LLM chat API with retry logic and parse the image queries.
  * Retries are useful when the model returns malformed or noisy JSON.
  *
- * @param systemPrompt - System-level prompt for DeepSeek
+ * @param systemPrompt - System-level prompt for LLM
  * @param userPrompt - User-level prompt containing the transcript batch
  * @param label - Label for logging context (e.g., "" or " (batch 2)")
  * @param maxRetries - Maximum number of additional retry attempts
- * @returns Parsed image search queries from DeepSeek
+ * @returns Parsed image search queries from LLM
  */
-async function callDeepSeekWithRetry(
+async function callLLMWithRetry(
   systemPrompt: string,
   userPrompt: string,
   label: string,
@@ -147,8 +149,9 @@ async function callDeepSeekWithRetry(
     attempt++;
 
     try {
-      const requestBody: DeepSeekRequest = {
-        model: DEEPSEEK_MODEL,
+      // Note: We reuse DeepSeekRequest type as the structure is standard OpenAI-compatible
+      const requestBody: LLMRequest = {
+        model: AI_MODEL,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -157,10 +160,10 @@ async function callDeepSeekWithRetry(
         max_tokens: 8000,
       };
 
-      const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
+      const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+          Authorization: `Bearer ${AI_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
@@ -173,13 +176,13 @@ async function callDeepSeekWithRetry(
         );
       }
 
-      const data = (await response.json()) as DeepSeekResponse;
+      const data = (await response.json()) as LLMResponse;
       const content = data.choices[0]?.message?.content;
       if (!content) {
-        throw new Error(`No content in DeepSeek response${label}`);
+        throw new Error(`No content in LLM response${label}`);
       }
 
-      logger.raw("DeepSeek", `Raw response content${label}`, content);
+      logger.raw("LLM", `Raw response content${label}`, content);
       const queries = parseImageQueries(content);
       return queries;
     } catch (error) {
@@ -190,8 +193,8 @@ async function callDeepSeekWithRetry(
       }
 
       logger.warn(
-        "DeepSeek",
-        `Retrying DeepSeek request${label} (attempt ${attempt + 1
+        "LLM",
+        `Retrying LLM request${label} (attempt ${attempt + 1
         }/${totalAttempts}) due to error: ${error instanceof Error ? error.message : String(error)
         }`
       );
@@ -200,7 +203,7 @@ async function callDeepSeekWithRetry(
 
   throw lastError instanceof Error
     ? lastError
-    : new Error("Unknown error in callDeepSeekWithRetry");
+    : new Error("Unknown error in callLLMWithRetry");
 }
 
 /**
@@ -271,11 +274,11 @@ function parseImageQueries(content: string): ImageSearchQuery[] {
     return parsed;
   } catch (error) {
     logger.error(
-      "DeepSeek",
+      "LLM",
       "Failed to parse JSON response",
       lastError ?? error
     );
-    logger.debug("DeepSeek", `Content was: ${jsonContent}`);
+    logger.debug("LLM", `Content was: ${jsonContent}`);
     throw new Error(
       `Failed to parse image queries from LLM response: ${error instanceof Error ? error.message : String(error)
       }`
@@ -319,12 +322,12 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     const maxWords = USE_AI_IMAGE ? 40 : 10;
     if (wordCount > maxWords) {
       logger.warn(
-        "DeepSeek",
+        "LLM",
         `Query at index ${i} exceeds ${maxWords} words (${wordCount} words): "${query.query}"`
       );
     }
   }
 
-  logger.success("DeepSeek", `Validation passed for ${queries.length} queries`);
+  logger.success("LLM", `Validation passed for ${queries.length} queries`);
   return true;
 }

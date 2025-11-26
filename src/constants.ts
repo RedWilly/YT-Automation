@@ -34,20 +34,44 @@ export function parseIdList(envValue?: string): number[] {
 export const ALLOWED_USER_IDS = parseIdList(process.env.ALLOWED_USER_IDS);
 export const ALLOWED_CHAT_IDS = parseIdList(process.env.ALLOWED_CHAT_IDS);
 
-// DeepSeek LLM Configuration
-export const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-export const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL;
-export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "";
-// Max number of transcript segments to send to DeepSeek per batch
-const _SEGMENTS_PER_BATCH_RAW = process.env.DEEPSEEK_SEGMENTS_PER_BATCH;
-let _segmentsPerBatch = 60;
-if (typeof _SEGMENTS_PER_BATCH_RAW === "string" && _SEGMENTS_PER_BATCH_RAW.trim().length > 0) {
-  const parsed = Number.parseInt(_SEGMENTS_PER_BATCH_RAW.trim(), 10);
-  if (Number.isFinite(parsed) && parsed > 0 && Number.isSafeInteger(parsed)) {
-    _segmentsPerBatch = parsed;
-  }
+// AI Provider Configuration
+export type AIProvider = "kimi" | "deepseek";
+
+export interface ProviderConfig {
+  model: string;
+  baseUrl: string;
+  apiKey: string;
 }
-export const DEEPSEEK_SEGMENTS_PER_BATCH: number = _segmentsPerBatch;
+
+export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
+  kimi: {
+    model: "kimi-k2-0905-preview",
+    baseUrl: "https://api.moonshot.ai/v1",
+    apiKey: process.env.KIMI_API_KEY || ""
+  },
+  deepseek: {
+    model: "deepseek-chat",
+    baseUrl: "https://api.deepseek.com/v1",
+    apiKey: process.env.DEEPSEEK_API_KEY || ""
+  }
+};
+
+// Select provider (Make sure to set the AI provider In the.env file)
+export const AI_PROVIDER = process.env.AI_PROVIDER as AIProvider;
+
+if (!AI_PROVIDER || !PROVIDER_CONFIGS[AI_PROVIDER]) {
+  console.error("❌ Invalid or missing AI_PROVIDER in .env file.");
+  console.error(`Supported providers: ${Object.keys(PROVIDER_CONFIGS).join(", ")}`);
+  process.exit(1);
+}
+
+// Export selected provider configuration
+export const AI_CONFIG = PROVIDER_CONFIGS[AI_PROVIDER];
+export const AI_API_KEY = AI_CONFIG.apiKey;
+export const AI_BASE_URL = AI_CONFIG.baseUrl;
+export const AI_MODEL = AI_CONFIG.model;
+// Max number of transcript segments to send to LLM per batch
+export const LLM_SEGMENTS_PER_BATCH = Number(process.env.LLM_SEGMENTS_PER_BATCH) || 60;
 
 // Directory Paths
 export const TMP_AUDIO_DIR = "tmp/audio";

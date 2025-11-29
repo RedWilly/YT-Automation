@@ -35,12 +35,12 @@
  *   const TRANSCRIPT_ID = "abc123def456";  // Best option - no credits used
  *   const UPLOAD_URL = "https://cdn.assemblyai.com/upload/a20e52fb-4a09-4d2f-aafe-e65edda37cac";
  */
-const TRANSCRIPT_ID: string = "05841374-893b-4b1d-bad0-783690c46f9b";
+const TRANSCRIPT_ID: string = "1ecad84a-dc21-46dc-8afa-3a93b3ef484e";
 const UPLOAD_URL: string = "";
 
 import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
-import { generateImageQueries, validateImageQueries } from "./src/services/deepseek.ts";
+import { generateImageQueries, validateImageQueries } from "./src/services/llm.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
 import { uploadVideoToMinIO } from "./src/services/minio.ts";

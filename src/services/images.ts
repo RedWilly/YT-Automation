@@ -11,10 +11,18 @@ import {
   WORKER_API_URL,
   WORKER_API_KEY,
   AI_IMAGE_STYLE,
+  AI_IMAGE_MODEL,
+  TOGETHER_API_KEY,
+  TOGETHER_API_URL,
+  TOGETHER_MODEL,
+  TOGETHER_MIN_DELAY_MS,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
+
+// Track the last Together AI request time for rate limiting
+let lastTogetherRequestTime = 0;
 
 /**
  * Domains that typically serve watermarked stock photos
@@ -45,7 +53,8 @@ export async function downloadImagesForQueries(
 ): Promise<DownloadedImage[]> {
   // Log which mode we're using
   if (USE_AI_IMAGE) {
-    logger.step("Images", `🎨 AI Image Generation Mode: Using Cloudflare Worker to generate ${queries.length} images`);
+    const providerName = AI_IMAGE_MODEL === "togetherai" ? "Together AI (FLUX.1-schnell)" : "Cloudflare Worker";
+    logger.step("Images", `🎨 AI Image Generation Mode: Using ${providerName} to generate ${queries.length} images`);
   } else {
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
   }
@@ -94,12 +103,27 @@ export async function downloadImagesForQueries(
 }
 
 /**
- * Generate a single AI image for a query using Cloudflare Worker with retry logic
- * Follows the same retry pattern as downloadImageForQuery for consistency
+ * Generate a single AI image for a query using the configured provider with retry logic
+ * Routes to Cloudflare Worker or Together AI based on AI_IMAGE_MODEL setting
  * @param queryData - Image search query with timestamps
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
+  queryData: ImageSearchQuery
+): Promise<DownloadedImage> {
+  // Route to appropriate provider based on configuration
+  if (AI_IMAGE_MODEL === "togetherai") {
+    return generateTogetherAIImage(queryData);
+  }
+  return generateCloudflareImage(queryData);
+}
+
+/**
+ * Generate a single AI image using Cloudflare Worker with retry logic
+ * @param queryData - Image search query with timestamps
+ * @returns Generated image information
+ */
+async function generateCloudflareImage(
   queryData: ImageSearchQuery
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
@@ -109,9 +133,9 @@ async function generateAIImageForQuery(
   // Retry up to MAX_POLL_ATTEMPTS times (same as web search)
   for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
     try {
-      logger.debug("AI-Images", `Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+      logger.debug("AI-Images", `[Cloudflare] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-      // Combine the query with the vintage oil painting style
+      // Combine the query with the image style
       const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
@@ -172,6 +196,152 @@ async function generateAIImageForQuery(
   // All attempts failed
   throw new Error(
     `Failed to generate AI image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
+  );
+}
+
+/**
+ * Together AI response type for image generation
+ */
+interface TogetherAIImageResponse {
+  id: string;
+  model: string;
+  object: string;
+  data: Array<{
+    index: number;
+    url: string;
+    timings?: {
+      inference: number;
+    };
+  }>;
+}
+
+/**
+ * Generate a single AI image using Together AI (FLUX.1-schnell) with rate limiting
+ * Handles the 6 img/min rate limit by tracking request timing
+ * @param queryData - Image search query with timestamps
+ * @returns Generated image information
+ */
+async function generateTogetherAIImage(
+  queryData: ImageSearchQuery
+): Promise<DownloadedImage> {
+  const { query, start, end } = queryData;
+
+  let lastError: Error | null = null;
+
+  // Retry up to MAX_POLL_ATTEMPTS times
+  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+    try {
+      logger.debug("AI-Images", `[Together AI] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+
+      // Handle rate limiting - ensure minimum delay between requests
+      const now = Date.now();
+      const timeSinceLastRequest = now - lastTogetherRequestTime;
+      if (lastTogetherRequestTime > 0 && timeSinceLastRequest < TOGETHER_MIN_DELAY_MS) {
+        const waitTime = TOGETHER_MIN_DELAY_MS - timeSinceLastRequest;
+        logger.debug("AI-Images", `Rate limiting: waiting ${Math.ceil(waitTime / 1000)}s before next request`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      }
+
+      // Build the full prompt with style
+      const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
+      logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
+
+      // Build negative prompt for better quality
+      const negativePrompt = "deformed, distorted, extra limbs, missing limbs, extra fingers, duplicated features, mutated, broken anatomy, merged objects, unclear composition, low quality, artifacts, unintended reflection, overlay figure, reflection, mirror image, duplicated silhouette, color spilling, overlapping colors";
+
+      // Record request time before making the call
+      const requestStartTime = Date.now();
+
+      // Make request to Together AI
+      const response = await fetch(TOGETHER_API_URL, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${TOGETHER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: TOGETHER_MODEL,
+          prompt: fullPrompt,
+          n: 1,
+          width: 1440,
+          height: 1104,
+          steps: 4,
+          negative_prompt: negativePrompt,
+          guidance_scale: 20,
+          disable_safety_checker: false,
+        }),
+      });
+
+      // Update last request time after response received
+      lastTogetherRequestTime = Date.now();
+      const requestDuration = lastTogetherRequestTime - requestStartTime;
+      logger.debug("AI-Images", `Request took ${Math.ceil(requestDuration / 1000)}s`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("AI-Images", `Together AI request failed: ${response.status} ${response.statusText}`);
+        logger.debug("AI-Images", `Response body: ${errorText}`);
+        throw new Error(`Together AI request failed: ${response.status} ${response.statusText}`);
+      }
+
+      // Parse JSON response
+      const result = await response.json() as TogetherAIImageResponse;
+
+      // Extract image URL from response
+      const imageUrl = result.data?.[0]?.url;
+      if (!imageUrl) {
+        throw new Error("No image URL in Together AI response");
+      }
+
+      // Log inference time if available
+      const inferenceTime = result.data?.[0]?.timings?.inference;
+      if (inferenceTime) {
+        logger.debug("AI-Images", `Together AI inference time: ${inferenceTime.toFixed(2)}s`);
+      }
+
+      // Download the image from the URL
+      logger.debug("AI-Images", `Downloading image from Together AI URL...`);
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image from Together AI: ${imageResponse.status}`);
+      }
+      const binaryData = await imageResponse.arrayBuffer();
+
+      // Sanitize query for filename
+      const sanitizedQuery = sanitizeFilename(query);
+      const filename = `ai_${sanitizedQuery}.jpg`;
+      const filePath = join(TMP_IMAGES_DIR, filename);
+
+      // Save the image
+      await Bun.write(filePath, binaryData);
+
+      logger.debug("AI-Images", `Saved Together AI image to: ${filePath}`);
+
+      // If this succeeded after retries, log success
+      if (attempt > 1) {
+        logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
+      }
+
+      return {
+        query,
+        start,
+        end,
+        filePath,
+      };
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < MAX_POLL_ATTEMPTS) {
+        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+    }
+  }
+
+  // All attempts failed
+  throw new Error(
+    `Failed to generate Together AI image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
   );
 }
 

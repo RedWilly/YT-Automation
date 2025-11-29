@@ -95,6 +95,17 @@ export const WORKER_API_URL = process.env.WORKER_API_URL || "";
 export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 export const AI_IMAGE_STYLE = process.env.AI_IMAGE_STYLE || "";
 
+// AI Image Model Provider Configuration
+export type AIImageModel = "cloudflare" | "togetherai";
+export const AI_IMAGE_MODEL = (process.env.AI_IMAGE_MODEL) as AIImageModel;
+export const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || "";
+
+// Together AI Configuration
+export const TOGETHER_API_URL = "https://api.together.xyz/v1/images/generations";
+export const TOGETHER_MODEL = "black-forest-labs/FLUX.1-schnell-Free";
+export const TOGETHER_RATE_LIMIT_PER_MIN = 6; // FLUX.1 [schnell] Free has 6 img/min limit
+export const TOGETHER_MIN_DELAY_MS = 60000 / TOGETHER_RATE_LIMIT_PER_MIN; // ~10000ms minimum between requests
+
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";
 

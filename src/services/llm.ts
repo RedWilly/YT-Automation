@@ -111,7 +111,7 @@ export async function generateImageQueries(
         systemPrompt,
         userPrompt,
         label,
-        LLM_MAX_RETRIES
+        1 // Reduced retry limit for batch retries to keep budget predictable
       );
 
       // Check if we got the expected number of queries
@@ -351,6 +351,5 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     }
   }
 
-  logger.success("LLM", `Validation passed for ${queries.length} queries`);
   return true;
 }

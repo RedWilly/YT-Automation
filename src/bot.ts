@@ -11,6 +11,7 @@ import { cleanupTempFiles } from "./services/cleanup.ts";
 import { WorkflowService } from "./services/workflow.ts";
 import { TMP_AUDIO_DIR } from "./constants.ts";
 import * as logger from "./logger.ts";
+import { jobQueue, type Job } from "./services/queue.ts";
 
 /**
  * State management for tracking users waiting to provide URLs
@@ -35,6 +36,7 @@ export function createBot() {
   bot.command("upload", handleUploadCommand);
   bot.command("url", handleUrlCommand);
   bot.command("cleanup", handleCleanupCommand);
+  bot.command("queue", handleQueueCommand);
 
   // Handle voice and audio messages - these must come before the generic message handler
   bot.on("voice", handleVoiceMessage);
@@ -82,6 +84,7 @@ async function handleStartCommand(ctx: Context): Promise<void> {
     "📝 Commands:\n" +
     "   • /upload - Upload audio via Telegram (max 20MB)\n" +
     "   • /url - Provide a presigned URL for large files\n" +
+    "   • /queue - View pending jobs in the queue\n" +
     "   • /cleanup - Remove all temporary files\n\n" +
     "Just send your audio file to get started!"
   );
@@ -144,6 +147,24 @@ async function handleCleanupCommand(ctx: Context): Promise<void> {
 }
 
 /**
+ * Handle /queue command
+ * Shows the current job queue status
+ */
+async function handleQueueCommand(ctx: Context): Promise<void> {
+  logger.log("Bot", "Received /queue command");
+
+  if (!ctx.chat) {
+    logger.error("Bot", "No chat context available");
+    return;
+  }
+
+  const chatId = ctx.chat.id;
+  const queueStatus = jobQueue.formatQueueStatus(chatId);
+
+  await ctx.reply(queueStatus, { parse_mode: "MarkdownV2" });
+}
+
+/**
  * Handle /url command
  * Prompts user to provide a presigned URL for large audio files
  * Supports both "/url" (then wait for URL) and "/url <url>" (immediate processing)
@@ -189,7 +210,7 @@ async function handleUrlCommand(ctx: Context): Promise<void> {
 
 /**
  * Handle URL input from user
- * Downloads audio from the provided URL and processes it
+ * Adds the URL job to the queue for processing
  */
 async function handleUrlInput(ctx: Context, url: string): Promise<void> {
   logger.log("Bot", `Received URL input: ${url}`);
@@ -202,16 +223,25 @@ async function handleUrlInput(ctx: Context, url: string): Promise<void> {
     return;
   }
 
-  try {
-    await WorkflowService.processAudioFromUrl(ctx, url);
-  } catch (error) {
-    logger.error("Bot", "Error in handleUrlInput", error);
-    // Error is already reported to user by WorkflowService via ProgressTracker
+  // Add to queue
+  const job = jobQueue.addUrlJob(ctx, url);
+  const position = jobQueue.getQueuePosition(job.id);
+
+  if (position > 1) {
+    await ctx.reply(
+      `📋 *Job added to queue*\n\n` +
+      `🔢 Position: ${position}\n` +
+      `📎 Type: URL\n\n` +
+      `Use /queue to check status.`,
+      { parse_mode: "Markdown" }
+    );
   }
+  // If position is 1, it will start immediately and the workflow will notify
 }
 
 /**
  * Handle voice messages
+ * Adds the voice file to the queue for processing
  */
 async function handleVoiceMessage(ctx: Context): Promise<void> {
   logger.log("Bot", "Received voice message");
@@ -224,16 +254,25 @@ async function handleVoiceMessage(ctx: Context): Promise<void> {
   const voice = ctx.message.voice;
   logger.debug("Bot", `Processing voice file: ${voice.file_id}`);
 
-  try {
-    await WorkflowService.processAudioFile(ctx, voice.file_id, "voice.ogg");
-  } catch (error) {
-    logger.error("Bot", "Error in handleVoiceMessage", error);
-    // Error is already reported to user by WorkflowService via ProgressTracker
+  // Add to queue
+  const job = jobQueue.addFileJob(ctx, voice.file_id, "voice.ogg");
+  const position = jobQueue.getQueuePosition(job.id);
+
+  if (position > 1) {
+    await ctx.reply(
+      `📋 *Job added to queue*\n\n` +
+      `🔢 Position: ${position}\n` +
+      `🎙️ Type: Voice message\n\n` +
+      `Use /queue to check status.`,
+      { parse_mode: "Markdown" }
+    );
   }
+  // If position is 1, it will start immediately and the workflow will notify
 }
 
 /**
  * Handle audio messages
+ * Adds the audio file to the queue for processing
  */
 async function handleAudioMessage(ctx: Context): Promise<void> {
   logger.log("Bot", "Received audio message");
@@ -247,16 +286,25 @@ async function handleAudioMessage(ctx: Context): Promise<void> {
   const filename = audio.file_name || `audio_${Date.now()}.mp3`;
   logger.debug("Bot", `Processing audio file: ${filename} (${audio.file_id})`);
 
-  try {
-    await WorkflowService.processAudioFile(ctx, audio.file_id, filename);
-  } catch (error) {
-    logger.error("Bot", "Error in handleAudioMessage", error);
-    // Error is already reported to user by WorkflowService via ProgressTracker
+  // Add to queue
+  const job = jobQueue.addFileJob(ctx, audio.file_id, filename);
+  const position = jobQueue.getQueuePosition(job.id);
+
+  if (position > 1) {
+    await ctx.reply(
+      `📋 *Job added to queue*\n\n` +
+      `🔢 Position: ${position}\n` +
+      `🎵 File: ${filename}\n\n` +
+      `Use /queue to check status.`,
+      { parse_mode: "Markdown" }
+    );
   }
+  // If position is 1, it will start immediately and the workflow will notify
 }
 
 /**
  * Handle document messages (audio files sent as documents)
+ * Adds the audio document to the queue for processing
  */
 async function handleDocumentMessage(ctx: Context): Promise<void> {
   logger.log("Bot", "Received document message");
@@ -284,11 +332,33 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
 
   logger.debug("Bot", `Processing audio document: ${filename} (${document.file_id})`);
 
-  try {
-    await WorkflowService.processAudioFile(ctx, document.file_id, filename);
-  } catch (error) {
-    logger.error("Bot", "Error in handleDocumentMessage", error);
-    // Error is already reported to user by WorkflowService via ProgressTracker
+  // Add to queue
+  const job = jobQueue.addFileJob(ctx, document.file_id, filename);
+  const position = jobQueue.getQueuePosition(job.id);
+
+  if (position > 1) {
+    await ctx.reply(
+      `📋 *Job added to queue*\n\n` +
+      `🔢 Position: ${position}\n` +
+      `📄 File: ${filename}\n\n` +
+      `Use /queue to check status.`,
+      { parse_mode: "Markdown" }
+    );
+  }
+  // If position is 1, it will start immediately and the workflow will notify
+}
+
+/**
+ * Job processor function for the queue
+ * Processes file and URL jobs using WorkflowService
+ */
+async function processJob(job: Job, ctx: Context): Promise<void> {
+  if (job.type === "file" && job.fileId && job.filename) {
+    await WorkflowService.processAudioFile(ctx, job.fileId, job.filename);
+  } else if (job.type === "url" && job.url) {
+    await WorkflowService.processAudioFromUrl(ctx, job.url);
+  } else {
+    throw new Error(`Invalid job configuration: ${job.id}`);
   }
 }
 
@@ -297,6 +367,9 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
  */
 export async function startBot(): Promise<void> {
   logger.log("Bot", "Initializing bot...");
+
+  // Set up the job queue processor
+  jobQueue.setProcessor(processJob);
 
   const bot = createBot();
 

@@ -161,7 +161,7 @@ async function handleQueueCommand(ctx: Context): Promise<void> {
   const chatId = ctx.chat.id;
   const queueStatus = jobQueue.formatQueueStatus(chatId);
 
-  await ctx.reply(queueStatus, { parse_mode: "Markdown" });
+  await ctx.reply(queueStatus, { parse_mode: "MarkdownV2" });
 }
 
 /**

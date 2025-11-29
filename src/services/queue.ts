@@ -261,6 +261,15 @@ class JobQueueService {
   }
 
   /**
+   * Escape special Markdown characters for Telegram
+   * @param text - Text to escape
+   * @returns Escaped text safe for Markdown
+   */
+  private escapeMarkdown(text: string): string {
+    return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, "\\$1");
+  }
+
+  /**
    * Format queue status for display
    * @param chatId - Optional: filter to show only jobs for this chat
    * @returns Formatted status string
@@ -282,7 +291,7 @@ class JobQueueService {
 
     // Pending jobs
     if (status.pending.length > 0) {
-      message += `⏳ *Pending Jobs (${status.pending.length}):*\n`;
+      message += `⏳ *Pending Jobs \\(${status.pending.length}\\):*\n`;
       const jobsToShow = chatId
         ? status.pending.filter(j => j.chatId === chatId)
         : status.pending.slice(0, 5); // Show max 5
@@ -290,11 +299,11 @@ class JobQueueService {
       for (let i = 0; i < jobsToShow.length; i++) {
         const job = jobsToShow[i];
         if (!job) continue;
-        message += `   ${i + 1}. ${this.formatJobInfo(job)}\n`;
+        message += `   ${i + 1}\\. ${this.formatJobInfo(job)}\n`;
       }
 
       if (!chatId && status.pending.length > 5) {
-        message += `   ... and ${status.pending.length - 5} more\n`;
+        message += `   \\.\\.\\. and ${status.pending.length - 5} more\n`;
       }
       message += "\n";
     } else {
@@ -314,13 +323,14 @@ class JobQueueService {
    */
   private formatJobInfo(job: Job): string {
     if (job.type === "file") {
-      return `File: ${job.filename || "Unknown"}`;
+      const filename = this.escapeMarkdown(job.filename || "Unknown");
+      return `File: ${filename}`;
     }
     // Truncate URL for display
-    const urlDisplay = job.url && job.url.length > 40
+    const urlRaw = job.url && job.url.length > 40
       ? job.url.substring(0, 37) + "..."
       : job.url || "Unknown URL";
-    return `URL: ${urlDisplay}`;
+    return `URL: ${this.escapeMarkdown(urlRaw)}`;
   }
 
   /**

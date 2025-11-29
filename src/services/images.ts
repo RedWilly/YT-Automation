@@ -284,7 +284,7 @@ async function generateTogetherAIImage(
 
       // Build negative prompt for better quality ( first // const negativePrompt worked great for sdxl 1.0 // cloudflare)
       // const negativePrompt = "deformed, distorted, extra limbs, missing limbs, extra fingers, duplicated features, mutated, broken anatomy, merged objects, unclear composition, low quality, artifacts, unintended reflection, overlay figure, reflection, mirror image, duplicated silhouette, color spilling, overlapping colors";
-      const negativePrompt = "photorealistic, photograph, 3d render, vector, flat, cartoon, anime, smooth, simple, minimal, ink, watercolor, blurry, low quality, watermark, text, signature, bad anatomy, deformed, disfigured, extra limbs, missing fingers, ugly face, plastic skin";
+      const negativePrompt = "photorealistic, photograph, 3d render, vector, cartoon, anime, smooth, messy, blur, heavy impasto, thick paint, watermark, text, low quality, plastic, shiny, distorted, bad anatomy, deformed, disfigured, extra limbs, missing fingers";
       // Record request time before making the call
       const requestStartTime = Date.now();
 

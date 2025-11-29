@@ -80,7 +80,9 @@ export async function downloadImagesForQueries(
       );
 
       // Add delay between queries to avoid rate limiting (except for last query)
-      if (i < queriesLength - 1) {
+      // Note: Together AI has its own rate limiting logic, so we skip delay for it
+      const skipDelay = USE_AI_IMAGE && AI_IMAGE_MODEL === "togetherai";
+      if (i < queriesLength - 1 && !skipDelay) {
         logger.debug("Images", `Waiting ${POLL_INTERVAL_MS}ms before next query to avoid rate limiting`);
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
@@ -105,17 +107,51 @@ export async function downloadImagesForQueries(
 /**
  * Generate a single AI image for a query using the configured provider with retry logic
  * Routes to Cloudflare Worker or Together AI based on AI_IMAGE_MODEL setting
+ * Includes fallback logic: if primary provider fails after all retries, try the other provider
  * @param queryData - Image search query with timestamps
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
   queryData: ImageSearchQuery
 ): Promise<DownloadedImage> {
-  // Route to appropriate provider based on configuration
-  if (AI_IMAGE_MODEL === "togetherai") {
-    return generateTogetherAIImage(queryData);
+  const primaryProvider = AI_IMAGE_MODEL === "togetherai" ? "togetherai" : "cloudflare";
+  const fallbackProvider = primaryProvider === "togetherai" ? "cloudflare" : "togetherai";
+
+  // Check if fallback provider is configured
+  const canFallbackToTogether = TOGETHER_API_KEY.length > 0;
+  const canFallbackToCloudflare = WORKER_API_URL.length > 0 && WORKER_API_KEY.length > 0;
+  const canUseFallback = fallbackProvider === "togetherai" ? canFallbackToTogether : canFallbackToCloudflare;
+
+  try {
+    // Try primary provider first
+    if (primaryProvider === "togetherai") {
+      return await generateTogetherAIImage(queryData);
+    }
+    return await generateCloudflareImage(queryData);
+  } catch (primaryError) {
+    // Primary provider failed after all retries
+    const primaryErrorMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
+    logger.warn("AI-Images", `Primary provider (${primaryProvider}) failed: ${primaryErrorMsg}`);
+
+    // Try fallback provider if configured
+    if (canUseFallback) {
+      logger.step("AI-Images", `Switching to fallback provider: ${fallbackProvider}`);
+
+      try {
+        if (fallbackProvider === "togetherai") {
+          return await generateTogetherAIImage(queryData);
+        }
+        return await generateCloudflareImage(queryData);
+      } catch (fallbackError) {
+        const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+        logger.error("AI-Images", `Fallback provider (${fallbackProvider}) also failed: ${fallbackErrorMsg}`);
+        throw new Error(`Both providers failed. Primary (${primaryProvider}): ${primaryErrorMsg}. Fallback (${fallbackProvider}): ${fallbackErrorMsg}`);
+      }
+    }
+
+    // No fallback available
+    throw primaryError;
   }
-  return generateCloudflareImage(queryData);
 }
 
 /**
@@ -247,8 +283,8 @@ async function generateTogetherAIImage(
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
       // Build negative prompt for better quality
-      const negativePrompt = "deformed, distorted, extra limbs, missing limbs, extra fingers, duplicated features, mutated, broken anatomy, merged objects, unclear composition, low quality, artifacts, unintended reflection, overlay figure, reflection, mirror image, duplicated silhouette, color spilling, overlapping colors";
-
+      // const negativePrompt = "deformed, distorted, extra limbs, missing limbs, extra fingers, duplicated features, mutated, broken anatomy, merged objects, unclear composition, low quality, artifacts, unintended reflection, overlay figure, reflection, mirror image, duplicated silhouette, color spilling, overlapping colors";
+      const negativePrompt = "photorealistic, smooth, flat, vector, cartoon, cel shaded, minimal, simple, clean lines, ink, watercolor, blurry, low resolution, watermark, text, signature, frame, border, 3d render, plastic, glossy";
       // Record request time before making the call
       const requestStartTime = Date.now();
 

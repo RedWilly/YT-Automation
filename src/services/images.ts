@@ -21,10 +21,6 @@ import type { ResolvedStyle } from "../styles/types.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
 
-// Module-level style reference for image generation
-// Set by downloadImagesForQueries and used by generation functions
-let currentStyle: ResolvedStyle | null = null;
-
 // Track the last Together AI request time for rate limiting
 let lastTogetherRequestTime = 0;
 
@@ -57,9 +53,6 @@ export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
   style: ResolvedStyle
 ): Promise<DownloadedImage[]> {
-  // Store style for use by generation functions
-  currentStyle = style;
-
   // Log which mode we're using
   if (USE_AI_IMAGE) {
     const providerName = AI_IMAGE_MODEL === "togetherai" ? "Together AI (FLUX.1-schnell)" : "Cloudflare Worker";
@@ -80,7 +73,7 @@ export async function downloadImagesForQueries(
     try {
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData)
+        ? await generateAIImageForQuery(queryData, style)
         : await downloadImageForQuery(queryData);
 
       processedImages.push(processedImage);
@@ -119,10 +112,12 @@ export async function downloadImagesForQueries(
  * Routes to Cloudflare Worker or Together AI based on AI_IMAGE_MODEL setting
  * Includes fallback logic: if primary provider fails after all retries, try the other provider
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const primaryProvider = AI_IMAGE_MODEL === "togetherai" ? "togetherai" : "cloudflare";
   const fallbackProvider = primaryProvider === "togetherai" ? "cloudflare" : "togetherai";
@@ -135,9 +130,9 @@ async function generateAIImageForQuery(
   try {
     // Try primary provider first
     if (primaryProvider === "togetherai") {
-      return await generateTogetherAIImage(queryData);
+      return await generateTogetherAIImage(queryData, style);
     }
-    return await generateCloudflareImage(queryData);
+    return await generateCloudflareImage(queryData, style);
   } catch (primaryError) {
     // Primary provider failed after all retries
     const primaryErrorMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
@@ -149,9 +144,9 @@ async function generateAIImageForQuery(
 
       try {
         if (fallbackProvider === "togetherai") {
-          return await generateTogetherAIImage(queryData);
+          return await generateTogetherAIImage(queryData, style);
         }
-        return await generateCloudflareImage(queryData);
+        return await generateCloudflareImage(queryData, style);
       } catch (fallbackError) {
         const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         logger.error("AI-Images", `Fallback provider (${fallbackProvider}) also failed: ${fallbackErrorMsg}`);
@@ -167,10 +162,12 @@ async function generateAIImageForQuery(
 /**
  * Generate a single AI image using Cloudflare Worker with retry logic
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateCloudflareImage(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -181,13 +178,8 @@ async function generateCloudflareImage(
     try {
       logger.debug("AI-Images", `[Cloudflare] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-      // Get style from module-level reference
-      if (!currentStyle) {
-        throw new Error("No style configuration set for image generation");
-      }
-
       // Combine the query with the image style
-      const fullPrompt = `${query}, ${currentStyle.imageStyle}`;
+      const fullPrompt = `${query}, ${style.imageStyle}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
       // Make request to Cloudflare Worker with negative prompt
@@ -199,7 +191,7 @@ async function generateCloudflareImage(
         },
         body: JSON.stringify({
           prompt: fullPrompt,
-          negative_prompt: currentStyle.negativePrompt,
+          negative_prompt: style.negativePrompt,
         }),
       });
 
@@ -271,10 +263,12 @@ interface TogetherAIImageResponse {
  * Generate a single AI image using Together AI (FLUX.1-schnell) with rate limiting
  * Handles the 6 img/min rate limit by tracking request timing
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateTogetherAIImage(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -294,13 +288,8 @@ async function generateTogetherAIImage(
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
-      // Get style from module-level reference
-      if (!currentStyle) {
-        throw new Error("No style configuration set for image generation");
-      }
-
       // Build the full prompt with style
-      const fullPrompt = `${query}, ${currentStyle.imageStyle}`;
+      const fullPrompt = `${query}, ${style.imageStyle}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
       // Note: FLUX.1-schnell doesn't support negative prompts, but we pass it anyway
@@ -322,7 +311,7 @@ async function generateTogetherAIImage(
           width: 1440,
           height: 1104,
           steps: 4,
-          negative_prompt: currentStyle.negativePrompt,
+          negative_prompt: style.negativePrompt,
           guidance_scale: 20,
           disable_safety_checker: false,
         }),

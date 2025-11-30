@@ -15,10 +15,6 @@ import * as logger from "../logger.ts";
 import { generateCaptions } from "./captions.ts";
 import { createFilterComplex } from "../utils/ffmpeg.ts";
 
-// Module-level style reference for video generation
-// Set by generateVideo and used by helper functions
-let currentStyle: ResolvedStyle | null = null;
-
 /**
  * Generate video from images and audio using FFmpeg with chunked rendering
  * @param images - Array of downloaded images with timing information
@@ -37,9 +33,6 @@ export async function generateVideo(
   outputFileName: string,
   style: ResolvedStyle
 ): Promise<VideoGenerationResult> {
-  // Store style for use by helper functions
-  currentStyle = style;
-
   const panEffect = style.panEffect;
   const captionsEnabled = style.captionsEnabled;
 
@@ -84,7 +77,7 @@ export async function generateVideo(
       const captionResult = await generateCaptions(segments, words, style);
       assFilePath = captionResult.assFilePath;
     }
-    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath, assFilePath);
+    await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath, captionsEnabled, assFilePath);
   }
 
   logger.success("Video", `Video generated successfully`);
@@ -103,6 +96,7 @@ export async function generateVideo(
  * @param audioFilePath - Path to audio file
  * @param filterComplex - FFmpeg filter complex string
  * @param outputPath - Output video path
+ * @param captionsEnabled - Whether captions are enabled
  * @param assFilePath - Optional path to ASS subtitle file
  */
 async function runFFmpeg(
@@ -110,6 +104,7 @@ async function runFFmpeg(
   audioFilePath: string,
   filterComplex: string,
   outputPath: string,
+  captionsEnabled: boolean,
   assFilePath?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -138,9 +133,8 @@ async function runFFmpeg(
     inputArgs.push("-i", audioFilePath);
 
     // Modify filter complex to add subtitles if ASS file is provided
-    // Use currentStyle to check if captions are enabled (set by generateVideo)
     let finalFilterComplex = filterComplex;
-    if (currentStyle?.captionsEnabled && assFilePath) {
+    if (captionsEnabled && assFilePath) {
       // Add subtitles filter after the video output
       // Replace [outv] with intermediate output, then apply subtitles
       finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
@@ -301,7 +295,7 @@ async function renderVideoInChunks(
     }
 
     // Render this chunk with the corresponding audio segment and captions
-    await runFFmpegChunk(chunk, audioFilePath, filterComplex, chunkPath, chunkStartTime / 1000, chunkDuration, chunkAssPath);
+    await runFFmpegChunk(chunk, audioFilePath, filterComplex, chunkPath, chunkStartTime / 1000, chunkDuration, captionsEnabled, chunkAssPath);
 
     logger.success("Video", `Chunk ${i + 1}/${chunks.length} completed`);
   }
@@ -338,6 +332,7 @@ async function renderVideoInChunks(
  * @param outputPath - Output path for this chunk
  * @param audioStartTime - Start time in audio file (seconds)
  * @param audioDuration - Duration of audio segment (seconds)
+ * @param captionsEnabled - Whether captions are enabled
  * @param assFilePath - Optional path to ASS subtitle file for this chunk
  */
 async function runFFmpegChunk(
@@ -347,6 +342,7 @@ async function runFFmpegChunk(
   outputPath: string,
   audioStartTime: number,
   audioDuration: number,
+  captionsEnabled: boolean,
   assFilePath?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -382,9 +378,8 @@ async function runFFmpegChunk(
     );
 
     // Modify filter complex to add subtitles if ASS file is provided
-    // Use currentStyle to check if captions are enabled (set by generateVideo)
     let finalFilterComplex = filterComplex;
-    if (currentStyle?.captionsEnabled && assFilePath) {
+    if (captionsEnabled && assFilePath) {
       finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
       const escapedAssPath = assFilePath.replace(/\\/g, "/").replace(/:/g, "\\:");
       finalFilterComplex += `;[video_no_subs]subtitles='${escapedAssPath}'[outv]`;

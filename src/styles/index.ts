@@ -130,8 +130,8 @@ export function parseStyleFromMessage(text: string): { styleId: string; options:
     options.panEffect = true;
   }
 
-  // Parse --nopan flag
-  if (/--nopan\b/i.test(text)) {
+  // Parse --no-pan or --nopan flag
+  if (/--no-?pan\b/i.test(text)) {
     options.panEffect = false;
   }
 
@@ -140,8 +140,8 @@ export function parseStyleFromMessage(text: string): { styleId: string; options:
     options.karaokeEnabled = true;
   }
 
-  // Parse --nokaraoke flag
-  if (/--nokaraoke\b/i.test(text)) {
+  // Parse --no-karaoke or --nokaraoke flag
+  if (/--no-?karaoke\b/i.test(text)) {
     options.karaokeEnabled = false;
   }
 
@@ -156,8 +156,8 @@ export function parseStyleFromMessage(text: string): { styleId: string; options:
     options.highlightBox = true;
   }
 
-  // Parse --nobox flag
-  if (/--nobox\b/i.test(text)) {
+  // Parse --no-box or --nobox flag
+  if (/--no-?box\b/i.test(text)) {
     options.highlightBox = false;
   }
 

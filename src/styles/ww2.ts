@@ -30,11 +30,11 @@ export const ww2Style: VideoStyle = {
 
   // === Captions ===
   captionsEnabled: true,
-  minWordsPerCaption: 4,
-  maxWordsPerCaption: 6,
+  minWordsPerCaption: 6,
+  maxWordsPerCaption: 8,
   captionStyle: {
     fontName: "Resolve-Bold",
-    fontSize: 72,
+    fontSize: 52,
     primaryColor: "&H00FFFFFF",  // White
     outlineColor: "&H00000000",  // Black
     backgroundColor: "&H00000000",  // Black (for shadow effect)

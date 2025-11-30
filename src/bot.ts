@@ -213,6 +213,54 @@ async function handleHelpCommand(ctx: Context): Promise<void> {
 }
 
 /**
+ * Escape special characters for Telegram MarkdownV2
+ * @param text - Text to escape
+ * @returns Escaped text safe for MarkdownV2
+ */
+function escapeMarkdownV2(text: string): string {
+  return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, "\\$&");
+}
+
+/**
+ * Build style description from actual style properties
+ * @param styleId - Style ID to describe
+ * @returns Formatted description for MarkdownV2
+ */
+function buildStyleDescription(styleId: string): string {
+  const style = getStyle(styleId);
+  if (!style) return "";
+
+  const lines: string[] = [];
+
+  // Style header
+  lines.push(`*\\#${style.id}*`);
+  lines.push(escapeMarkdownV2(style.description));
+
+  // Segmentation type
+  if (style.segmentationType === "sentence") {
+    lines.push("• Sentence\\-based segmentation");
+  } else {
+    lines.push(`• Word\\-count segmentation \\(${style.wordsPerSegment} words\\)`);
+  }
+
+  // Pan effect
+  lines.push(`• Pan effect ${style.panEffect ? "enabled" : "disabled"}`);
+
+  // Captions
+  if (style.captionsEnabled) {
+    if (style.highlightStyle.enabled) {
+      lines.push("• Karaoke captions with highlight");
+    } else {
+      lines.push("• Captions enabled \\(no karaoke\\)");
+    }
+  } else {
+    lines.push("• Captions disabled");
+  }
+
+  return lines.join("\n");
+}
+
+/**
  * Handle /styles command
  * Shows available video styles with descriptions
  */
@@ -220,20 +268,17 @@ async function handleStylesCommand(ctx: Context): Promise<void> {
   logger.log("Bot", "Received /styles command");
 
   const defaultStyle = getDefaultStyle();
+  const styleIds = getStyleIds();
+
+  // Build dynamic style descriptions
+  const styleDescriptions = styleIds
+    .map(id => buildStyleDescription(id))
+    .join("\n\n");
 
   await ctx.reply(
     "🎨 *Available Video Styles*\n\n" +
-    "*#history* \\(default\\)\n" +
-    "Classical oil painting aesthetic\n" +
-    "• Sentence\\-based segmentation\n" +
-    "• Pan effect enabled\n" +
-    "• Karaoke captions with purple highlight\n\n" +
-    "*#ww2*\n" +
-    "Black\\-and\\-white archival photography\n" +
-    "• Word\\-count segmentation \\(100 words\\)\n" +
-    "• Pan effect disabled\n" +
-    "• Simple white captions \\(no karaoke\\)\n\n" +
-    `📌 Default style: *${defaultStyle.name}*`,
+    styleDescriptions + "\n\n" +
+    `📌 Default style: *${escapeMarkdownV2(defaultStyle.name)}*`,
     { parse_mode: "MarkdownV2" }
   );
 }

@@ -8,11 +8,11 @@ import * as logger from "../logger.ts";
 
 /**
  * Calculate pan parameters based on image aspect ratio and duration
- * @param duration - Scene duration in seconds
+ * @param _duration - Scene duration in seconds (reserved for future speed calculations)
  * @param panEnabled - Whether pan effect is enabled
  * @returns Pan parameters for zoompan filter
  */
-export function calculatePanParams(duration: number, panEnabled: boolean = true): PanParams {
+export function calculatePanParams(_duration: number, panEnabled: boolean = true): PanParams {
     // If pan effect is disabled, return disabled params
     if (!panEnabled) {
         return {

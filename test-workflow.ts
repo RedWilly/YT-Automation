@@ -126,9 +126,9 @@ async function runTestWorkflow(): Promise<void> {
       logger.success("Test", "✅ Transcript fetched successfully!");
       logger.log("Test", `📊 Status: ${transcript.status}`);
 
-      // Use the audio URL from the transcript
-      audioFilePath = transcript.audio_url;
-      logger.log("Test", `🔗 Using remote audio URL from transcript: ${audioFilePath}`);
+      // Use local audio file (AssemblyAI CDN URLs expire, so we need local copy)
+      audioFilePath = await getAudioFilePath();
+      logger.log("Test", `🔗 Using local audio file: ${audioFilePath}`);
       outputFileName = `video_${TRANSCRIPT_ID}`;
 
       // Priority 2: Check if we have a cached upload URL (skips upload, uses 1 credit)

@@ -1,6 +1,7 @@
 /**
  * LLM service for generating image search queries
  * Supports multiple providers (DeepSeek, Kimi, etc.) via configuration
+ * Uses style-specific prompts and context
  */
 
 import {
@@ -10,13 +11,13 @@ import {
   AI_PROVIDER,
   LLM_SEGMENTS_PER_BATCH,
   USE_AI_IMAGE,
-  AI_IMAGE_STYLE,
 } from "../constants.ts";
 import type {
   LLMRequest,
   LLMResponse,
   ImageSearchQuery,
 } from "../types.ts";
+import type { ResolvedStyle } from "../styles/types.ts";
 import * as logger from "../logger.ts";
 
 import { buildSystemPrompt, buildUserPrompt } from "../prompts.ts";
@@ -27,10 +28,12 @@ const LLM_MAX_RETRIES = 2;
 /**
  * Generate image search queries from formatted transcript
  * @param formattedTranscript - Formatted transcript with timestamps
+ * @param style - Resolved style configuration for style-specific prompts
  * @returns Array of image search queries with timestamps
  */
 export async function generateImageQueries(
-  formattedTranscript: string
+  formattedTranscript: string,
+  style: ResolvedStyle
 ): Promise<ImageSearchQuery[]> {
   // Split transcript into segment lines
   const lines = formattedTranscript
@@ -42,17 +45,17 @@ export async function generateImageQueries(
   logger.step(
     "LLM",
     `Generating image search queries using ${AI_PROVIDER}`,
-    `${segmentCount} segments`
+    `${segmentCount} segments, style: ${style.name}`
   );
 
-  // Build system prompt with conditional AI style integration
-  const systemPrompt = buildSystemPrompt(USE_AI_IMAGE, AI_IMAGE_STYLE);
+  // Build system prompt with style-specific context
+  const systemPrompt = buildSystemPrompt(USE_AI_IMAGE, style);
 
   // Log whether AI style is being used
   if (USE_AI_IMAGE) {
     logger.log(
       "LLM",
-      `🎨 AI image generation enabled - including style in queries: "${AI_IMAGE_STYLE.substring(
+      `🎨 AI image generation enabled - style: "${style.imageStyle.substring(
         0,
         50
       )}..."`

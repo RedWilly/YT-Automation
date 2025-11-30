@@ -1,11 +1,13 @@
 /**
  * Job Queue Service for managing multiple video generation jobs
  * Processes audio files in order and notifies on completion
+ * Supports style configuration per job
  */
 
 import * as logger from "../logger.ts";
 import type { Context } from "../utils/telegram.ts";
 import { sendMessage } from "../utils/telegram.ts";
+import type { ResolvedStyle } from "../styles/types.ts";
 
 /**
  * Job status enumeration
@@ -33,6 +35,8 @@ export interface Job {
   filename?: string;
   // For URL type jobs
   url?: string;
+  // Style configuration for this job
+  style?: ResolvedStyle;
   // Result info
   videoPath?: string;
   error?: string;
@@ -73,9 +77,10 @@ class JobQueueService {
    * @param ctx - Telegram context
    * @param fileId - Telegram file ID
    * @param filename - Original filename
+   * @param style - Optional resolved style configuration
    * @returns Created job
    */
-  addFileJob(ctx: Context, fileId: string, filename: string): Job {
+  addFileJob(ctx: Context, fileId: string, filename: string, style?: ResolvedStyle): Job {
     if (!ctx.chat) {
       throw new Error("Context does not have a chat");
     }
@@ -88,11 +93,13 @@ class JobQueueService {
       createdAt: Date.now(),
       fileId,
       filename,
+      style,
     };
 
     this.queue.push(job);
     this.contextMap.set(job.id, ctx);
-    logger.log("Queue", `Added file job ${job.id}: ${filename}`);
+    const styleInfo = style ? ` (style: ${style.name})` : "";
+    logger.log("Queue", `Added file job ${job.id}: ${filename}${styleInfo}`);
 
     // Start processing if not already running
     this.processNext();
@@ -104,9 +111,10 @@ class JobQueueService {
    * Add a URL-based job to the queue
    * @param ctx - Telegram context
    * @param url - Audio file URL
+   * @param style - Optional resolved style configuration
    * @returns Created job
    */
-  addUrlJob(ctx: Context, url: string): Job {
+  addUrlJob(ctx: Context, url: string, style?: ResolvedStyle): Job {
     if (!ctx.chat) {
       throw new Error("Context does not have a chat");
     }
@@ -118,11 +126,13 @@ class JobQueueService {
       status: "pending",
       createdAt: Date.now(),
       url,
+      style,
     };
 
     this.queue.push(job);
     this.contextMap.set(job.id, ctx);
-    logger.log("Queue", `Added URL job ${job.id}`);
+    const styleInfo = style ? ` (style: ${style.name})` : "";
+    logger.log("Queue", `Added URL job ${job.id}${styleInfo}`);
 
     // Start processing if not already running
     this.processNext();
@@ -322,15 +332,17 @@ class JobQueueService {
    * @returns Formatted job string
    */
   private formatJobInfo(job: Job): string {
+    const styleTag = job.style ? ` \\[${this.escapeMarkdown(job.style.name)}\\]` : "";
+
     if (job.type === "file") {
       const filename = this.escapeMarkdown(job.filename || "Unknown");
-      return `File: ${filename}`;
+      return `File: ${filename}${styleTag}`;
     }
     // Truncate URL for display
     const urlRaw = job.url && job.url.length > 40
       ? job.url.substring(0, 37) + "..."
       : job.url || "Unknown URL";
-    return `URL: ${this.escapeMarkdown(urlRaw)}`;
+    return `URL: ${this.escapeMarkdown(urlRaw)}${styleTag}`;
   }
 
   /**

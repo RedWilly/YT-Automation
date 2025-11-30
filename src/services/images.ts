@@ -10,7 +10,6 @@ import {
   USE_AI_IMAGE,
   WORKER_API_URL,
   WORKER_API_KEY,
-  AI_IMAGE_STYLE,
   AI_IMAGE_MODEL,
   TOGETHER_API_KEY,
   TOGETHER_API_URL,
@@ -18,6 +17,7 @@ import {
   TOGETHER_MIN_DELAY_MS,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
+import type { ResolvedStyle } from "../styles/types.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
 
@@ -46,15 +46,18 @@ const WATERMARKED_DOMAINS = [
  * - Continue processing even if individual images fail
  *
  * @param queries - Array of image search queries with timestamps
+ * @param style - Resolved style configuration for AI image generation
  * @returns Array of downloaded/generated image information
  */
 export async function downloadImagesForQueries(
-  queries: ImageSearchQuery[]
+  queries: ImageSearchQuery[],
+  style: ResolvedStyle
 ): Promise<DownloadedImage[]> {
   // Log which mode we're using
   if (USE_AI_IMAGE) {
     const providerName = AI_IMAGE_MODEL === "togetherai" ? "Together AI (FLUX.1-schnell)" : "Cloudflare Worker";
     logger.step("Images", `🎨 AI Image Generation Mode: Using ${providerName} to generate ${queries.length} images`);
+    logger.debug("Images", `Image style: "${style.imageStyle.substring(0, 60)}..."`);
   } else {
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
   }
@@ -70,7 +73,7 @@ export async function downloadImagesForQueries(
     try {
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData)
+        ? await generateAIImageForQuery(queryData, style)
         : await downloadImageForQuery(queryData);
 
       processedImages.push(processedImage);
@@ -109,10 +112,12 @@ export async function downloadImagesForQueries(
  * Routes to Cloudflare Worker or Together AI based on AI_IMAGE_MODEL setting
  * Includes fallback logic: if primary provider fails after all retries, try the other provider
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const primaryProvider = AI_IMAGE_MODEL === "togetherai" ? "togetherai" : "cloudflare";
   const fallbackProvider = primaryProvider === "togetherai" ? "cloudflare" : "togetherai";
@@ -125,9 +130,9 @@ async function generateAIImageForQuery(
   try {
     // Try primary provider first
     if (primaryProvider === "togetherai") {
-      return await generateTogetherAIImage(queryData);
+      return await generateTogetherAIImage(queryData, style);
     }
-    return await generateCloudflareImage(queryData);
+    return await generateCloudflareImage(queryData, style);
   } catch (primaryError) {
     // Primary provider failed after all retries
     const primaryErrorMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
@@ -139,9 +144,9 @@ async function generateAIImageForQuery(
 
       try {
         if (fallbackProvider === "togetherai") {
-          return await generateTogetherAIImage(queryData);
+          return await generateTogetherAIImage(queryData, style);
         }
-        return await generateCloudflareImage(queryData);
+        return await generateCloudflareImage(queryData, style);
       } catch (fallbackError) {
         const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
         logger.error("AI-Images", `Fallback provider (${fallbackProvider}) also failed: ${fallbackErrorMsg}`);
@@ -157,10 +162,12 @@ async function generateAIImageForQuery(
 /**
  * Generate a single AI image using Cloudflare Worker with retry logic
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateCloudflareImage(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -172,10 +179,10 @@ async function generateCloudflareImage(
       logger.debug("AI-Images", `[Cloudflare] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
       // Combine the query with the image style
-      const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
+      const fullPrompt = `${query}, ${style.imageStyle}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
-      // Make request to Cloudflare Worker
+      // Make request to Cloudflare Worker with negative prompt
       const response = await fetch(WORKER_API_URL, {
         method: "POST",
         headers: {
@@ -184,6 +191,7 @@ async function generateCloudflareImage(
         },
         body: JSON.stringify({
           prompt: fullPrompt,
+          negative_prompt: style.negativePrompt,
         }),
       });
 
@@ -255,10 +263,12 @@ interface TogetherAIImageResponse {
  * Generate a single AI image using Together AI (FLUX.1-schnell) with rate limiting
  * Handles the 6 img/min rate limit by tracking request timing
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for prompts
  * @returns Generated image information
  */
 async function generateTogetherAIImage(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -279,12 +289,11 @@ async function generateTogetherAIImage(
       }
 
       // Build the full prompt with style
-      const fullPrompt = `${query}, ${AI_IMAGE_STYLE}`;
+      const fullPrompt = `${query}, ${style.imageStyle}`;
       logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
 
-      // Build negative prompt for better quality ( first // const negativePrompt worked great for sdxl 1.0 // cloudflare)
-      // const negativePrompt = "deformed, distorted, extra limbs, missing limbs, extra fingers, duplicated features, mutated, broken anatomy, merged objects, unclear composition, low quality, artifacts, unintended reflection, overlay figure, reflection, mirror image, duplicated silhouette, color spilling, overlapping colors";
-      const negativePrompt = "photorealistic, photograph, 3d render, vector, cartoon, anime, smooth, messy, blur, heavy impasto, thick paint, watermark, text, low quality, plastic, shiny, distorted, bad anatomy, deformed, disfigured, extra limbs, missing fingers";
+      // Note: FLUX.1-schnell doesn't support negative prompts, but we pass it anyway
+      // for consistency and in case the model changes
       // Record request time before making the call
       const requestStartTime = Date.now();
 
@@ -302,7 +311,7 @@ async function generateTogetherAIImage(
           width: 1440,
           height: 1104,
           steps: 4,
-          negative_prompt: negativePrompt,
+          negative_prompt: style.negativePrompt,
           guidance_scale: 20,
           disable_safety_checker: false,
         }),

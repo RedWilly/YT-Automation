@@ -2,13 +2,15 @@
  * LLM Prompt templates and generation logic
  */
 
+import type { ResolvedStyle } from "./styles/types.ts";
+
 /**
- * Build system prompt for the LLM with conditional AI style integration
+ * Build system prompt for the LLM with style-specific context
  * @param useAiImage - Whether AI image generation is enabled
- * @param aiImageStyle - The AI image style to use (only if useAiImage is true)
+ * @param style - Resolved style configuration with LLM context
  * @returns System prompt string
  */
-export function buildSystemPrompt(useAiImage: boolean, aiImageStyle: string): string {
+export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): string {
    // Word count based on image source
    const wordCount = useAiImage
       ? "20-35 words (detailed for AI generation)"
@@ -16,18 +18,24 @@ export function buildSystemPrompt(useAiImage: boolean, aiImageStyle: string): st
 
    // Style guidance based on image source
    const styleGuidance = useAiImage
-      ? `IMAGE STYLE: "${aiImageStyle}"
+      ? `IMAGE STYLE: "${style.imageStyle}"
 Do NOT write this style in your queries. The system adds it automatically.
 Your job: Describe the SCENE (who, doing what, where, with what details).`
       : `IMAGE SOURCE: Web search (DuckDuckGo)
 Use concrete, searchable terms. Avoid abstract or artistic language.`;
 
+   // Add style-specific LLM context if available
+   const styleContext = style.llmContext
+      ? `\n## STYLE-SPECIFIC GUIDANCE\n${style.llmContext}\n`
+      : "";
+
    return `You are a visual query generator for video content.
 
 ${styleGuidance}
-
+${styleContext}
 ## YOUR OUTPUT FORMAT
 Return ONLY a valid JSON array. No text before or after.
+Copy "start" and "end" exactly from the transcript segments; do not modify them.
 Each object: {"start": number, "end": number, "query": "string"}
 
 ## QUERY REQUIREMENTS

@@ -43,7 +43,7 @@ const COMMON_ABBREVIATIONS = [
 /**
  * Represents a detected sentence with its word indices
  */
-interface SentenceDetection {
+export interface SentenceDetection {
   text: string;
   startWordIndex: number;
   endWordIndex: number;
@@ -242,5 +242,63 @@ export function getSentenceTimestamps(
     start: startWord.start,
     end: endWord.end,
   };
+}
+
+/**
+ * Segment transcript words into fixed word-count chunks
+ * Used for styles like WW2 that need consistent segment sizes
+ *
+ * @param words - Array of words from AssemblyAI transcription with timing info
+ * @param wordsPerSegment - Number of words per segment (e.g., 100)
+ * @returns Array of sentence detections with word indices
+ */
+export function segmentByWordCount(
+  words: AssemblyAIWord[],
+  wordsPerSegment: number
+): SentenceDetection[] {
+  logger.step("Segmentation", `Segmenting ${words.length} words into chunks of ${wordsPerSegment} words`);
+
+  if (wordsPerSegment <= 0) {
+    throw new Error("wordsPerSegment must be a positive number");
+  }
+
+  const segments: SentenceDetection[] = [];
+  const totalWords = words.length;
+  let currentIndex = 0;
+
+  while (currentIndex < totalWords) {
+    const startWordIndex = currentIndex;
+    const endWordIndex = Math.min(currentIndex + wordsPerSegment - 1, totalWords - 1);
+
+    // Build text from words in this segment
+    const segmentWords: string[] = [];
+    for (let i = startWordIndex; i <= endWordIndex; i++) {
+      const word = words[i];
+      if (word) {
+        segmentWords.push(word.text);
+      }
+    }
+
+    const text = segmentWords.join(" ");
+    const wordCount = endWordIndex - startWordIndex + 1;
+
+    segments.push({
+      text,
+      startWordIndex,
+      endWordIndex,
+      wordCount,
+    });
+
+    logger.debug(
+      "Segmentation",
+      `Word-count segment ${segments.length}: "${text.substring(0, 50)}..." (${wordCount} words)`
+    );
+
+    currentIndex = endWordIndex + 1;
+  }
+
+  logger.success("Segmentation", `Created ${segments.length} word-count based segments`);
+
+  return segments;
 }
 

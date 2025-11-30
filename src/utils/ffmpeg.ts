@@ -1,19 +1,20 @@
 /**
  * FFmpeg utility functions for video processing
+ * Supports configurable pan effects via style system
  */
 
-import { PAN_EFFECT } from "../constants.ts";
 import type { DownloadedImage, PanDirection, PanParams } from "../types.ts";
 import * as logger from "../logger.ts";
 
 /**
  * Calculate pan parameters based on image aspect ratio and duration
- * @param duration - Scene duration in seconds
+ * @param _duration - Scene duration in seconds (reserved for future speed calculations)
+ * @param panEnabled - Whether pan effect is enabled
  * @returns Pan parameters for zoompan filter
  */
-export function calculatePanParams(duration: number): PanParams {
+export function calculatePanParams(_duration: number, panEnabled: boolean = true): PanParams {
     // If pan effect is disabled, return disabled params
-    if (!PAN_EFFECT) {
+    if (!panEnabled) {
         return {
             enabled: false,
             direction: "down",
@@ -72,10 +73,12 @@ export function calculatePanParams(duration: number): PanParams {
 /**
  * Create FFmpeg filter complex for image transitions
  * @param images - Sorted array of images with timing
+ * @param panEnabled - Whether pan effect is enabled (from style config)
  * @returns Filter complex string and total duration
  */
 export function createFilterComplex(
-    images: DownloadedImage[]
+    images: DownloadedImage[],
+    panEnabled: boolean = true
 ): { filterComplex: string; totalDuration: number } {
     const filters: string[] = [];
     let totalDuration = 0;
@@ -91,7 +94,7 @@ export function createFilterComplex(
         totalDuration += duration;
 
         // Calculate pan parameters for this image
-        const panParams = calculatePanParams(duration);
+        const panParams = calculatePanParams(duration, panEnabled);
 
         if (panParams.enabled) {
             // Apply pan effect using scale + crop (NO ZOOMPAN!)

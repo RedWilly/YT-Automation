@@ -86,14 +86,11 @@ export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
 
 // Video Generation Configuration
 export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)
-export const PAN_EFFECT = process.env.PAN_EFFECT === "true"; // Enable subtle vertical pan effect on images
-export const CAPTIONS_ENABLED = process.env.CAPTIONS_ENABLED === "true"; // Enable word-by-word highlighted captions
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
 export const WORKER_API_URL = process.env.WORKER_API_URL || "";
 export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
-export const AI_IMAGE_STYLE = process.env.AI_IMAGE_STYLE || "";
 
 // AI Image Model Provider Configuration
 export type AIImageModel = "cloudflare" | "togetherai";

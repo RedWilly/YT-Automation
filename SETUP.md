@@ -181,6 +181,30 @@ See **[DOCKER.md](DOCKER.md)** for more details and Coolify setup.
 4. Wait a few minutes while it processes
 5. Get your video back
 
+## Video Styles
+
+The bot supports different video styles. Add a hashtag when sending audio:
+
+| Style | Hashtag | Description |
+|-------|---------|-------------|
+| History | `#history` | Oil painting aesthetic, karaoke captions with purple highlight, pan effect |
+| WW2 | `#ww2` | Black-and-white archival photos, simple white captions, no pan |
+
+**Override settings with options:**
+
+```
+#history --pan              # Enable pan effect
+#history --no-pan           # Disable pan effect
+#ww2 --karaoke              # Enable karaoke highlighting
+#history --highlight=yellow # Change highlight color (yellow, green, cyan, red, orange)
+```
+
+**Examples:**
+- Upload audio with caption: `#ww2`
+- URL command: `/url https://example.com/audio.mp3 #history --no-pan`
+
+Send `/styles` to see all available styles and `/help` for usage tips.
+
 ## How Long Does It Take?
 
 For a typical 2-minute audio file:
@@ -223,13 +247,13 @@ These are in `.gitignore` so they won't be committed.
 
 ## Optional Features
 
-Once you have the basics working, check out these features in `.env.example`:
+Once you have the basics working, check out these in `.env.example`:
 
-- **Captions** (`CAPTIONS_ENABLED`) - Word-by-word highlighted captions
-- **Pan Effect** (`PAN_EFFECT`) - Subtle vertical pan on images
 - **AI Images** (`USE_AI_IMAGE`) - Generate images with AI instead of web search
 - **MinIO Upload** (`MINIO_ENABLED`) - Auto-upload videos to object storage
 - **Debug Mode** (`DEBUG`) - Detailed logs for development
+
+Video settings like captions, pan effects, and image styles are now controlled per-style. See the Video Styles section above or send `/styles` in Telegram.
 
 ## Long Transcripts (DeepSeek batching)
 

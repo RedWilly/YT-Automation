@@ -1,5 +1,6 @@
 /**
  * Telegram bot for YouTube automation workflow
+ * Supports style selection via #hashtags and --options
  */
 
 import {
@@ -12,11 +13,14 @@ import { WorkflowService } from "./services/workflow.ts";
 import { TMP_AUDIO_DIR } from "./constants.ts";
 import * as logger from "./logger.ts";
 import { jobQueue, type Job } from "./services/queue.ts";
+import { parseStyleFromMessage, getStyleIds, getDefaultStyle, getStyle, resolveStyle } from "./styles/index.ts";
+import type { ResolvedStyle } from "./styles/types.ts";
 
 /**
  * State management for tracking users waiting to provide URLs
+ * Stores chatId -> { style?: ResolvedStyle } for pending URL inputs
  */
-const waitingForUrl = new Set<number>();
+const waitingForUrl = new Map<number, { style?: ResolvedStyle }>();
 
 /**
  * Create and configure the Telegram bot
@@ -37,6 +41,8 @@ export function createBot() {
   bot.command("url", handleUrlCommand);
   bot.command("cleanup", handleCleanupCommand);
   bot.command("queue", handleQueueCommand);
+  bot.command("help", handleHelpCommand);
+  bot.command("styles", handleStylesCommand);
 
   // Handle voice and audio messages - these must come before the generic message handler
   bot.on("voice", handleVoiceMessage);
@@ -51,8 +57,9 @@ export function createBot() {
 
       // Check if user is waiting to provide a URL
       if (waitingForUrl.has(chatId)) {
+        const pendingState = waitingForUrl.get(chatId);
         waitingForUrl.delete(chatId);
-        await handleUrlInput(ctx, text);
+        await handleUrlInput(ctx, text, pendingState?.style);
         return;
       }
 
@@ -70,6 +77,8 @@ export function createBot() {
  */
 async function handleStartCommand(ctx: Context): Promise<void> {
   const imageMode = USE_AI_IMAGE ? "🎨 AI Generation" : "🔍 Web Search";
+  const defaultStyle = getDefaultStyle();
+  const availableStyles = getStyleIds().join(", ");
 
   await ctx.reply(
     "Welcome to YouTube Automation Bot! 🎥\n\n" +
@@ -80,11 +89,18 @@ async function handleStartCommand(ctx: Context): Promise<void> {
     "4. 🎬 Create a video\n" +
     "5. 💾 Save video locally\n\n" +
     `📊 Settings:\n` +
-    `   • Image source: ${imageMode}\n\n` +
+    `   • Image source: ${imageMode}\n` +
+    `   • Default style: ${defaultStyle.name}\n\n` +
+    "🎨 Style Selection:\n" +
+    `   • Available: ${availableStyles}\n` +
+    "   • Use #style in caption (e.g., #ww2)\n" +
+    "   • Options: --pan, --no-pan, --karaoke, --no-karaoke\n\n" +
     "📝 Commands:\n" +
     "   • /upload - Upload audio via Telegram (max 20MB)\n" +
     "   • /url - Provide a presigned URL for large files\n" +
     "   • /queue - View pending jobs in the queue\n" +
+    "   • /styles - View available video styles\n" +
+    "   • /help - Show detailed help\n" +
     "   • /cleanup - Remove all temporary files\n\n" +
     "Just send your audio file to get started!"
   );
@@ -165,9 +181,112 @@ async function handleQueueCommand(ctx: Context): Promise<void> {
 }
 
 /**
+ * Handle /help command
+ * Shows detailed help about styles and options
+ */
+async function handleHelpCommand(ctx: Context): Promise<void> {
+  logger.log("Bot", "Received /help command");
+
+  await ctx.reply(
+    "📖 *Detailed Help*\n\n" +
+    "*Style Selection:*\n" +
+    "Add a hashtag to your message caption to select a style:\n" +
+    "• `#history` \\- Classical oil painting style \\(default\\)\n" +
+    "• `#ww2` \\- Black\\-and\\-white archival photography\n\n" +
+    "*Options \\(override style defaults\\):*\n" +
+    "• `--pan` / `--no-pan` \\- Enable/disable pan effect\n" +
+    "• `--karaoke` / `--no-karaoke` \\- Enable/disable word highlighting\n" +
+    "• `--highlight=COLOR` \\- Set highlight color \\(purple, yellow, cyan, green, red, white\\)\n\n" +
+    "*Examples:*\n" +
+    "• Send audio with caption: `#ww2`\n" +
+    "• Send audio with caption: `#history --no-pan`\n" +
+    "• Send audio with caption: `#ww2 --karaoke --highlight=yellow`\n\n" +
+    "*Commands:*\n" +
+    "• /start \\- Welcome message\n" +
+    "• /upload \\- Upload audio file\n" +
+    "• /url \\- Process audio from URL\n" +
+    "• /queue \\- View job queue\n" +
+    "• /styles \\- View available styles\n" +
+    "• /cleanup \\- Remove temp files",
+    { parse_mode: "MarkdownV2" }
+  );
+}
+
+/**
+ * Escape special characters for Telegram MarkdownV2
+ * @param text - Text to escape
+ * @returns Escaped text safe for MarkdownV2
+ */
+function escapeMarkdownV2(text: string): string {
+  return text.replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, "\\$&");
+}
+
+/**
+ * Build style description from actual style properties
+ * @param styleId - Style ID to describe
+ * @returns Formatted description for MarkdownV2
+ */
+function buildStyleDescription(styleId: string): string {
+  const style = getStyle(styleId);
+  if (!style) return "";
+
+  const lines: string[] = [];
+
+  // Style header
+  lines.push(`*\\#${style.id}*`);
+  lines.push(escapeMarkdownV2(style.description));
+
+  // Segmentation type
+  if (style.segmentationType === "sentence") {
+    lines.push("• Sentence\\-based segmentation");
+  } else {
+    lines.push(`• Word\\-count segmentation \\(${style.wordsPerSegment} words\\)`);
+  }
+
+  // Pan effect
+  lines.push(`• Pan effect ${style.panEffect ? "enabled" : "disabled"}`);
+
+  // Captions
+  if (style.captionsEnabled) {
+    if (style.highlightStyle.enabled) {
+      lines.push("• Karaoke captions with highlight");
+    } else {
+      lines.push("• Captions enabled \\(no karaoke\\)");
+    }
+  } else {
+    lines.push("• Captions disabled");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Handle /styles command
+ * Shows available video styles with descriptions
+ */
+async function handleStylesCommand(ctx: Context): Promise<void> {
+  logger.log("Bot", "Received /styles command");
+
+  const defaultStyle = getDefaultStyle();
+  const styleIds = getStyleIds();
+
+  // Build dynamic style descriptions
+  const styleDescriptions = styleIds
+    .map(id => buildStyleDescription(id))
+    .join("\n\n");
+
+  await ctx.reply(
+    "🎨 *Available Video Styles*\n\n" +
+    styleDescriptions + "\n\n" +
+    `📌 Default style: *${escapeMarkdownV2(defaultStyle.name)}*`,
+    { parse_mode: "MarkdownV2" }
+  );
+}
+
+/**
  * Handle /url command
  * Prompts user to provide a presigned URL for large audio files
- * Supports both "/url" (then wait for URL) and "/url <url>" (immediate processing)
+ * Supports style parsing from command text
  */
 async function handleUrlCommand(ctx: Context): Promise<void> {
   logger.log("Bot", "Received /url command");
@@ -177,23 +296,37 @@ async function handleUrlCommand(ctx: Context): Promise<void> {
     return;
   }
 
-  // Check if URL was provided as command argument: /url <url>
+  // Parse style from command text
+  let style: ResolvedStyle | undefined;
+  let urlFromCommand: string | undefined;
+
   if (ctx.message && "text" in ctx.message) {
     const text = ctx.message.text;
-    const parts = text.split(/\s+/); // Split by whitespace
 
-    // If there's a second part, treat it as the URL
-    if (parts.length > 1 && parts[1]) {
-      const url = parts.slice(1).join(" "); // Join in case URL has spaces (unlikely but possible)
-      logger.log("Bot", "URL provided as command argument");
-      await handleUrlInput(ctx, url);
-      return;
+    // Parse style from the command text
+    const { styleId, options } = parseStyleFromMessage(text);
+    const baseStyle = getStyle(styleId) ?? getDefaultStyle();
+    style = resolveStyle(baseStyle, options);
+
+    // Extract URL (anything that looks like a URL)
+    const urlMatch = text.match(/https?:\/\/[^\s]+/i);
+    if (urlMatch) {
+      urlFromCommand = urlMatch[0];
     }
   }
 
-  // No URL provided, enter waiting state
+  // If URL was found in command, process immediately
+  if (urlFromCommand) {
+    logger.log("Bot", "URL provided as command argument");
+    await handleUrlInput(ctx, urlFromCommand, style);
+    return;
+  }
+
+  // No URL provided, enter waiting state with style
   const chatId = ctx.chat.id;
-  waitingForUrl.add(chatId);
+  waitingForUrl.set(chatId, { style });
+
+  const styleInfo = style ? `\n🎨 Style: ${style.name}` : "";
 
   await ctx.reply(
     "📎 Please send me a presigned URL to your audio file.\n\n" +
@@ -203,16 +336,19 @@ async function handleUrlCommand(ctx: Context): Promise<void> {
     "   • AWS S3 presigned URLs\n" +
     "   • MinIO presigned URLs\n" +
     "   • Any direct download URL\n\n" +
-    "Just paste the URL in your next message.\n\n" +
-    "💡 Tip: You can also use `/url <your-url>` in one message."
+    "Just paste the URL in your next message." + styleInfo + "\n\n" +
+    "💡 Tip: You can also use `/url <your-url> #style` in one message."
   );
 }
 
 /**
  * Handle URL input from user
  * Adds the URL job to the queue for processing
+ * @param ctx - Telegram context
+ * @param url - Audio file URL
+ * @param style - Optional resolved style configuration
  */
-async function handleUrlInput(ctx: Context, url: string): Promise<void> {
+async function handleUrlInput(ctx: Context, url: string, style?: ResolvedStyle): Promise<void> {
   logger.log("Bot", `Received URL input: ${url}`);
 
   // Validate URL format
@@ -223,20 +359,38 @@ async function handleUrlInput(ctx: Context, url: string): Promise<void> {
     return;
   }
 
-  // Add to queue
-  const job = jobQueue.addUrlJob(ctx, url);
+  // Add to queue with style
+  const job = jobQueue.addUrlJob(ctx, url, style);
   const position = jobQueue.getQueuePosition(job.id);
+  const styleInfo = style ? `\n🎨 Style: ${style.name}` : "";
 
   if (position > 1) {
     await ctx.reply(
       `📋 *Job added to queue*\n\n` +
       `🔢 Position: ${position}\n` +
-      `📎 Type: URL\n\n` +
+      `📎 Type: URL${styleInfo}\n\n` +
       `Use /queue to check status.`,
       { parse_mode: "Markdown" }
     );
   }
   // If position is 1, it will start immediately and the workflow will notify
+}
+
+/**
+ * Parse style from message caption
+ * @param ctx - Telegram context
+ * @returns Resolved style or undefined
+ */
+function parseStyleFromCaption(ctx: Context): ResolvedStyle | undefined {
+  if (!ctx.message) return undefined;
+
+  // Get caption from message (voice, audio, document all can have captions)
+  const caption = "caption" in ctx.message ? ctx.message.caption : undefined;
+  if (!caption) return undefined;
+
+  const { styleId, options } = parseStyleFromMessage(caption);
+  const baseStyle = getStyle(styleId) ?? getDefaultStyle();
+  return resolveStyle(baseStyle, options);
 }
 
 /**
@@ -254,15 +408,19 @@ async function handleVoiceMessage(ctx: Context): Promise<void> {
   const voice = ctx.message.voice;
   logger.debug("Bot", `Processing voice file: ${voice.file_id}`);
 
-  // Add to queue
-  const job = jobQueue.addFileJob(ctx, voice.file_id, "voice.ogg");
+  // Parse style from caption
+  const style = parseStyleFromCaption(ctx);
+
+  // Add to queue with style
+  const job = jobQueue.addFileJob(ctx, voice.file_id, "voice.ogg", style);
   const position = jobQueue.getQueuePosition(job.id);
+  const styleInfo = style ? `\n🎨 Style: ${style.name}` : "";
 
   if (position > 1) {
     await ctx.reply(
       `📋 *Job added to queue*\n\n` +
       `🔢 Position: ${position}\n` +
-      `🎙️ Type: Voice message\n\n` +
+      `🎙️ Type: Voice message${styleInfo}\n\n` +
       `Use /queue to check status.`,
       { parse_mode: "Markdown" }
     );
@@ -286,15 +444,19 @@ async function handleAudioMessage(ctx: Context): Promise<void> {
   const filename = audio.file_name || `audio_${Date.now()}.mp3`;
   logger.debug("Bot", `Processing audio file: ${filename} (${audio.file_id})`);
 
-  // Add to queue
-  const job = jobQueue.addFileJob(ctx, audio.file_id, filename);
+  // Parse style from caption
+  const style = parseStyleFromCaption(ctx);
+
+  // Add to queue with style
+  const job = jobQueue.addFileJob(ctx, audio.file_id, filename, style);
   const position = jobQueue.getQueuePosition(job.id);
+  const styleInfo = style ? `\n🎨 Style: ${style.name}` : "";
 
   if (position > 1) {
     await ctx.reply(
       `📋 *Job added to queue*\n\n` +
       `🔢 Position: ${position}\n` +
-      `🎵 File: ${filename}\n\n` +
+      `🎵 File: ${filename}${styleInfo}\n\n` +
       `Use /queue to check status.`,
       { parse_mode: "Markdown" }
     );
@@ -332,15 +494,19 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
 
   logger.debug("Bot", `Processing audio document: ${filename} (${document.file_id})`);
 
-  // Add to queue
-  const job = jobQueue.addFileJob(ctx, document.file_id, filename);
+  // Parse style from caption
+  const style = parseStyleFromCaption(ctx);
+
+  // Add to queue with style
+  const job = jobQueue.addFileJob(ctx, document.file_id, filename, style);
   const position = jobQueue.getQueuePosition(job.id);
+  const styleInfo = style ? `\n🎨 Style: ${style.name}` : "";
 
   if (position > 1) {
     await ctx.reply(
       `📋 *Job added to queue*\n\n` +
       `🔢 Position: ${position}\n` +
-      `📄 File: ${filename}\n\n` +
+      `📄 File: ${filename}${styleInfo}\n\n` +
       `Use /queue to check status.`,
       { parse_mode: "Markdown" }
     );
@@ -351,12 +517,13 @@ async function handleDocumentMessage(ctx: Context): Promise<void> {
 /**
  * Job processor function for the queue
  * Processes file and URL jobs using WorkflowService
+ * Passes style configuration from job to workflow
  */
 async function processJob(job: Job, ctx: Context): Promise<void> {
   if (job.type === "file" && job.fileId && job.filename) {
-    await WorkflowService.processAudioFile(ctx, job.fileId, job.filename);
+    await WorkflowService.processAudioFile(ctx, job.fileId, job.filename, job.style);
   } else if (job.type === "url" && job.url) {
-    await WorkflowService.processAudioFromUrl(ctx, job.url);
+    await WorkflowService.processAudioFromUrl(ctx, job.url, job.style);
   } else {
     throw new Error(`Invalid job configuration: ${job.id}`);
   }

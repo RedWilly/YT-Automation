@@ -1,5 +1,6 @@
 /**
  * Workflow service for orchestrating the audio-to-video process
+ * Supports configurable video styles via style system
  */
 
 import {
@@ -9,6 +10,8 @@ import {
 } from "../utils/telegram.ts";
 import { TMP_AUDIO_DIR, MINIO_ENABLED } from "../constants.ts";
 import type { WorkflowResult } from "../types.ts";
+import type { ResolvedStyle } from "../styles/types.ts";
+import { getDefaultStyle, resolveStyle } from "../styles/index.ts";
 import { transcribeAudio } from "./assemblyai.ts";
 import { processTranscript, validateTranscriptData } from "./transcript.ts";
 import { generateImageQueries, validateImageQueries } from "./llm.ts";
@@ -28,15 +31,23 @@ import path from "node:path";
 export class WorkflowService {
     /**
      * Process audio file from Telegram through the complete workflow
+     * @param ctx - Telegram context
+     * @param fileId - Telegram file ID
+     * @param filename - Original filename
+     * @param style - Resolved style configuration (optional, defaults to history style)
      */
     static async processAudioFile(
         ctx: Context,
         fileId: string,
-        filename: string
+        filename: string,
+        style?: ResolvedStyle
     ): Promise<WorkflowResult> {
+        // Use default style if not provided
+        const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
+
         // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
-        await progress.start("🎙️ Audio received, starting processing...");
+        await progress.start(`🎙️ Audio received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
             // Step 1: Download audio file from Telegram
@@ -48,9 +59,9 @@ export class WorkflowService {
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
             // Run the core processing logic
-            const result = await this.runCoreWorkflow(audioFilePath, progress);
+            const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
-            await progress.complete(this.buildCompletionMessage(result));
+            await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
             logger.success("Workflow", "Workflow completed successfully!");
 
             return result;
@@ -63,14 +74,21 @@ export class WorkflowService {
 
     /**
      * Process audio file from URL through the complete workflow
+     * @param ctx - Telegram context
+     * @param url - Audio file URL
+     * @param style - Resolved style configuration (optional, defaults to history style)
      */
     static async processAudioFromUrl(
         ctx: Context,
-        url: string
+        url: string,
+        style?: ResolvedStyle
     ): Promise<WorkflowResult> {
+        // Use default style if not provided
+        const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
+
         // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
-        await progress.start("📎 URL received, starting processing...");
+        await progress.start(`📎 URL received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
             // Step 1: Download audio file from URL
@@ -82,9 +100,9 @@ export class WorkflowService {
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
             // Run the core processing logic
-            const result = await this.runCoreWorkflow(audioFilePath, progress);
+            const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
-            await progress.complete(this.buildCompletionMessage(result));
+            await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
             logger.success("Workflow", "Workflow completed successfully!");
 
             return result;
@@ -98,11 +116,17 @@ export class WorkflowService {
     /**
      * Run the core workflow logic (transcription -> images -> video)
      * This is shared between Telegram file and URL workflows
+     * @param audioFilePath - Path to the audio file
+     * @param progress - Progress tracker for status updates
+     * @param style - Resolved style configuration
      */
     private static async runCoreWorkflow(
         audioFilePath: string,
-        progress: ProgressTracker
+        progress: ProgressTracker,
+        style: ResolvedStyle
     ): Promise<WorkflowResult> {
+        logger.step("Workflow", `Using style: ${style.name} (${style.id})`);
+        logger.debug("Workflow", `Segmentation: ${style.segmentationType}, Pan: ${style.panEffect}, Captions: ${style.captionsEnabled}`);
         // Step 2: Transcribe audio with AssemblyAI
         await progress.update({
             step: "Transcription",
@@ -114,20 +138,20 @@ export class WorkflowService {
         // Validate transcript data
         validateTranscriptData(transcript.words);
 
-        // Step 3: Process transcript into segments
+        // Step 3: Process transcript into segments (using style-specific segmentation)
         await progress.update({
             step: "Processing Transcript",
-            message: "Segmenting transcript into scenes...",
+            message: `Segmenting transcript (${style.segmentationType} mode)...`,
         });
-        const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
+        const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration, style);
         logger.step("Workflow", `Created ${segments.length} segments`);
 
-        // Step 4: Generate image search queries with LLM
+        // Step 4: Generate image search queries with LLM (using style-specific context)
         await progress.update({
             step: "Generating Image Queries",
             message: "Using AI to generate visual scene descriptions...",
         });
-        const imageQueries = await generateImageQueries(formattedTranscript);
+        const imageQueries = await generateImageQueries(formattedTranscript, style);
         validateImageQueries(imageQueries);
         logger.step("Workflow", `Generated ${imageQueries.length} image queries`);
 
@@ -155,25 +179,25 @@ export class WorkflowService {
             }
         }
 
-        // Step 5: Search and download images
+        // Step 5: Search and download images (using style-specific prompts)
         await progress.update({
             step: "Downloading Images",
             message: `Searching and downloading ${imageQueries.length} images...`,
             current: 0,
             total: imageQueries.length,
         });
-        const downloadedImages = await downloadImagesForQueries(imageQueries);
+        const downloadedImages = await downloadImagesForQueries(imageQueries, style);
         validateDownloadedImages(downloadedImages);
         logger.step("Workflow", `Downloaded ${downloadedImages.length} images`);
 
-        // Step 6: Generate video with FFmpeg
+        // Step 6: Generate video with FFmpeg (using style-specific effects)
         await progress.update({
             step: "Generating Video",
             message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
         });
         validateVideoInputs(downloadedImages, audioFilePath);
         const outputFileName = path.parse(audioFilePath).name;
-        const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
+        const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName, style);
         logger.step("Workflow", "Video created", videoResult.videoPath);
 
         const result: WorkflowResult = {
@@ -202,9 +226,12 @@ export class WorkflowService {
 
     /**
      * Build the completion message for the user
+     * @param result - Workflow result
+     * @param style - Resolved style configuration
      */
-    private static buildCompletionMessage(result: WorkflowResult): string {
-        let completionMessage = `✅ Video generated successfully!\n\n📁 Video saved at:\n\`${result.videoPath}\``;
+    private static buildCompletionMessage(result: WorkflowResult, style: ResolvedStyle): string {
+        let completionMessage = `✅ Video generated successfully!\n\n🎨 Style: ${style.name}`;
+        completionMessage += `\n📁 Video saved at:\n\`${result.videoPath}\``;
 
         if (MINIO_ENABLED && result.minioUpload?.success) {
             completionMessage += `\n\n☁️ Uploaded to MinIO:\n\`${result.minioUpload.url}\``;

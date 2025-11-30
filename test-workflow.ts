@@ -45,6 +45,7 @@ import { downloadImagesForQueries, validateDownloadedImages } from "./src/servic
 import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
 import { uploadVideoToMinIO } from "./src/services/minio.ts";
 import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
+import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import * as logger from "./src/logger.ts";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -195,12 +196,14 @@ async function runTestWorkflow(): Promise<void> {
     // Step 3: Validate and process transcript
     logger.step("Test", "Step 3: Processing transcript into segments");
     validateTranscriptData(transcript.words);
-    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration);
-    logger.success("Test", `Created ${segments.length} segments`);
+    // Use default style for testing
+    const style = resolveStyle(getDefaultStyle(), {});
+    const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration, style);
+    logger.success("Test", `Created ${segments.length} segments (style: ${style.name})`);
 
     // Step 4: Generate image search queries with LLM
     logger.step("Test", "Step 4: Generating image queries");
-    const imageQueries = await generateImageQueries(formattedTranscript);
+    const imageQueries = await generateImageQueries(formattedTranscript, style);
     validateImageQueries(imageQueries);
     logger.success("Test", `Generated ${imageQueries.length} image queries`);
 
@@ -213,7 +216,7 @@ async function runTestWorkflow(): Promise<void> {
 
     // Step 5: Search and download images
     logger.step("Test", "Step 5: Downloading images");
-    const downloadedImages = await downloadImagesForQueries(imageQueries);
+    const downloadedImages = await downloadImagesForQueries(imageQueries, style);
     validateDownloadedImages(downloadedImages);
     logger.success("Test", `Downloaded ${downloadedImages.length} images`);
 
@@ -221,7 +224,7 @@ async function runTestWorkflow(): Promise<void> {
     logger.step("Test", "Step 6: Generating video");
     validateVideoInputs(downloadedImages, audioFilePath);
 
-    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName);
+    const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName, style);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 

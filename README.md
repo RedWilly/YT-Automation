@@ -2,35 +2,24 @@
 
 Turn audio into videos with AI-generated visuals and word-by-word captions.
 
-Automatically convert audio files into engaging videos with AI-generated visuals 
-and karaoke-style word-by-word captions. Perfect for content creators, podcasters, 
-and anyone who wants to turn audio content into shareable videos.
+Send an audio file to a Telegram bot and get back a video with matching images and synced captions. Uses AssemblyAI for transcription, your choice of LLM (DeepSeek or Kimi) for scene descriptions, and FFmpeg for video rendering.
 
-Simply send an audio file to a Telegram bot and receive a fully produced video 
-with matching images and synchronized captions. The bot uses AssemblyAI for 
-accurate transcription, and your choice of LLM (DeepSeek or Kimi) for generating scene descriptions, and FFmpeg 
-for professional video rendering.
-
-Features unlimited AI image generation via Cloudflare Workers, optional object 
-storage integration (MinIO/AWS S3), and customizable caption styling. Built with 
-TypeScript and Bun for high performance.
+Built with TypeScript and Bun. Supports multiple video styles, AI image generation via Cloudflare Workers or Together AI, and optional MinIO/S3 upload.
 
 **[Setup Guide](SETUP.md)** • **[Docker Guide](DOCKER.md)** • **[License](LICENSE.md)**
 
 ---
 
-## What it does
+## How it works
 
-Send an audio file to a Telegram bot and get back a video with matching visuals and highlighted captions.
-
-1. Upload audio through Telegram
+1. Upload audio through Telegram (or send a URL)
 2. AI transcribes it with word-level timestamps
-3. AI generates visual descriptions for each scene
-4. Images are created or downloaded automatically
-5. Video is rendered with word-by-word highlighted captions
-6. Finished video is sent back to you
+3. AI generates image descriptions for each segment
+4. Images are generated (AI) or searched (DuckDuckGo)
+5. Video is rendered with word-by-word captions
+6. You get the finished video back
 
-**Processing time:** 3-7 minutes for a typical 2-minute audio file.
+**Processing time:** 3-7 minutes for a typical 2-minute audio.
 
 ## Quick Start
 
@@ -80,45 +69,56 @@ bun start
 
 See the **[Setup Guide](SETUP.md)** for detailed instructions, optional features, and API service setup.
 
-## Features
+## Video Styles
 
-- **Word-by-word captions** - Karaoke-style highlighting synced to audio
-- **AI-generated visuals** - Automatic scene descriptions and image generation
-- **Flexible image sources** - Use AI generation or web search
-- **Pan effects** - Optional subtle motion on images
-- **Object storage** - Auto-upload to MinIO or AWS S3
-- **File support** - Handles audio files up to 20MB via Telegram Bot API or unlimited size via presigned URLs
-- **Debug mode** - Detailed logging for development
+The bot supports different video styles. Add a hashtag when sending audio to pick a style:
 
-## File Size Limits
+| Style | Hashtag | Look |
+|-------|---------|------|
+| History | `#history` (default) | Oil painting aesthetic, karaoke captions, pan effect |
+| WW2 | `#ww2` | Black-and-white archival photos, simple white captions |
 
-**Telegram Bot API Limit:** 20MB maximum file size for downloads.
+You can also override specific settings with options:
 
-**For larger files**, you have two options:
-1. **Compress your audio** to under 20MB before sending
-2. **Use a file hosting service** (Google Drive, Dropbox, WeTransfer) and send the download link instead
-
-e.g
 ```
- /url https://your-presigned-url.com/large-audio.mp3
+#history --pan              # Enable pan effect
+#ww2 --karaoke              # Enable karaoke highlighting
+#history --highlight=yellow # Change highlight color
+#ww2 --no-pan               # Disable pan effect
 ```
 
-or to type in /url and paste the URL in the next message
+Send `/styles` in Telegram to see all available styles and options.
 
-## Telegram Commands
+## Commands
 
-- `/start` - Get started
-- `/upload` - Upload an audio file to convert
-- `/cleanup` - Clear temporary files
+| Command | What it does |
+|---------|--------------|
+| `/start` | Get started |
+| `/upload` | Upload an audio file |
+| `/url` | Process audio from a URL |
+| `/queue` | Check pending jobs |
+| `/styles` | List available styles |
+| `/help` | Show usage instructions |
+| `/cleanup` | Clear temp files |
 
-## Services Used
+## Large Files
 
-- **AssemblyAI** - Audio transcription with word-level timing
-- **DeepSeek / Kimi** - LLM for scene descriptions (configurable provider)
-- **Cloudflare Workers** (optional) - Unlimited AI image generation
-- **MinIO/AWS S3** (optional) - Object storage for finished videos
-- **Telegram** - Bot interface
+Telegram limits downloads to 20MB. For bigger files:
+- Compress your audio first, or
+- Upload to a file host and use `/url <link>`
+
+```
+/url https://example.com/large-audio.mp3 #history
+```
+
+## Services
+
+- **AssemblyAI** - Transcription with word-level timing
+- **DeepSeek / Kimi** - LLM for scene descriptions
+- **Cloudflare Workers** - AI image generation (SDXL 1.0)
+- **Together AI** - AI image generation (FLUX.1-schnell)
+- **MinIO / AWS S3** - Optional video storage
 
 ## License
 
-Licensed under OCL v1.0. Free for personal and non-commercial use. Commercial use is allowed if you contribute back to the project. See [LICENSE.md](LICENSE.md) for details.
+OCL v1.0. Free for personal use. Commercial use requires contributing back. See [LICENSE.md](LICENSE.md).

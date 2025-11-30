@@ -1,10 +1,13 @@
 /**
  * Video generation service using FFmpeg
+ * Supports configurable pan effects and caption styles via style system
  */
 
-import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK, PAN_EFFECT, CAPTIONS_ENABLED } from "../constants.ts";
+import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
+// Note: PAN_EFFECT and CAPTIONS_ENABLED are now handled by the style system
 import type { DownloadedImage, VideoGenerationResult, AssemblyAIWord, TranscriptSegment } from "../types.ts";
-import { join, basename, resolve } from "node:path";
+import type { ResolvedStyle } from "../styles/types.ts";
+import { join, basename } from "node:path";
 import { spawn } from "node:child_process";
 import { writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -12,11 +15,18 @@ import * as logger from "../logger.ts";
 import { generateCaptions } from "./captions.ts";
 import { createFilterComplex } from "../utils/ffmpeg.ts";
 
+// Module-level style reference for video generation
+// Set by generateVideo and used by helper functions
+let currentStyle: ResolvedStyle | null = null;
+
 /**
  * Generate video from images and audio using FFmpeg with chunked rendering
  * @param images - Array of downloaded images with timing information
  * @param audioFilePath - Path to the audio file
- * @param assFilePath - Optional path to ASS subtitle file for captions
+ * @param words - Word-level data from AssemblyAI
+ * @param segments - Transcript segments
+ * @param outputFileName - Output filename (without extension)
+ * @param style - Resolved style configuration
  * @returns Video generation result with path and duration
  */
 export async function generateVideo(
@@ -24,18 +34,26 @@ export async function generateVideo(
   audioFilePath: string,
   words: AssemblyAIWord[],
   segments: TranscriptSegment[],
-  outputFileName: string
+  outputFileName: string,
+  style: ResolvedStyle
 ): Promise<VideoGenerationResult> {
+  // Store style for use by helper functions
+  currentStyle = style;
+
+  const panEffect = style.panEffect;
+  const captionsEnabled = style.captionsEnabled;
+
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
+  logger.debug("Video", `Style: ${style.name} (${style.id})`);
 
-  if (PAN_EFFECT) {
+  if (panEffect) {
     logger.log("Video", "🎬 Pan effect enabled - applying subtle vertical motion to images");
   } else {
     logger.log("Video", "📷 Pan effect disabled - using static images");
   }
 
-  if (CAPTIONS_ENABLED) {
+  if (captionsEnabled) {
     logger.log("Video", "📝 Captions enabled - adding word-by-word highlighted subtitles");
   } else {
     logger.log("Video", "📝 Captions disabled - video only");
@@ -57,13 +75,13 @@ export async function generateVideo(
   // Decide whether to use chunked rendering or single-pass rendering
   if (sortedImages.length > IMAGES_PER_CHUNK) {
     logger.step("Video", `Using chunked rendering (${IMAGES_PER_CHUNK} images per chunk) to prevent memory exhaustion`);
-    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, outputFileName);
+    await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, style);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
-    const { filterComplex } = createFilterComplex(sortedImages);
+    const { filterComplex } = createFilterComplex(sortedImages, panEffect);
     let assFilePath: string | undefined;
-    if (CAPTIONS_ENABLED) {
-      const captionResult = await generateCaptions(segments, words);
+    if (captionsEnabled) {
+      const captionResult = await generateCaptions(segments, words, style);
       assFilePath = captionResult.assFilePath;
     }
     await runFFmpeg(sortedImages, audioFilePath, filterComplex, outputPath, assFilePath);
@@ -120,8 +138,9 @@ async function runFFmpeg(
     inputArgs.push("-i", audioFilePath);
 
     // Modify filter complex to add subtitles if ASS file is provided
+    // Use currentStyle to check if captions are enabled (set by generateVideo)
     let finalFilterComplex = filterComplex;
-    if (CAPTIONS_ENABLED && assFilePath) {
+    if (currentStyle?.captionsEnabled && assFilePath) {
       // Add subtitles filter after the video output
       // Replace [outv] with intermediate output, then apply subtitles
       finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
@@ -220,7 +239,9 @@ async function runFFmpeg(
  * @param images - Sorted array of images
  * @param audioFilePath - Path to audio file
  * @param outputPath - Final output video path
- * @param assFilePath - Optional path to ASS subtitle file
+ * @param words - Word-level data from AssemblyAI
+ * @param segments - Transcript segments
+ * @param style - Resolved style configuration
  */
 async function renderVideoInChunks(
   images: DownloadedImage[],
@@ -228,8 +249,11 @@ async function renderVideoInChunks(
   outputPath: string,
   words: AssemblyAIWord[],
   segments: TranscriptSegment[],
-  outputFileName: string
+  style: ResolvedStyle
 ): Promise<void> {
+  const panEffect = style.panEffect;
+  const captionsEnabled = style.captionsEnabled;
+
   // Split images into chunks
   const chunks: DownloadedImage[][] = [];
   for (let i = 0; i < images.length; i += IMAGES_PER_CHUNK) {
@@ -258,10 +282,10 @@ async function renderVideoInChunks(
     chunkPaths.push(chunkPath);
 
     // Create filter complex for this chunk
-    const { filterComplex } = createFilterComplex(chunk);
+    const { filterComplex } = createFilterComplex(chunk, panEffect);
 
     let chunkAssPath: string | undefined;
-    if (CAPTIONS_ENABLED) {
+    if (captionsEnabled) {
       // Filter words and segments for this chunk
       const chunkWords = words.filter(w => w.start >= chunkStartTime && w.end <= chunkEndTime);
       const chunkSegments = segments.filter(s => s.start >= chunkStartTime && s.end <= chunkEndTime);
@@ -271,7 +295,7 @@ async function renderVideoInChunks(
         const relativeWords = chunkWords.map(w => ({ ...w, start: w.start - chunkStartTime, end: w.end - chunkStartTime }));
         const relativeSegments = chunkSegments.map(s => ({ ...s, start: s.start - chunkStartTime, end: s.end - chunkStartTime }));
 
-        const captionResult = await generateCaptions(relativeSegments, relativeWords, `captions_${timestamp}_${i}.ass`);
+        const captionResult = await generateCaptions(relativeSegments, relativeWords, style, `captions_${timestamp}_${i}.ass`);
         chunkAssPath = captionResult.assFilePath;
       }
     }
@@ -358,8 +382,9 @@ async function runFFmpegChunk(
     );
 
     // Modify filter complex to add subtitles if ASS file is provided
+    // Use currentStyle to check if captions are enabled (set by generateVideo)
     let finalFilterComplex = filterComplex;
-    if (CAPTIONS_ENABLED && assFilePath) {
+    if (currentStyle?.captionsEnabled && assFilePath) {
       finalFilterComplex = filterComplex.replace("[outv]", "[video_no_subs]");
       const escapedAssPath = assFilePath.replace(/\\/g, "/").replace(/:/g, "\\:");
       finalFilterComplex += `;[video_no_subs]subtitles='${escapedAssPath}'[outv]`;

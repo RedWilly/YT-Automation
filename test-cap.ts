@@ -42,6 +42,7 @@ import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } f
 import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
 import { generateVideo } from "./src/services/video.ts";
 import { TMP_AUDIO_DIR, TMP_IMAGES_DIR } from "./src/constants.ts";
+import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import type { DownloadedImage } from "./src/types.ts";
 import * as logger from "./src/logger.ts";
 import { readdir, mkdir } from "node:fs/promises";
@@ -229,8 +230,10 @@ async function runCaptionTest(): Promise<void> {
     // Step 3: Validate and process transcript
     logger.step("Test", "Step 3: Processing transcript into segments");
     validateTranscriptData(transcript.words);
-    const { segments } = processTranscript(transcript.words, transcript.audio_duration);
-    logger.success("Test", `Created ${segments.length} segments`);
+    // Use default style for testing
+    const style = resolveStyle(getDefaultStyle(), {});
+    const { segments } = processTranscript(transcript.words, transcript.audio_duration, style);
+    logger.success("Test", `Created ${segments.length} segments (style: ${style.name})`);
 
     // Step 4: Create placeholder image (bypass image generation)
     logger.step("Test", "Step 4: Creating placeholder image (bypassing image generation)");
@@ -250,7 +253,7 @@ async function runCaptionTest(): Promise<void> {
     // Step 6: Generate video with captions
     logger.step("Test", "Step 6: Generating video with captions");
     const outputFileName = path.parse(audioFilePath).name;
-    const videoResult = await generateVideo(mockImages, audioFilePath, transcript.words, segments, outputFileName);
+    const videoResult = await generateVideo(mockImages, audioFilePath, transcript.words, segments, outputFileName, style);
     logger.success("Test", `Video generated successfully!`);
     logger.log("Test", `Video saved at: ${videoResult.videoPath}`);
 

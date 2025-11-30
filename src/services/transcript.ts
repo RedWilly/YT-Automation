@@ -1,28 +1,36 @@
 /**
- * Transcript processing service for intelligent sentence-based segmentation
+ * Transcript processing service for intelligent segmentation
+ * Supports sentence-based and word-count based segmentation
  */
 
-import { segmentBySentences, getSentenceTimestamps } from "./segmentation.ts";
+import { segmentBySentences, segmentByWordCount, getSentenceTimestamps } from "./segmentation.ts";
 import type {
   AssemblyAIWord,
   TranscriptSegment,
   SegmentProcessingResult,
 } from "../types.ts";
+import type { ResolvedStyle } from "../styles/types.ts";
 import * as logger from "../logger.ts";
 
 /**
- * Process transcript words into intelligent sentence-based segments
- * Uses smart sentence detection with abbreviation handling and short sentence merging
+ * Process transcript words into segments based on style configuration
+ * Supports both sentence-based and word-count based segmentation
  *
  * @param words - Array of words from AssemblyAI transcription
  * @param audioDurationSeconds - Audio duration in seconds from AssemblyAI
+ * @param style - Resolved style configuration
  * @returns Segments array and formatted transcript string
  */
 export function processTranscript(
   words: AssemblyAIWord[],
-  audioDurationSeconds: number | null
+  audioDurationSeconds: number | null,
+  style: ResolvedStyle
 ): SegmentProcessingResult {
-  logger.step("Transcript", `Processing ${words.length} words into sentence-based segments`);
+  const segmentationType = style.segmentationType;
+  const segmentationDesc = segmentationType === "wordCount"
+    ? `word-count based (${style.wordsPerSegment} words)`
+    : "sentence-based";
+  logger.step("Transcript", `Processing ${words.length} words into ${segmentationDesc} segments`);
 
   // CRITICAL FIX: Normalize timestamps so first segment starts at 0ms
   //
@@ -48,8 +56,10 @@ export function processTranscript(
 
   logger.debug("Transcript", `Actual audio duration: ${actualAudioDurationMs}ms (${(actualAudioDurationMs / 1000).toFixed(2)}s)`);
 
-  // Use sentence-based segmentation
-  const sentenceDetections = segmentBySentences(words);
+  // Use appropriate segmentation based on style
+  const sentenceDetections = segmentationType === "wordCount"
+    ? segmentByWordCount(words, style.wordsPerSegment)
+    : segmentBySentences(words);
 
   // Convert sentence detections to transcript segments with timing
   const segments: TranscriptSegment[] = [];

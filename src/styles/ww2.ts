@@ -43,7 +43,7 @@ export const ww2Style: VideoStyle = {
     useBox: false,    // No box, just text with shadow
   },
   highlightStyle: {
-    enabled: true,  // No karaoke by default
+    enabled: false,  // No karaoke by default
     color: "&H0000FFFF",  // Yellow (if enabled)
     useBox: false,  // No box - just changes text color
   },

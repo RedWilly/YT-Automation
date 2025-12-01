@@ -196,6 +196,14 @@ export async function generateAssSubtitles(
   const defaultBorderStyle = captionStyle.useBox ? 3 : 1;
   const highlightBorderStyle = highlightStyle.useBox ? 3 : 1;
 
+  // Highlight style colors depend on whether we're using a box or just colored text
+  // - With box (BorderStyle=3): highlight color goes to OutlineColour/BackColour (box background)
+  // - Without box (BorderStyle=1): highlight color goes to PrimaryColour (text color)
+  const highlightPrimaryColor = highlightStyle.useBox ? captionStyle.primaryColor : highlightStyle.color;
+  const highlightOutlineColor = highlightStyle.useBox ? highlightStyle.color : captionStyle.outlineColor;
+  const highlightBackColor = highlightStyle.useBox ? highlightStyle.color : captionStyle.backgroundColor;
+  const highlightOutlineWidth = highlightStyle.useBox ? 6 : captionStyle.outlineWidth;
+
   const assHeader = `[Script Info]
 Title: Word-by-Word Highlighted Captions
 ScriptType: v4.00+
@@ -207,7 +215,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${captionStyle.fontName},${captionStyle.fontSize},${captionStyle.primaryColor},&H000000FF,${captionStyle.outlineColor},${captionStyle.backgroundColor},-1,0,0,0,100,100,0,0,${defaultBorderStyle},${captionStyle.outlineWidth},${captionStyle.shadowDepth},2,10,10,130,1
-Style: Highlight,${captionStyle.fontName},${captionStyle.fontSize},${captionStyle.primaryColor},&H000000FF,${highlightStyle.color},${highlightStyle.color},-1,0,0,0,100,100,0,0,${highlightBorderStyle},6,0,2,10,10,130,1
+Style: Highlight,${captionStyle.fontName},${captionStyle.fontSize},${highlightPrimaryColor},&H000000FF,${highlightOutlineColor},${highlightBackColor},-1,0,0,0,100,100,0,0,${highlightBorderStyle},${highlightOutlineWidth},${captionStyle.shadowDepth},2,10,10,130,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

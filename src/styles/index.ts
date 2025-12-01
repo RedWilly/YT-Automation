@@ -21,7 +21,7 @@ export const STYLES: Record<string, VideoStyle> = {
 /**
  * Default style ID when no style is specified
  */
-export const DEFAULT_STYLE_ID = "history";
+export const DEFAULT_STYLE_ID = "ww2";
 
 /**
  * Get a style by ID

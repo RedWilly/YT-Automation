@@ -256,19 +256,45 @@ export function segmentByWordCount(
   words: AssemblyAIWord[],
   wordsPerSegment: number
 ): SentenceDetection[] {
-  logger.step("Segmentation", `Segmenting ${words.length} words into chunks of ${wordsPerSegment} words`);
+  logger.step("Segmentation", `Segmenting ${words.length} words into ~${wordsPerSegment} words (sentence-aware)`);
 
   if (wordsPerSegment <= 0) {
     throw new Error("wordsPerSegment must be a positive number");
   }
 
+  // Tolerance: how many extra words we'll scan looking for a sentence end
+  const SENTENCE_SEARCH_TOLERANCE = Math.ceil(wordsPerSegment * 0.3);
   const segments: SentenceDetection[] = [];
   const totalWords = words.length;
   let currentIndex = 0;
 
   while (currentIndex < totalWords) {
     const startWordIndex = currentIndex;
-    const endWordIndex = Math.min(currentIndex + wordsPerSegment - 1, totalWords - 1);
+    const targetEndIndex = Math.min(currentIndex + wordsPerSegment - 1, totalWords - 1);
+    const maxSearchIndex = Math.min(targetEndIndex + SENTENCE_SEARCH_TOLERANCE, totalWords - 1);
+
+    // Find the best cut point (sentence ending) near the target
+    let endWordIndex = targetEndIndex;
+
+    // Search forward from target to find a sentence-ending word
+    for (let i = targetEndIndex; i <= maxSearchIndex; i++) {
+      const word = words[i];
+      if (word && /[.!?]$/.test(word.text)) {
+        endWordIndex = i;
+        break;
+      }
+    }
+
+    // If no sentence ending found forward, search backward from target
+    if (endWordIndex === targetEndIndex) {
+      for (let i = targetEndIndex - 1; i >= startWordIndex; i--) {
+        const word = words[i];
+        if (word && /[.!?]$/.test(word.text)) {
+          endWordIndex = i;
+          break;
+        }
+      }
+    }
 
     // Build text from words in this segment
     const segmentWords: string[] = [];
@@ -297,7 +323,7 @@ export function segmentByWordCount(
     currentIndex = endWordIndex + 1;
   }
 
-  logger.success("Segmentation", `Created ${segments.length} word-count based segments`);
+  logger.success("Segmentation", `Created ${segments.length} sentence-aware word-count segments`);
 
   return segments;
 }

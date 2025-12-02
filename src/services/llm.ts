@@ -233,90 +233,113 @@ async function callLLMWithRetry(
 }
 
 /**
- * Parse image queries from LLM response
- * @param content - Raw content from LLM response
- * @returns Array of parsed image search queries
+ * Parse and validate image queries from LLM response
  */
-function parseImageQueries(content: string): ImageSearchQuery[] {
-  // Try to extract JSON from the content
-  // Sometimes LLMs wrap JSON in markdown code blocks
-  let jsonContent = content.trim();
+export function parseImageQueries(content: string): ImageSearchQuery[] {
+  const jsonString = extractJsonSnippet(content);
 
-  // Remove markdown code blocks if present
-  if (jsonContent.startsWith("```json")) {
-    jsonContent = jsonContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-  } else if (jsonContent.startsWith("```")) {
-    jsonContent = jsonContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonString);
+  } catch (e) {
+    try {
+      logger.warn("LLM", "Standard parse failed, attempting JSON repair...");
+      parsed = JSON.parse(repairJson(jsonString));
+    } catch (repairError) {
+      logger.error("LLM", "JSON extraction failed", { content: content.substring(0, 200) });
+      throw new Error(`Failed to parse JSON: ${repairError instanceof Error ? repairError.message : String(repairError)}`);
+    }
   }
 
-  // First attempt: parse the whole content as JSON
-  let parsedValue: unknown;
-  let lastError: unknown;
+  if (!isValidQueryArray(parsed)) {
+    throw new Error("Response parsed successfully but does not match ImageSearchQuery[] schema");
+  }
 
-  try {
-    parsedValue = JSON.parse(jsonContent);
-  } catch (error) {
-    lastError = error;
+  return parsed;
+}
 
-    // Fallback: try to extract JSON arrays from noisy content and parse the first valid one
-    const arrayMatches = jsonContent.match(/\[[\s\S]*?]/g);
-    if (arrayMatches) {
-      for (const candidate of arrayMatches) {
-        const candidateText = candidate.trim();
-        try {
-          const candidateValue = JSON.parse(candidateText) as unknown;
-          if (Array.isArray(candidateValue)) {
-            parsedValue = candidateValue;
-            jsonContent = candidateText; // For logging in case of later validation errors
-            lastError = undefined;
-            break;
-          }
-        } catch (innerError) {
-          lastError = innerError;
+function extractJsonSnippet(content: string): string {
+  const clean = content.replace(/```(?:json)?|```/g, "").trim();
+
+  const firstOpen = clean.indexOf("[");
+
+  if (firstOpen !== -1) {
+    let depth = 0;
+    let firstClose = -1;
+
+    for (let i = firstOpen; i < clean.length; i++) {
+      if (clean[i] === "[") depth++;
+      if (clean[i] === "]") {
+        depth--;
+        if (depth === 0) {
+          firstClose = i;
+          break;
         }
       }
     }
-  }
 
-  const parsed = parsedValue as ImageSearchQuery[];
+    if (firstClose !== -1) {
+      const extracted = clean.substring(firstOpen, firstClose + 1);
 
-  try {
-    // Validate the structure
-    if (!Array.isArray(parsed)) {
-      throw new Error("Response is not an array");
-    }
+      const objectMatches = extracted.match(/\{[^}]+\}/g);
+      if (objectMatches?.length) {
+        const hasValidObjects = objectMatches.some(obj =>
+          /["']?start["']?\s*:/.test(obj)
+        );
 
-    // Validate each query
-    for (const query of parsed) {
-      if (
-        typeof query.start !== "number" ||
-        typeof query.end !== "number" ||
-        typeof query.query !== "string"
-      ) {
-        throw new Error("Invalid query structure");
+        if (hasValidObjects) {
+          const validObjects = objectMatches.filter(obj =>
+            /["']?start["']?\s*:/.test(obj) &&
+            /["']?end["']?\s*:/.test(obj) &&
+            /["']?query["']?\s*:/.test(obj)
+          );
+
+          if (validObjects.length > 0) {
+            return `[${validObjects.join(",")}]`;
+          }
+        }
       }
-    }
 
-    return parsed;
-  } catch (error) {
-    logger.error(
-      "LLM",
-      "Failed to parse JSON response",
-      lastError ?? error
-    );
-    logger.debug("LLM", `Content was: ${jsonContent}`);
-    throw new Error(
-      `Failed to parse image queries from LLM response: ${error instanceof Error ? error.message : String(error)
-      }`
-    );
+      return extracted;
+    }
   }
+
+  const objectPattern = /\{\s*["']?start["']?\s*:\s*\d+/;
+  if (objectPattern.test(clean)) {
+    const objectMatches = clean.match(/\{[^}]+\}/g);
+    if (objectMatches?.length) {
+      return `[${objectMatches.join(",")}]`;
+    }
+  }
+
+  return clean;
 }
 
-/**
- * Validate image queries
- * @param queries - Array of image search queries to validate
- * @returns True if valid, throws error otherwise
- */
+export function repairJson(json: string): string {
+  return json
+    .replace(/"\s+"(\w+)":/g, '"$1":')
+    .replace(/"\s+(\w+)":/g, '"$1":')
+    .replace(/,(\s*})/g, '$1')
+    .replace(/,(\s*])/g, '$1')
+    .replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+    .replace(/'([^']*)'(?=\s*[,}\]])/g, '"$1"')
+    .replace(/^\[([#@!$%^&*]+)/, '[')
+    .replace(/([#@!$%^&*]+)\]$/, ']')
+    .replace(/\\([^"\\\/bfnrtu])/g, '$1')
+    .replace(/\s*:\s*/g, ':')
+    .replace(/\s*,\s*/g, ',');
+}
+
+function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
+  return Array.isArray(data) && data.every(item =>
+    item &&
+    typeof item === "object" &&
+    typeof item.start === "number" &&
+    typeof item.end === "number" &&
+    typeof item.query === "string"
+  );
+}
+
 export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
   if (!Array.isArray(queries)) {
     throw new Error("Queries must be an array");
@@ -326,30 +349,27 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     throw new Error("Queries array is empty");
   }
 
-  const queriesLength = queries.length;
-  for (let i = 0; i < queriesLength; i++) {
+  for (let i = 0; i < queries.length; i++) {
     const query = queries[i];
-    if (!query) continue;
 
-    if (
+    if (!query ||
       typeof query.start !== "number" ||
       typeof query.end !== "number" ||
-      typeof query.query !== "string"
-    ) {
-      throw new Error(`Invalid query at index ${i}`);
+      typeof query.query !== "string") {
+      throw new Error(`Invalid query structure at index ${i}`);
     }
 
-    if (query.query.length === 0) {
+    if (query.query.trim().length === 0) {
       throw new Error(`Empty query string at index ${i}`);
     }
 
-    // Warn if query exceeds word count limits based on mode
     const wordCount = query.query.split(/\s+/).length;
     const maxWords = USE_AI_IMAGE ? 40 : 10;
+
     if (wordCount > maxWords) {
       logger.warn(
         "LLM",
-        `Query at index ${i} exceeds ${maxWords} words (${wordCount} words): "${query.query}"`
+        `Query at index ${i} exceeds ${maxWords} words (${wordCount}): "${query.query}"`
       );
     }
   }

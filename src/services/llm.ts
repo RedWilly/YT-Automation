@@ -237,8 +237,9 @@ async function callLLMWithRetry(
  */
 export function parseImageQueries(content: string): ImageSearchQuery[] {
   const jsonString = extractJsonSnippet(content);
+  let parsed: any[] = [];
 
-  let parsed: unknown;
+  // let parsed: unknown;
   try {
     parsed = JSON.parse(jsonString);
   } catch (e) {
@@ -246,8 +247,15 @@ export function parseImageQueries(content: string): ImageSearchQuery[] {
       logger.warn("LLM", "Standard parse failed, attempting JSON repair...");
       parsed = JSON.parse(repairJson(jsonString));
     } catch (repairError) {
-      logger.error("LLM", "JSON extraction failed", { content: content.substring(0, 200) });
-      throw new Error(`Failed to parse JSON: ${repairError instanceof Error ? repairError.message : String(repairError)}`);
+      // Attempt 3: Brute Force Regex (The "Nuclear Option")
+      logger.warn("LLM", "JSON repair failed, attempting brute force regex extraction...");
+      parsed = fallbackExtraction(content);
+
+      if (parsed.length === 0) {
+        // Only throw if even brute force failed
+        logger.error("LLM", "JSON extraction failed", { content: content.substring(0, 200) });
+        throw new Error(`Failed to parse JSON: ${repairError instanceof Error ? repairError.message : String(repairError)}`);
+      }
     }
   }
 
@@ -284,14 +292,14 @@ function extractJsonSnippet(content: string): string {
       const objectMatches = extracted.match(/\{[^}]+\}/g);
       if (objectMatches?.length) {
         const hasValidObjects = objectMatches.some(obj =>
-          /["']?start["']?\s*:/.test(obj)
+          /["']?start["']?\s*:/i.test(obj)
         );
 
         if (hasValidObjects) {
           const validObjects = objectMatches.filter(obj =>
-            /["']?start["']?\s*:/.test(obj) &&
-            /["']?end["']?\s*:/.test(obj) &&
-            /["']?query["']?\s*:/.test(obj)
+            /["']?start["']?\s*:/i.test(obj) &&
+            /["']?end["']?\s*:/i.test(obj) &&
+            /["']?query["']?\s*:/i.test(obj)
           );
 
           if (validObjects.length > 0) {
@@ -317,10 +325,21 @@ function extractJsonSnippet(content: string): string {
 
 export function repairJson(json: string): string {
   return json
+    // FIX 1: Aggressively clean up keys with spaces inside quotes
+    // Handles: " "start": 0, "end ": 500, " query ": ...
+    .replace(/"\s*([a-zA-Z0-9_]+)\s*"\s*:/g, '"$1":')
+
+    // FIX 2: Wrap unquoted 'query' values in quotes
+    // Handles: query: Mysterious figure walks...
+    // logic: Find 'query:', ensure next char isn't a quote/bracket, capture text until comma/brace
+    .replace(/(["']?query["']?\s*:\s*)(?!["{\[])(.*?[^,}\]\s])(?=\s*[,}\]])/gi, '$1"$2"')
+
+    // --- Original Standard Repairs ---
     .replace(/"\s+"(\w+)":/g, '"$1":')
     .replace(/"\s+(\w+)":/g, '"$1":')
     .replace(/,(\s*})/g, '$1')
     .replace(/,(\s*])/g, '$1')
+    // Handles unquoted keys (start: 0 -> "start": 0)
     .replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
     .replace(/'([^']*)'(?=\s*[,}\]])/g, '"$1"')
     .replace(/^\[([#@!$%^&*]+)/, '[')
@@ -328,6 +347,33 @@ export function repairJson(json: string): string {
     .replace(/\\([^"\\\/bfnrtu])/g, '$1')
     .replace(/\s*:\s*/g, ':')
     .replace(/\s*,\s*/g, ',');
+}
+
+export function fallbackExtraction(content: string): ImageSearchQuery[] {
+  const results: ImageSearchQuery[] = [];
+
+  // This regex matches an object-like pattern containing start, end, and query.
+  const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3/gi;
+
+  // FIX 1: Explicitly type the variable as RegExpExecArray or null
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    // FIX 2: Use (match[x] || "") to guarantee a string for TypeScript
+    const startVal = parseInt(match[1] || "0", 10);
+    const endVal = parseInt(match[2] || "0", 10);
+    const queryVal = (match[4] || "").trim();
+
+    if (!isNaN(startVal) && !isNaN(endVal) && queryVal.length > 0) {
+      results.push({
+        start: startVal,
+        end: endVal,
+        query: queryVal
+      });
+    }
+  }
+
+  return results;
 }
 
 function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {

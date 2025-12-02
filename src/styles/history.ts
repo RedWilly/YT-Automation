@@ -22,8 +22,8 @@ export const historyStyle: VideoStyle = {
   description: "Classic documentary style with oil painting aesthetic and karaoke captions",
 
   // === Image Generation ===
-  imageStyle: "classical oil painting, smooth blended transitions, photorealistic detail, museum quality finish, rich varnished appearance, balanced natural lighting, muted sophisticated color palette, highly refined and polished, masterful technique.",
-  negativePrompt: "photorealistic, photograph, 3d render, digital art, vector, cartoon, anime, cel shaded, ink, watercolor, pencil sketch, blurry, low quality, watermark, text, signature, bad anatomy, deformed, disfigured, extra limbs, missing fingers, ugly face, plastic skin, glossy, airbrushed, heavy impasto, thick paint, rough texture",
+  imageStyle: "watercolor painting, soft layered washes, gentle color blending, subtle texture of paper, airy natural lighting, muted and harmonious colors, loose and flowing brushstrokes, delicate and artistic finish",
+  negativePrompt: "photorealistic, photograph, 3d render, digital art, vector, cartoon, anime, cel shaded, ink, pencil sketch, blurry, low quality, watermark, text, signature, bad anatomy, deformed, disfigured, extra limbs, missing fingers, ugly face, airbrushed, heavy impasto, thick paint, rough texture",
 
   // === Segmentation ===
   segmentationType: "sentence",

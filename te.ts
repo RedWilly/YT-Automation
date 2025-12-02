@@ -8,6 +8,7 @@ interface ImageSearchQuery {
 }
 
 const testCases = [
+    // ---------- Original Test Cases ----------
     {
         name: "Extra space in key",
         input: `[{"start": 0, " "end": 5000, "query": "Statesman in alley passing envelope."}]`
@@ -59,9 +60,80 @@ const testCases = [
     {
         name: "Extra random characters",
         input: "[#@!$%{\"start\":65000,\"end\":70000,\"query\":\"Random chars\"}^^&*]"
+    },
+    {
+        name: "Real malformed keys + missing value quotes",
+        input: `[{
+        " "start": 0,
+        " "end": 5000,
+        " "query": Mysterious figure walks down alley
+    }]`
+    },
+
+    // ---------- Additional AI-Malformed JSON Test Cases ----------
+    {
+        name: "Single quotes instead of double quotes",
+        input: "[{'start':70000, 'end':75000, 'query':'Single quotes query'}]"
+    },
+    {
+        name: "Missing commas between keys",
+        input: `[{"start":75000 "end":80000 "query":"Missing commas between keys"}]`
+    },
+    {
+        name: "Nested arrays inside query string",
+        input: `[{"start":80000, "end":85000, "query":"This is a query with [nested, array] inside"}]`
+    },
+    {
+        name: "Query contains braces without quotes",
+        input: `[{"start":85000, "end":90000, "query":"Unquoted {braces} inside string"}]`
+    },
+    {
+        name: "Extra colons inside query string",
+        input: `[{"start":90000, "end":95000, "query":"Time: 12:30 PM, Location: Unknown"}]`
+    },
+    {
+        name: "Incomplete array with missing closing bracket",
+        input: `[{"start":95000, "end":100000, "query":"Missing closing bracket"}`
+    },
+    {
+        name: "Objects with mixed numeric and string values",
+        input: `[{"start":100000, "end":105000, "query": 12345}]`
+    },
+    {
+        name: "Array with null and undefined entries",
+        input: `[{"start":105000, "end":110000, "query":"Valid"}, null, undefined]`
+    },
+    {
+        name: "Comments inside JSON (invalid but AI may include)",
+        input: `[{"start":110000, "end":115000, "query":"Query with // comment inside"}]`
+    },
+    {
+        name: "Extra trailing text after array",
+        input: `[{"start":115000,"end":120000,"query":"Valid query"}] Extra text at end`
+    },
+    {
+        name: "Keys with non-ASCII characters",
+        input: `[{"stärt":120000,"énd":125000,"quëry":"Non-ASCII keys"}]`
+    },
+    {
+        name: "Query contains emoji or special characters",
+        input: `[{"start":125000,"end":130000,"query":"Query with emoji 😊 and symbols ©®"}]`
+    },
+    {
+        name: "Completely minified JSON with no spaces",
+        input: `[{"start":130000,"end":135000,"query":"MinifiedJSON"}]`
+    },
+    {
+        name: "AI adds extra brackets inside query string",
+        input: `[{"start":135000,"end":140000,"query":"Query with extra [brackets] inside [string]"}]`
+    },
+    {
+        name: "Escaped quotes inside query string",
+        input: `[{"start":140000,"end":145000,"query":"He said: \"Hello world!\""}]`
     }
 ];
 
+// ---------- Test Runner ----------
 logger.log("ParserTest", "=".repeat(60));
 logger.log("ParserTest", "Parser Test Suite - Sequential Timestamps");
 logger.log("ParserTest", "=".repeat(60));

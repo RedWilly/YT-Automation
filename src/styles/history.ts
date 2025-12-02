@@ -11,7 +11,7 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from "./types.ts";
  * 
  * Features:
  * - Sentence-based segmentation (natural speech breaks)
- * - Oil painting aesthetic (alla prima, classical)
+ * - Watercolor painting aesthetic (soft washes, gentle blending)
  * - Karaoke-style word highlighting (purple box)
  * - 3-6 words per caption group
  * - Pan effect enabled by default
@@ -19,7 +19,7 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from "./types.ts";
 export const historyStyle: VideoStyle = {
   id: "history",
   name: "History",
-  description: "Classic documentary style with oil painting aesthetic and karaoke captions",
+  description: "Classic documentary style with watercolor aesthetic and karaoke captions",
 
   // === Image Generation ===
   imageStyle: "watercolor painting, soft layered washes, gentle color blending, subtle texture of paper, airy natural lighting, muted and harmonious colors, loose and flowing brushstrokes, delicate and artistic finish",
@@ -49,11 +49,11 @@ export const historyStyle: VideoStyle = {
 
   // === LLM Context ===
   llmContext: `You are generating image prompts for a historical documentary video.
-The visual style is classical oil painting with an elegant, refined aesthetic.
+The visual style is watercolor painting with a soft, artistic aesthetic.
 Focus on:
 - Historical accuracy in costumes, settings, and props
-- Dramatic yet balanced compositions
+- Gentle, balanced compositions with flowing brushstrokes
 - Clear subject focus with contextual backgrounds
-- Natural, warm lighting typical of classical paintings`,
+- Natural, airy lighting typical of watercolor paintings`,
 };
 

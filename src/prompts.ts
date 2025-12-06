@@ -13,14 +13,16 @@ import type { ResolvedStyle } from "./styles/types.ts";
 export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): string {
    // Word count based on image source
    const wordCount = useAiImage
-      ? "20-35 words (detailed for AI generation)"
+      ? "35-60 words (detailed for AI generation)"
       : "8-15 words (concise for web search)";
 
    // Style guidance based on image source
    const styleGuidance = useAiImage
-      ? `IMAGE STYLE: "${style.imageStyle}"
-Do NOT write this style in your queries. The system adds it automatically.
-Your job: Describe the SCENE (who, doing what, where, with what details).`
+      ? `IMAGE STYLE KEYWORDS: "${style.imageStyle}"
+
+IMPORTANT: You MUST include the style keywords at the END of each query.
+Your job: Describe the SCENE (who, doing what, where, with what details) + ADD style keywords at the end.
+The style keywords ensure visual consistency across all generated images.`
       : `IMAGE SOURCE: Web search (DuckDuckGo)
 Use concrete, searchable terms. Avoid abstract or artistic language.`;
 
@@ -83,7 +85,7 @@ export function buildUserPrompt(
    segmentCount: number,
    useAiImage: boolean
 ): string {
-   const wordCount = useAiImage ? "20-35" : "8-15";
+   const wordCount = useAiImage ? "35-60" : "8-15";
 
    return `## TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}

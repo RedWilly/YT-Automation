@@ -2,7 +2,8 @@
   "name": "v2v",
   "module": "index.ts",
   "scripts": {
-    "start": "bun run index.ts"
+    "start": "bun run index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "latest"

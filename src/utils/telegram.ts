@@ -134,10 +134,21 @@ export async function downloadTelegramFile(
   filename: string,
   tmpDir: string
 ): Promise<string> {
-  const { createWriteStream } = await import("node:fs");
+  const { createWriteStream, existsSync } = await import("node:fs");
   const { pipeline } = await import("node:stream/promises");
   const { join } = await import("node:path");
   const { mkdir } = await import("node:fs/promises");
+
+  // Ensure directory exists
+  await mkdir(tmpDir, { recursive: true });
+
+  const filePath = join(tmpDir, filename);
+
+  // Check if file already exists - skip download if it does
+  if (existsSync(filePath)) {
+    logger.log("Telegram", `File already exists, skipping download: ${filename}`);
+    return filePath;
+  }
 
   const fileUrl = await getFileUrl(fileId);
 
@@ -145,11 +156,6 @@ export async function downloadTelegramFile(
   if (!response.ok) {
     throw new Error(`Failed to download file from Telegram: ${response.status}`);
   }
-
-  // Ensure directory exists
-  await mkdir(tmpDir, { recursive: true });
-
-  const filePath = join(tmpDir, filename);
 
   // Download and save file
   if (response.body) {
@@ -159,7 +165,38 @@ export async function downloadTelegramFile(
     throw new Error("No response body from Telegram file download");
   }
 
+  logger.success("Telegram", `Downloaded file: ${filename}`);
   return filePath;
+}
+
+/**
+ * Extract filename from URL path (for pre-download existence check)
+ * @param url - URL to extract filename from
+ * @returns Sanitized filename or fallback
+ */
+export function extractFilenameFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split("/");
+    let urlFilename = pathParts[pathParts.length - 1] || "";
+
+    // Remove query parameters
+    urlFilename = urlFilename.split("?")[0] || "";
+
+    // Sanitize
+    urlFilename = urlFilename.replace(/[<>:"|?*\/\\]/g, "_");
+
+    // Check if valid audio filename
+    const hasAudioExt = /\.(mp3|wav|ogg|m4a|aac|flac|wma|opus)$/i.test(urlFilename);
+    if (urlFilename.length > 0 && urlFilename.length < 255 && hasAudioExt) {
+      return urlFilename;
+    }
+  } catch {
+    // URL parsing failed
+  }
+
+  // Fallback: generate timestamp-based filename
+  return `audio_url_${Date.now()}.mp3`;
 }
 
 /**
@@ -226,15 +263,26 @@ export function extractFilenameFromResponse(response: Response, url: string): st
  * @returns Path to downloaded file
  */
 export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise<string> {
-  const { createWriteStream } = await import("node:fs");
+  const { createWriteStream, existsSync } = await import("node:fs");
   const { pipeline } = await import("node:stream/promises");
   const { join } = await import("node:path");
   const { mkdir } = await import("node:fs/promises");
 
-  logger.log("Telegram", `Downloading audio from URL: ${url}`);
+  logger.log("Telegram", `Processing audio from URL: ${url}`);
 
   // Ensure the directory exists
   await mkdir(tmpDir, { recursive: true });
+
+  // First, extract expected filename from URL to check if file exists
+  // We need to make a HEAD request or parse the URL to get the filename
+  const urlFilename = extractFilenameFromUrl(url);
+  const expectedFilePath = join(tmpDir, urlFilename);
+
+  // Check if file already exists - skip download if it does
+  if (existsSync(expectedFilePath)) {
+    logger.log("Telegram", `File already exists, skipping download: ${urlFilename}`);
+    return expectedFilePath;
+  }
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -244,6 +292,12 @@ export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise
   // Extract filename from response headers or URL (like browsers do)
   const filename = extractFilenameFromResponse(response, url);
   const filePath = join(tmpDir, filename);
+
+  // Check again with the actual filename from response headers
+  if (existsSync(filePath)) {
+    logger.log("Telegram", `File already exists, skipping download: ${filename}`);
+    return filePath;
+  }
 
   logger.debug("Telegram", `Saving audio to: ${filePath}`);
 

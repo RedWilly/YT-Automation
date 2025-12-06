@@ -178,9 +178,8 @@ async function generateCloudflareImage(
     try {
       logger.debug("AI-Images", `[Cloudflare] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-      // Combine the query with the image style
-      const fullPrompt = `${query}, ${style.imageStyle}`;
-      logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
+      // Use query directly - LLM now includes style keywords in the query
+      logger.debug("AI-Images", `Prompt: "${query}"`);
 
       // Make request to Cloudflare Worker with negative prompt
       const response = await fetch(WORKER_API_URL, {
@@ -190,7 +189,7 @@ async function generateCloudflareImage(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          prompt: fullPrompt,
+          prompt: query,
           negative_prompt: style.negativePrompt,
         }),
       });
@@ -288,9 +287,8 @@ async function generateTogetherAIImage(
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
-      // Build the full prompt with style
-      const fullPrompt = `${query}, ${style.imageStyle}`;
-      logger.debug("AI-Images", `Full prompt: "${fullPrompt}"`);
+      // Use query directly - LLM now includes style keywords in the query
+      logger.debug("AI-Images", `Prompt: "${query}"`);
 
       // Note: FLUX.1-schnell doesn't support negative prompts, but we pass it anyway
       // for consistency and in case the model changes
@@ -306,7 +304,7 @@ async function generateTogetherAIImage(
         },
         body: JSON.stringify({
           model: TOGETHER_MODEL,
-          prompt: fullPrompt,
+          prompt: query,
           n: 1,
           width: 1440,
           height: 1104,

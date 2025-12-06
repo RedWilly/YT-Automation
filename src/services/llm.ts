@@ -359,11 +359,13 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(content)) !== null) {
-    // FIX 2: Use (match[x] || "") to guarantee a string for TypeScript
-    const startVal = parseInt(match[1] || "0", 10);
-    const endVal = parseInt(match[2] || "0", 10);
-    const queryVal = (match[4] || "").trim();
-
+    // Ensure required capture groups are present; skip malformed matches defensively.
+    if (!match[1] || !match[2] || !match[4]) {
+      continue;
+    }
+    const startVal = parseInt(match[1], 10);
+    const endVal = parseInt(match[2], 10);
+    const queryVal = match[4].trim();
     if (!isNaN(startVal) && !isNaN(endVal) && queryVal.length > 0) {
       results.push({
         start: startVal,
@@ -410,7 +412,7 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     }
 
     const wordCount = query.query.split(/\s+/).length;
-    const maxWords = USE_AI_IMAGE ? 40 : 10;
+    const maxWords = USE_AI_IMAGE ? 80 : 15;  // AI: 35-60 words + style keywords, Web: 8-15 words
 
     if (wordCount > maxWords) {
       logger.warn(

@@ -71,7 +71,7 @@ export async function generateVideo(
     await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, style);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
-    const { filterComplex } = createFilterComplex(sortedImages, panEffect);
+    const { filterComplex } = createFilterComplex(sortedImages, panEffect, style.zoomToFit);
     let assFilePath: string | undefined;
     if (captionsEnabled) {
       const captionResult = await generateCaptions(segments, words, style);
@@ -276,7 +276,7 @@ async function renderVideoInChunks(
     chunkPaths.push(chunkPath);
 
     // Create filter complex for this chunk
-    const { filterComplex } = createFilterComplex(chunk, panEffect);
+    const { filterComplex } = createFilterComplex(chunk, panEffect, style.zoomToFit);
 
     let chunkAssPath: string | undefined;
     if (captionsEnabled) {

@@ -74,11 +74,13 @@ export function calculatePanParams(_duration: number, panEnabled: boolean = true
  * Create FFmpeg filter complex for image transitions
  * @param images - Sorted array of images with timing
  * @param panEnabled - Whether pan effect is enabled (from style config)
+ * @param zoomToFit - Whether to scale images to fill 1920x1080 (only used when panEnabled is false)
  * @returns Filter complex string and total duration
  */
 export function createFilterComplex(
     images: DownloadedImage[],
-    panEnabled: boolean = true
+    panEnabled: boolean = true,
+    zoomToFit: boolean = false
 ): { filterComplex: string; totalDuration: number } {
     const filters: string[] = [];
     let totalDuration = 0;
@@ -137,10 +139,20 @@ export function createFilterComplex(
 
             logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (${panParams.yStart}px → ${panParams.yEnd}px) over ${duration.toFixed(2)}s (${totalFrames} frames)`);
         } else {
-            // No pan effect - use static image with scale and pad
-            filters.push(
-                `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
-            );
+            // No pan effect - either zoom to fit (crop) or fit with padding
+            if (zoomToFit) {
+                // Scale to fill 1920x1080 (center crop, no black bars)
+                // scale=1920:1080:force_original_aspect_ratio=increase → scales to fill
+                // crop=1920:1080 → crops from center to exact dimensions
+                filters.push(
+                    `[${i}:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=30,format=yuv420p[v${i}]`
+                );
+            } else {
+                // Fit within 1920x1080 with black padding (letterbox/pillarbox)
+                filters.push(
+                    `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
+                );
+            }
         }
     }
 

@@ -1,133 +1,171 @@
 # Setup Guide
 
-Get v2v running on your machine in a few minutes.
+This guide covers everything you need to get v2v running and how to use all its features.
+
+## What is v2v?
+
+v2v is a Telegram bot that converts audio files into videos. You send it an audio file, and it:
+
+1. Transcribes the audio using AssemblyAI
+2. Uses an LLM (DeepSeek or Kimi) to generate image descriptions for each segment
+3. Either searches the web for images or generates them with AI
+4. Creates a video with captions synced to the audio
+5. Optionally uploads the finished video to cloud storage
+
+---
 
 ## Prerequisites
 
-You'll need these installed first:
+### Bun (JavaScript runtime)
 
-**Bun** (JavaScript runtime):
 ```powershell
 # Windows
 irm bun.sh/install.ps1 | iex
 ```
 
-**FFmpeg** (video processing):
-```powershell
-# Windows - pick one:
-winget install FFmpeg
-
-# Or download from https://ffmpeg.org/download.html
+```bash
+# Linux/macOS
+curl -fsSL https://bun.sh/install | bash
 ```
 
-Verify FFmpeg works:
+### FFmpeg (video processing)
+
 ```powershell
+# Windows
+winget install FFmpeg
+```
+
+```bash
+# Linux
+sudo apt install ffmpeg
+
+# macOS
+brew install ffmpeg
+```
+
+Make sure it works:
+
+```bash
 ffmpeg -version
 ```
 
+---
+
 ## Get Your API Keys
 
-### Required Services
+### Required
 
-**Telegram Bot**
+**Telegram Bot Token**
+
 1. Message [@BotFather](https://t.me/botfather) on Telegram
 2. Send `/newbot` and follow the prompts
 3. Copy your bot token (looks like `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
-**AssemblyAI** (Audio transcription)
+**AssemblyAI** (audio transcription)
+
 1. Sign up at [assemblyai.com](https://www.assemblyai.com/)
 2. Grab your API key from the dashboard
 3. Free tier includes 5 hours of transcription
 
-**AI Provider** (LLM for scene descriptions)
-You can choose between **DeepSeek** (default) or **Kimi**.
+**LLM Provider** (choose one)
 
-*Option A: DeepSeek*
+*DeepSeek (recommended):*
 1. Sign up at [platform.deepseek.com](https://platform.deepseek.com/)
 2. Create an API key
 3. Very affordable pricing
 
-*Option B: Kimi*
+*Kimi:*
 1. Sign up at [platform.moonshot.cn](https://platform.moonshot.cn/)
 2. Create an API key
 
-### Optional Services
+### Optional
 
-**Cloudflare Workers** (Unlimited AI image generation)
+**Cloudflare Workers** (AI image generation)
 
-If you want AI-generated images instead of web search, you'll need to set up a Cloudflare Worker.
+If you want AI-generated images instead of web search, set up a Cloudflare Worker.
 
-Watch this tutorial to set it up: **[Unlimited AI Images with Cloudflare Workers](https://www.youtube.com/watch?v=VliEpQl06pE)**
+Tutorial: [Unlimited AI Images with Cloudflare Workers](https://www.youtube.com/watch?v=VliEpQl06pE)
 
-Once set up, add to your `.env`:
-```env
-USE_AI_IMAGE=true
-WORKER_API_URL=https://your-worker.username.workers.dev/
-WORKER_API_KEY=your_worker_api_key
-```
+**Together AI** (alternative AI image generation)
 
-**MinIO or AWS S3** (Video storage)
+1. Sign up at [together.ai](https://www.together.ai/)
+2. Create an API key
+3. Uses FLUX.1-schnell model
 
-If you want to automatically upload finished videos to object storage (useful for downstream processing like YouTube uploads via n8n):
+**MinIO or S3** (video storage)
 
-*Option 1: Self-hosted MinIO*
-1. Install MinIO on your server: [min.io/download](https://min.io/download)
+For automatic uploads to object storage:
+
+1. Set up MinIO on your server or use AWS S3
 2. Create a bucket (e.g., `finished-videos`)
-3. Generate access and secret keys
+3. Generate access credentials
 
-*Option 2: AWS S3*
-1. Create an S3 bucket in AWS
-2. Generate IAM credentials with S3 write permissions
-3. Use your S3 endpoint and credentials
+---
 
-Add to your `.env`:
-```env
-MINIO_ENABLED=true
-MINIO_ENDPOINT=https://minio.yourdomain.com  # or S3 endpoint
-MINIO_ACCESS_KEY=your_access_key
-MINIO_SECRET_KEY=your_secret_key
-MINIO_BUCKET=finished-videos
-MINIO_REGION=us-east-1  # optional
-```
+## Installation
 
-## Configure the Project
+### Clone and install
 
-You can run v2v either directly with Bun or using Docker. Choose the method that works best for you.
-
-### Option 1: Run with Bun (Local)
-
-**Install dependencies:**
 ```bash
+git clone https://github.com/your-repo/v2v.git
+cd v2v
 bun install
 ```
 
-**Install the caption font:**
+### Install the caption font
+
 ```bash
 bun font/add.ts
 ```
 
-**Set up your environment:**
+This installs the Resolve-Bold font used for video captions. Run it once.
 
-Copy `.env.example` to `.env` and add your keys:
+### Configure environment
+
+Copy the example file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your keys:
 
 ```env
+# Required
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 ASSEMBLYAI_API_KEY=your_assemblyai_key_here
 
-# Choose your provider: "deepseek" or "kimi"
+# LLM Provider (choose one)
 AI_PROVIDER=deepseek
 DEEPSEEK_API_KEY=your_deepseek_key_here
 # KIMI_API_KEY=your_kimi_key_here
+
+# Optional: AI image generation
+USE_AI_IMAGE=false
+AI_IMAGE_MODEL=cloudflare
+WORKER_API_URL=https://your-worker.username.workers.dev/
+WORKER_API_KEY=your_worker_api_key
+# TOGETHER_API_KEY=your_together_key_here
+
+# Optional: Cloud storage
+MINIO_ENABLED=false
+MINIO_ENDPOINT=https://minio.yourdomain.com
+MINIO_ACCESS_KEY=your_access_key
+MINIO_SECRET_KEY=your_secret_key
+MINIO_BUCKET=finished-videos
+
+# Optional: Debug mode
+DEBUG=false
 ```
 
-Check `.env.example` for all available options (captions, pan effects, AI images, etc.).
+### Start the bot
 
-**Start the bot:**
 ```bash
 bun start
 ```
 
 You should see:
+
 ```
 [Main] ==================================================
 [Main] v2v - Audio to Video Bot
@@ -136,169 +174,411 @@ You should see:
 [Bot] Bot is running! Send /start to begin.
 ```
 
-### Option 2: Run with Docker
+---
 
-**Prerequisites:**
-- [Docker](https://docs.docker.com/get-docker/) installed
-- [Docker Compose](https://docs.docker.com/compose/install/) installed
+## Using the Bot
 
-**Set up your environment:**
+### Basic Commands
 
-Copy `.env.example` to `.env` and add your keys (same as Option 1).
+| Command | What it does |
+|---------|--------------|
+| `/start` | Welcome message and quick start |
+| `/upload` | Upload an audio file directly |
+| `/url` | Process audio from a URL (for files >20MB) |
+| `/styles` | List all available video styles |
+| `/queue` | Check the processing queue |
+| `/cleanup` | Delete temporary files |
+| `/help` | Show all commands and options |
 
-**Build and run:**
-```bash
-docker-compose up -d
+### Uploading Audio
+
+**Method 1: Direct upload**
+
+Just send an audio file (mp3, wav, ogg, m4a, etc.) to the bot. Files under 20MB work best.
+
+**Method 2: URL upload**
+
+For larger files, upload to cloud storage first (Cloudflare R2, S3, etc.) then:
+
+```
+/url https://your-storage.com/audio-file.mp3
 ```
 
-**View logs:**
-```bash
-docker-compose logs -f
-```
+The bot will download and process it.
 
-**Stop the bot:**
-```bash
-docker-compose down
-```
+### File Caching
 
-**Rebuild after code changes:**
-```bash
-docker-compose up -d --build
-```
+If you upload the same file twice, the bot skips the download and uses the cached version. This saves time when re-processing.
 
-**What's included:**
-- FFmpeg and Resolve-Bold font are pre-installed
-- Everything starts fresh on each restart
-- Perfect for deployment platforms like Coolify
-
-See **[DOCKER.md](DOCKER.md)** for more details and Coolify setup.
-
-## Use the Bot
-
-1. Find your bot on Telegram (search for the username you created)
-2. Send `/start` to get started
-3. Send `/upload` and upload an audio file
-4. Wait a few minutes while it processes
-5. Get your video back
+---
 
 ## Video Styles
 
-The bot supports different video styles. Add a hashtag when sending audio:
+Styles control how your video looks: image aesthetic, captions, effects, and more.
+
+### Available Styles
 
 | Style | Hashtag | Description |
 |-------|---------|-------------|
-| History | `#history` | Oil painting aesthetic, karaoke captions with purple highlight, pan effect |
-| WW2 | `#ww2` | Black-and-white archival photos, simple white captions, no pan |
+| History | `#history` | Watercolor painting aesthetic, karaoke captions with purple highlight, pan effect |
+| WW2 | `#ww2` | Black-and-white archival photography, bold white captions, no pan |
+| Stick Figure | `#stickfigure` | Minimalist black lines on white, expressive poses, zoom to fit |
 
-**Override settings with options:**
+### Using Styles
+
+Add a hashtag when you send audio:
 
 ```
-#history --pan              # Enable pan effect
-#history --no-pan           # Disable pan effect
-#ww2 --karaoke              # Enable karaoke highlighting
-#history --highlight=yellow # Change highlight color (yellow, green, cyan, red, orange)
+#history
 ```
 
-**Examples:**
-- Upload audio with caption: `#ww2`
-- URL command: `/url https://example.com/audio.mp3 #history --no-pan`
+Or with the URL command:
 
-Send `/styles` to see all available styles and `/help` for usage tips.
+```
+/url https://example.com/audio.mp3 #ww2
+```
 
-## How Long Does It Take?
+### Style Options
 
-For a typical 2-minute audio file:
-- Transcription: 1-3 minutes
-- AI processing: 30-60 seconds
-- Image generation/download: 1-2 minutes
-- Video rendering: 30-60 seconds
-- **Total: 3-7 minutes**
+You can override style defaults with command-line flags:
 
-## Troubleshooting
+**Pan effect** (subtle vertical camera movement)
 
-**Bot doesn't respond**
-- Double-check your `TELEGRAM_BOT_TOKEN` in `.env`
-- Make sure the bot is running
-- Look for errors in the console
+```
+#history --pan          # Enable pan effect
+#history --no-pan       # Disable pan effect
+```
 
-**FFmpeg errors**
-- Run `ffmpeg -version` to verify it's installed
-- Make sure it's in your PATH
-- Restart your terminal after installing
+**Karaoke highlighting** (word-by-word color change)
 
-**Transcription fails**
-- Verify your AssemblyAI key is correct
-- Check you have credits in your account
-- Make sure your audio file is a supported format (mp3, wav, ogg, etc.)
+```
+#ww2 --karaoke          # Enable karaoke
+#history --no-karaoke   # Disable karaoke
+```
 
-**DeepSeek API errors**
-- Check your API key is correct
-- Verify you have credits
-- Make sure the API endpoint is accessible
+**Highlight color** (for karaoke mode)
 
-## File Locations
+```
+#history --highlight=yellow
+#history --highlight=red
+#history --highlight=cyan
+#history --highlight=green
+#history --highlight=orange
+#history --highlight=pink
+```
 
-The bot creates these directories automatically:
-- `tmp/audio/` - Uploaded audio files
-- `tmp/images/` - Downloaded or generated images
-- `tmp/video/` - Finished videos
+**Highlight box** (background behind highlighted word)
 
-These are in `.gitignore` so they won't be committed.
+```
+#history --box          # Show colored box behind word
+#history --no-box       # Just change text color
+```
 
-## Optional Features
+### Combining Options
 
-Once you have the basics working, check out these in `.env.example`:
+You can use multiple options together:
 
-- **AI Images** (`USE_AI_IMAGE`) - Generate images with AI instead of web search
-- **MinIO Upload** (`MINIO_ENABLED`) - Auto-upload videos to object storage
-- **Debug Mode** (`DEBUG`) - Detailed logs for development
+```
+#ww2 --karaoke --highlight=yellow --pan
+```
 
-Video settings like captions, pan effects, and image styles are now controlled per-style. See the Video Styles section above or send `/styles` in Telegram.
+```
+/url https://example.com/audio.mp3 #history --no-pan --highlight=red
+```
 
-## Long Transcripts (DeepSeek batching)
+---
 
-For very long videos, DeepSeek can refuse to produce thousands of queries in a single request. The bot automatically splits the transcript into batches. You can control the batch size via `.env`:
+## Style Configuration Details
+
+Each style has specific settings that affect the output:
+
+### History Style
+
+- **Image style**: Watercolor painting with soft colors
+- **Segmentation**: Sentence-based (natural breaks)
+- **Captions**: Karaoke with purple highlight box
+- **Pan effect**: Enabled (subtle vertical motion)
+- **Zoom to fit**: Not needed (pan handles scaling)
+
+### WW2 Style
+
+- **Image style**: Black-and-white archival photography
+- **Segmentation**: Word-count based (100 words per segment)
+- **Captions**: Bold white text with thick shadow
+- **Pan effect**: Disabled
+- **Zoom to fit**: Disabled (letterbox/pillarbox with padding)
+
+### Stick Figure Style
+
+- **Image style**: Simple stick figures, black lines on white
+- **Segmentation**: Sentence-based
+- **Captions**: Black text with white outline, red highlight
+- **Pan effect**: Disabled
+- **Zoom to fit**: Enabled (scales to fill 1920x1080, crops edges)
+
+---
+
+## How the Zoom to Fit Setting Works
+
+This controls how images are scaled to 1920x1080:
+
+| Setting | panEffect | zoomToFit | Result |
+|---------|-----------|-----------|--------|
+| Pan enabled | `true` | ignored | Image scales to width, pans vertically |
+| Zoom to fit | `false` | `true` | Image scales to fill, edges cropped |
+| Letterbox | `false` | `false` | Image scales to fit, black bars added |
+
+The stick figure style uses `zoomToFit: true` so images fill the entire frame without black borders.
+
+---
+
+## Image Generation
+
+### Web Search (default)
+
+By default, the bot searches DuckDuckGo for images matching each scene description. This is free but quality varies.
+
+### AI Generation
+
+Set `USE_AI_IMAGE=true` in your `.env` to generate images with AI.
+
+**Cloudflare Workers** (`AI_IMAGE_MODEL=cloudflare`)
+
+- Free tier available
+- Requires setting up a worker (see tutorial link above)
+- Uses Stable Diffusion XL
+
+**Together AI** (`AI_IMAGE_MODEL=togetherai`)
+
+- Pay-per-image pricing
+- Uses FLUX.1-schnell
+- Fast generation
+
+The bot tries your primary provider first. If it fails, it falls back to the other one.
+
+---
+
+## Long Transcripts
+
+For very long audio files, the LLM might struggle to generate all image queries at once. The bot automatically batches the transcript.
+
+Control batch size in `.env`:
 
 ```env
-# Max number of segments sent to DeepSeek per request
-# Lower this if the model returns partials or errors; raise cautiously for speed
 LLM_SEGMENTS_PER_BATCH=60
 ```
 
 Tips:
-- Start with 60. If you still see refusal/partial outputs, try 40.
-- Larger batches are faster but risk hitting token limits.
-- The prompt enforces exact counts per batch to avoid partial JSON.
 
-## Restrict Bot Access (optional)
+- Start with 60 segments per batch
+- If you see errors or partial outputs, try 40
+- Larger batches are faster but risk token limits
 
-Limit who can use the bot by allowlisting user IDs and/or group chat IDs in your `.env`.
+---
+
+## Access Control
+
+Limit who can use your bot by allowlisting specific users or groups.
 
 ```env
-# Comma-separated numeric IDs
-# Allow a single user and a single group
+# Single user
 ALLOWED_USER_IDS=123456789
+
+# Multiple users
+ALLOWED_USER_IDS=123456789, 987654321
+
+# Allow a group chat
 ALLOWED_CHAT_IDS=-1001234567890
 
-# Multiple users or groups are supported (comma-separated; spaces are OK)
-ALLOWED_USER_IDS=123456789, 987654321
-ALLOWED_CHAT_IDS=-1001234567890, -1005556667777
+# Combine users and groups
+ALLOWED_USER_IDS=123456789
+ALLOWED_CHAT_IDS=-1001234567890
 ```
 
 Notes:
-- If both lists are empty, the bot is open to everyone.
-- If either list has values, an update is allowed when the user ID is in `ALLOWED_USER_IDS` OR the chat ID is in `ALLOWED_CHAT_IDS`.
-- Supergroup IDs typically start with `-100`.
 
-Find your IDs:
-- User ID: message `@userinfobot` or `@getidsbot` in Telegram.
-- Group chat ID: add `@getidsbot` to the group and send any message.
+- If both lists are empty, the bot is open to everyone
+- Supergroup IDs start with `-100`
+
+**Find your IDs:**
+
+- User ID: Message `@userinfobot` on Telegram
+- Group ID: Add `@getidsbot` to a group and send a message
+
+---
+
+## Docker Deployment
+
+### Build and run
+
+```bash
+docker-compose up -d
+```
+
+### View logs
+
+```bash
+docker-compose logs -f
+```
+
+### Stop
+
+```bash
+docker-compose down
+```
+
+### Rebuild after changes
+
+```bash
+docker-compose up -d --build
+```
+
+The Docker image includes FFmpeg and fonts pre-installed.
+
+See [DOCKER.md](DOCKER.md) for Coolify and advanced deployment options.
+
+---
+
+## File Locations
+
+The bot creates these directories automatically:
+
+| Directory | Contents |
+|-----------|----------|
+| `tmp/audio/` | Uploaded/downloaded audio files |
+| `tmp/images/` | Downloaded or generated images |
+| `tmp/video/` | Finished videos and temp files |
+
+Use `/cleanup` in Telegram to clear these folders.
+
+---
+
+## Processing Time
+
+For a typical 2-minute audio file:
+
+| Step | Time |
+|------|------|
+| Transcription | 1-3 minutes |
+| LLM scene descriptions | 30-60 seconds |
+| Image generation/download | 1-2 minutes |
+| Video rendering | 30-60 seconds |
+| **Total** | **3-7 minutes** |
+
+Longer audio takes proportionally longer. The bot updates you with progress.
+
+---
+
+## Troubleshooting
+
+### Bot doesn't respond
+
+- Check your `TELEGRAM_BOT_TOKEN` in `.env`
+- Make sure `bun start` is running
+- Look for errors in the console
+
+### FFmpeg errors
+
+- Run `ffmpeg -version` to verify installation
+- Restart your terminal after installing
+- On Windows, make sure FFmpeg is in your PATH
+
+### Transcription fails
+
+- Verify your AssemblyAI key is correct
+- Check you have credits in your account
+- Make sure audio format is supported (mp3, wav, ogg, m4a)
+
+### LLM errors
+
+- Check your DeepSeek or Kimi key is correct
+- Verify you have API credits
+- Try reducing `LLM_SEGMENTS_PER_BATCH`
+
+### Video renders but looks wrong
+
+- Check image generation logs for failures
+- Try a different style
+- Verify FFmpeg is working correctly
+
+### Images have black bars
+
+- The style has `zoomToFit: false`
+- Create a custom style with `zoomToFit: true` if you want images to fill the frame
+
+---
+
+## Creating Custom Styles
+
+To add your own style, create a new file in `src/styles/`:
+
+```typescript
+// src/styles/mystyle.ts
+import type { VideoStyle } from "./types.ts";
+
+export const myStyle: VideoStyle = {
+  id: "mystyle",
+  name: "My Custom Style",
+  description: "Description for /styles command",
+
+  // Image generation
+  imageStyle: "your image style prompt here",
+  negativePrompt: "things to avoid in images",
+
+  // Segmentation
+  segmentationType: "sentence",  // or "wordCount"
+  wordsPerSegment: 0,            // only used if wordCount
+
+  // Captions
+  captionsEnabled: true,
+  minWordsPerCaption: 3,
+  maxWordsPerCaption: 6,
+  captionStyle: {
+    fontName: "Resolve-Bold",
+    fontSize: 72,
+    primaryColor: "&H00FFFFFF",  // White (BGR format)
+    outlineColor: "&H00000000",  // Black
+    backgroundColor: "&H80000000",
+    outlineWidth: 2,
+    shadowDepth: 2,
+    useBox: false,
+  },
+  highlightStyle: {
+    enabled: true,
+    color: "&H00FF008B",  // Purple
+    useBox: true,
+  },
+
+  // Video effects
+  panEffect: true,
+  zoomToFit: false,  // Only used when panEffect is false
+
+  // LLM context
+  llmContext: `Instructions for the LLM on how to generate image prompts for this style...`,
+};
+```
+
+Then register it in `src/styles/index.ts`:
+
+```typescript
+import { myStyle } from "./mystyle.ts";
+
+export const STYLES: Record<string, VideoStyle> = {
+  history: historyStyle,
+  ww2: ww2Style,
+  stickfigure: stickfigureStyle,
+  mystyle: myStyle,  // Add your style here
+};
+```
+
+Restart the bot and use `#mystyle` to try it.
+
+---
 
 ## Need Help?
 
-If something's not working:
 1. Check the console for error messages
-2. Verify all your API keys are correct
+2. Verify all API keys are correct
 3. Make sure FFmpeg and Bun are installed
-4. Check that `tmp/` directories exist and are writable
-
+4. Run with `DEBUG=true` for detailed logs
+5. Check that `tmp/` directories exist and are writable

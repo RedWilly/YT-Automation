@@ -412,7 +412,7 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     }
 
     const wordCount = query.query.split(/\s+/).length;
-    const maxWords = USE_AI_IMAGE ? 40 : 10;
+    const maxWords = USE_AI_IMAGE ? 80 : 15;  // AI: 35-60 words + style keywords, Web: 8-15 words
 
     if (wordCount > maxWords) {
       logger.warn(

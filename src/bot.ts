@@ -94,7 +94,7 @@ async function handleStartCommand(ctx: Context): Promise<void> {
     "🎨 Style Selection:\n" +
     `   • Available: ${availableStyles}\n` +
     "   • Use #style in caption (e.g., #ww2)\n" +
-    "   • Options: --pan, --no-pan, --karaoke, --no-karaoke\n\n" +
+    "   • Options: --pan, --no-pan, --karaoke, --no-karaoke, --short\n\n" +
     "📝 Commands:\n" +
     "   • /upload - Upload audio via Telegram (max 20MB)\n" +
     "   • /url - Provide a presigned URL for large files\n" +
@@ -530,7 +530,8 @@ async function processJob(job: Job, ctx: Context): Promise<void> {
 }
 
 /**
- * Start the bot
+ * Start the bot with graceful error handling
+ * Handles 409 Conflict errors when another bot instance starts
  */
 export async function startBot(): Promise<void> {
   logger.log("Bot", "Initializing bot...");
@@ -542,13 +543,67 @@ export async function startBot(): Promise<void> {
 
   logger.log("Bot", "Starting Telegram bot...");
 
-  // Enable graceful stop
-  process.once("SIGINT", () => bot.stop("SIGINT"));
-  process.once("SIGTERM", () => bot.stop("SIGTERM"));
+  // Graceful shutdown handler
+  const gracefulShutdown = async (reason: string) => {
+    logger.log("Bot", `Received ${reason}, initiating graceful shutdown...`);
 
-  await bot.launch();
+    // Check if there's an active job
+    if (jobQueue.hasActiveJob()) {
+      logger.log("Bot", "Active job detected, waiting for completion...");
+      await jobQueue.waitForCurrentJob();
+    }
 
-  logger.success("Bot", "Bot is running! Send /start to begin.");
-  logger.log("Bot", "Listening for voice and audio messages...");
+    bot.stop(reason);
+    logger.log("Bot", "Bot stopped gracefully");
+  };
+
+  // Enable graceful stop on signals
+  process.once("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
+
+  try {
+    await bot.launch();
+    logger.success("Bot", "Bot is running! Send /start to begin.");
+    logger.log("Bot", "Listening for voice and audio messages...");
+  } catch (error) {
+    // Handle 409 Conflict error specifically
+    if (error instanceof Error && error.message.includes("409")) {
+      logger.error("Bot", "Another bot instance is already running!");
+      logger.log("Bot", "If you want to run locally, stop the other instance first.");
+
+      // Check if there's work in progress (though unlikely at startup)
+      if (jobQueue.hasActiveJob()) {
+        logger.log("Bot", "Waiting for any active jobs to complete...");
+        await jobQueue.waitForCurrentJob();
+      }
+
+      // Exit with code 1 but don't throw - prevents ugly stack trace
+      process.exit(1);
+    }
+
+    // Re-throw other errors
+    throw error;
+  }
+
+  // Set up error handler for runtime 409 errors (when another instance starts later)
+  bot.catch(async (err: unknown) => {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    if (errorMessage.includes("409") || errorMessage.includes("Conflict")) {
+      logger.warn("Bot", "Bot connection terminated by another instance");
+
+      // Wait for any active job to complete
+      if (jobQueue.hasActiveJob()) {
+        logger.log("Bot", "Waiting for current job to finish before exiting...");
+        await jobQueue.waitForCurrentJob();
+      }
+
+      logger.log("Bot", "Shutting down gracefully due to conflict");
+      process.exit(0); // Exit cleanly
+    } else {
+      // Log other errors normally
+      logger.error("Bot", "Unhandled bot error", err);
+    }
+  });
 }
 

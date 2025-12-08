@@ -1,6 +1,7 @@
 /**
  * Workflow service for orchestrating the audio-to-video process
  * Supports configurable video styles via style system
+ * Uses SQLite cache to skip completed steps and avoid redundant API calls
  */
 
 import {
@@ -9,7 +10,7 @@ import {
     type Context,
 } from "../utils/telegram.ts";
 import { TMP_AUDIO_DIR, MINIO_ENABLED } from "../constants.ts";
-import type { WorkflowResult } from "../types.ts";
+import type { WorkflowResult, AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "../types.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
 import { getDefaultStyle, resolveStyle } from "../styles/index.ts";
 import { transcribeAudio } from "./assemblyai.ts";
@@ -22,6 +23,14 @@ import {
 import { generateVideo, validateVideoInputs } from "./video.ts";
 import { uploadVideoToMinIO } from "./minio.ts";
 import { ProgressTracker } from "./progress.ts";
+import {
+    hashAudioFile,
+    updateCache,
+    getCachedTranscript,
+    getCachedSegments,
+    getCachedImageQueries,
+    getCachedImages,
+} from "./cache.ts";
 import * as logger from "../logger.ts";
 import path from "node:path";
 
@@ -116,6 +125,8 @@ export class WorkflowService {
     /**
      * Run the core workflow logic (transcription -> images -> video)
      * This is shared between Telegram file and URL workflows
+     * Uses SQLite cache to skip steps that have already been completed
+     * 
      * @param audioFilePath - Path to the audio file
      * @param progress - Progress tracker for status updates
      * @param style - Resolved style configuration
@@ -127,33 +138,118 @@ export class WorkflowService {
     ): Promise<WorkflowResult> {
         logger.step("Workflow", `Using style: ${style.name} (${style.id})`);
         logger.debug("Workflow", `Segmentation: ${style.segmentationType}, Pan: ${style.panEffect}, Captions: ${style.captionsEnabled}`);
-        // Step 2: Transcribe audio with AssemblyAI
+
+        // =============================================================
+        // CACHE INITIALIZATION
+        // =============================================================
         await progress.update({
-            step: "Transcription",
-            message: "Transcribing audio with AssemblyAI...\nThis may take a few minutes.",
+            step: "Initializing",
+            message: "Checking cache and preparing workflow...",
         });
-        const transcript = await transcribeAudio(audioFilePath);
-        logger.step("Workflow", "Transcription completed", `${transcript.text.substring(0, 100)}...`);
+
+        // Hash the audio file for cache lookup
+        const audioHash = await hashAudioFile(audioFilePath);
+        const filename = path.basename(audioFilePath);
+
+        // Initialize cache entry with filename
+        updateCache(audioHash, {
+            audio_filename: filename,
+            audio_path: audioFilePath
+        });
+
+        // =============================================================
+        // STEP 1-2: TRANSCRIPTION (Check cache first)
+        // =============================================================
+        let transcriptWords: AssemblyAIWord[];
+        let audioDuration: number | null;
+
+        const cachedTranscript = getCachedTranscript(audioHash);
+
+        if (cachedTranscript) {
+            logger.log("Workflow", "📦 Using cached transcript (skipping AssemblyAI API call)");
+            transcriptWords = cachedTranscript.words;
+            audioDuration = cachedTranscript.audioDuration;
+        } else {
+            await progress.update({
+                step: "Transcription",
+                message: "Transcribing audio with AssemblyAI...\\nThis may take a few minutes.",
+            });
+
+            const transcript = await transcribeAudio(audioFilePath);
+            transcriptWords = transcript.words;
+            audioDuration = transcript.audio_duration;
+
+            // Save to cache
+            updateCache(audioHash, {
+                transcript_id: transcript.id,
+                transcript_words: JSON.stringify(transcript.words),
+                audio_duration: transcript.audio_duration ?? undefined,
+            });
+
+            logger.step("Workflow", "Transcription completed and cached");
+        }
 
         // Validate transcript data
-        validateTranscriptData(transcript.words);
+        validateTranscriptData(transcriptWords);
 
-        // Step 3: Process transcript into segments (using style-specific segmentation)
-        await progress.update({
-            step: "Processing Transcript",
-            message: `Segmenting transcript (${style.segmentationType} mode)...`,
-        });
-        const { segments, formattedTranscript } = processTranscript(transcript.words, transcript.audio_duration, style);
-        logger.step("Workflow", `Created ${segments.length} segments`);
+        // =============================================================
+        // STEP 3: SEGMENTATION (Check cache first, style-specific)
+        // =============================================================
+        let segments: TranscriptSegment[];
+        let formattedTranscript: string;
 
-        // Step 4: Generate image search queries with LLM (using style-specific context)
-        await progress.update({
-            step: "Generating Image Queries",
-            message: "Using AI to generate visual scene descriptions...",
-        });
-        const imageQueries = await generateImageQueries(formattedTranscript, style);
-        validateImageQueries(imageQueries);
-        logger.step("Workflow", `Generated ${imageQueries.length} image queries`);
+        const cachedSegments = getCachedSegments(audioHash, style.id);
+
+        if (cachedSegments) {
+            logger.log("Workflow", "📦 Using cached segments (same style)");
+            segments = cachedSegments.segments;
+            formattedTranscript = cachedSegments.formattedTranscript;
+        } else {
+            await progress.update({
+                step: "Processing Transcript",
+                message: `Segmenting transcript (${style.segmentationType} mode)...`,
+            });
+
+            const result = processTranscript(transcriptWords, audioDuration, style);
+            segments = result.segments;
+            formattedTranscript = result.formattedTranscript;
+
+            // Save to cache (include style_id for style-specific caching)
+            updateCache(audioHash, {
+                segments: JSON.stringify(segments),
+                formatted_transcript: formattedTranscript,
+                style_id: style.id,
+            });
+
+            logger.step("Workflow", `Created ${segments.length} segments and cached`);
+        }
+
+        // =============================================================
+        // STEP 4: LLM IMAGE QUERIES (Check cache first, style-specific)
+        // =============================================================
+        let imageQueries: ImageSearchQuery[];
+
+        const cachedQueries = getCachedImageQueries(audioHash, style.id);
+
+        if (cachedQueries) {
+            logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
+            imageQueries = cachedQueries;
+        } else {
+            await progress.update({
+                step: "Generating Image Queries",
+                message: "Using AI to generate visual scene descriptions...",
+            });
+
+            imageQueries = await generateImageQueries(formattedTranscript, style);
+            validateImageQueries(imageQueries);
+
+            // Save to cache
+            updateCache(audioHash, {
+                image_queries: JSON.stringify(imageQueries),
+            });
+
+            logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);
+        }
 
         // Validate that we have exactly one query per segment
         if (imageQueries.length !== segments.length) {
@@ -179,25 +275,45 @@ export class WorkflowService {
             }
         }
 
-        // Step 5: Search and download images (using style-specific prompts)
-        await progress.update({
-            step: "Downloading Images",
-            message: `Searching and downloading ${imageQueries.length} images...`,
-            current: 0,
-            total: imageQueries.length,
-        });
-        const downloadedImages = await downloadImagesForQueries(imageQueries, style);
-        validateDownloadedImages(downloadedImages);
-        logger.step("Workflow", `Downloaded ${downloadedImages.length} images`);
+        // =============================================================
+        // STEP 5: DOWNLOAD/GENERATE IMAGES (Check cache first)
+        // =============================================================
+        let downloadedImages: DownloadedImage[];
 
-        // Step 6: Generate video with FFmpeg (using style-specific effects)
+        const cachedImages = getCachedImages(audioHash);
+
+        if (cachedImages && cachedImages.length === imageQueries.length) {
+            logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
+            downloadedImages = cachedImages;
+        } else {
+            await progress.update({
+                step: "Downloading Images",
+                message: `Searching and downloading ${imageQueries.length} images...`,
+                current: 0,
+                total: imageQueries.length,
+            });
+
+            downloadedImages = await downloadImagesForQueries(imageQueries, style);
+            validateDownloadedImages(downloadedImages);
+
+            // Save to cache
+            updateCache(audioHash, {
+                downloaded_images: JSON.stringify(downloadedImages),
+            });
+
+            logger.step("Workflow", `Downloaded ${downloadedImages.length} images and cached`);
+        }
+
+        // =============================================================
+        // STEP 6: VIDEO GENERATION (Always regenerate, never cached)
+        // =============================================================
         await progress.update({
             step: "Generating Video",
-            message: "Creating video with FFmpeg...\nThis may take a few minutes for long videos.",
+            message: "Creating video with FFmpeg...\\nThis may take a few minutes for long videos.",
         });
         validateVideoInputs(downloadedImages, audioFilePath);
         const outputFileName = path.parse(audioFilePath).name;
-        const videoResult = await generateVideo(downloadedImages, audioFilePath, transcript.words, segments, outputFileName, style);
+        const videoResult = await generateVideo(downloadedImages, audioFilePath, transcriptWords, segments, outputFileName, style);
         logger.step("Workflow", "Video created", videoResult.videoPath);
 
         const result: WorkflowResult = {
@@ -205,7 +321,7 @@ export class WorkflowService {
             duration: videoResult.duration,
         };
 
-        // Step 8: Upload to MinIO (if enabled)
+        // Step 7: Upload to MinIO (if enabled)
         if (MINIO_ENABLED) {
             await progress.update({
                 step: "Uploading to MinIO",

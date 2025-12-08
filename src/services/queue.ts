@@ -73,6 +73,40 @@ class JobQueueService {
   }
 
   /**
+   * Check if a job is currently being processed
+   * @returns True if a job is in progress
+   */
+  hasActiveJob(): boolean {
+    return this.isProcessing;
+  }
+
+  /**
+   * Wait for the current job to finish (if any)
+   * Used for graceful shutdown
+   * @param maxWaitMs - Maximum time to wait in milliseconds (default: 5 minutes)
+   * @returns Promise that resolves when current job is done or timeout
+   */
+  async waitForCurrentJob(maxWaitMs: number = 300000): Promise<void> {
+    if (!this.isProcessing) {
+      return;
+    }
+
+    logger.log("Queue", "Waiting for current job to finish before shutdown...");
+    const startTime = Date.now();
+    const pollInterval = 1000; // Check every second
+
+    while (this.isProcessing && (Date.now() - startTime) < maxWaitMs) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    if (this.isProcessing) {
+      logger.warn("Queue", "Timeout waiting for job to finish, proceeding with shutdown");
+    } else {
+      logger.success("Queue", "Current job finished, proceeding with shutdown");
+    }
+  }
+
+  /**
    * Add a file-based job to the queue
    * @param ctx - Telegram context
    * @param fileId - Telegram file ID

@@ -119,13 +119,15 @@ export interface CleanupResult {
 }
 
 // FFmpeg Types
-export type PanDirection = "up" | "down";
+export type PanDirection = "up" | "down" | "left" | "right";
 
 export interface PanParams {
   enabled: boolean;
   direction: PanDirection;
-  yStart: number; // Starting Y position (pixels)
-  yEnd: number; // Ending Y position (pixels)
+  yStart: number; // Starting Y position (pixels) - for vertical pan
+  yEnd: number; // Ending Y position (pixels) - for vertical pan
+  xStart: number; // Starting X position (pixels) - for horizontal pan
+  xEnd: number; // Ending X position (pixels) - for horizontal pan
 }
 
 // Workflow Types

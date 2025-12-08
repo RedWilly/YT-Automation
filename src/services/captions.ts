@@ -204,18 +204,25 @@ export async function generateAssSubtitles(
   const highlightBackColor = highlightStyle.useBox ? highlightStyle.color : captionStyle.backgroundColor;
   const highlightOutlineWidth = highlightStyle.useBox ? 6 : captionStyle.outlineWidth;
 
+  // Get video dimensions based on orientation
+  const isVertical = style.orientation === "vertical";
+  const playResX = isVertical ? 1080 : 1920;
+  const playResY = isVertical ? 1920 : 1080;
+  // Adjust margin for vertical videos (position captions higher on the taller screen)
+  const marginV = isVertical ? 550 : 130;
+
   const assHeader = `[Script Info]
 Title: Word-by-Word Highlighted Captions
 ScriptType: v4.00+
 WrapStyle: 0
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: ${playResX}
+PlayResY: ${playResY}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${captionStyle.fontName},${captionStyle.fontSize},${captionStyle.primaryColor},&H000000FF,${captionStyle.outlineColor},${captionStyle.backgroundColor},-1,0,0,0,100,100,0,0,${defaultBorderStyle},${captionStyle.outlineWidth},${captionStyle.shadowDepth},2,10,10,130,1
-Style: Highlight,${captionStyle.fontName},${captionStyle.fontSize},${highlightPrimaryColor},&H000000FF,${highlightOutlineColor},${highlightBackColor},-1,0,0,0,100,100,0,0,${highlightBorderStyle},${highlightOutlineWidth},${captionStyle.shadowDepth},2,10,10,130,1
+Style: Default,${captionStyle.fontName},${captionStyle.fontSize},${captionStyle.primaryColor},&H000000FF,${captionStyle.outlineColor},${captionStyle.backgroundColor},-1,0,0,0,100,100,0,0,${defaultBorderStyle},${captionStyle.outlineWidth},${captionStyle.shadowDepth},2,10,10,${marginV},1
+Style: Highlight,${captionStyle.fontName},${captionStyle.fontSize},${highlightPrimaryColor},&H000000FF,${highlightOutlineColor},${highlightBackColor},-1,0,0,0,100,100,0,0,${highlightBorderStyle},${highlightOutlineWidth},${captionStyle.shadowDepth},2,10,10,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

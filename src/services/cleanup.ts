@@ -1,6 +1,6 @@
 /**
- * Cleanup service for temporary files
- * Handles deletion of temporary files after successful workflow completion
+ * Cleanup service for temporary files and cache database
+ * Handles deletion of temporary files and cache entries after successful workflow completion
  */
 
 import { readdir, unlink, stat } from "node:fs/promises";
@@ -8,6 +8,7 @@ import { join } from "node:path";
 import * as logger from "../logger.ts";
 import { TMP_AUDIO_DIR, TMP_IMAGES_DIR, TMP_VIDEO_DIR } from "../constants.ts";
 import type { CleanupResult } from "../types.ts";
+import { clearAllCache } from "./cache.ts";
 
 /**
  * Clean up all temporary files after successful workflow completion
@@ -47,9 +48,13 @@ export async function cleanupTempFiles(
   failedFiles.push(...videoResult.failed);
   totalSize += videoResult.size;
 
+  // Clear cache database
+  const cacheResult = clearAllCache();
+
   // Log summary
   const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
   logger.success("Cleanup", `Deleted ${deletedFiles.length} files (${totalSizeMB} MB freed)`);
+  logger.success("Cleanup", `Cleared ${cacheResult.count} entries from cache database`);
 
   if (failedFiles.length > 0) {
     logger.warn("Cleanup", `Failed to delete ${failedFiles.length} files`);

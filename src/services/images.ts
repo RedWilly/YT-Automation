@@ -308,9 +308,9 @@ async function generateTogetherAIImage(
           n: 1,
           width: 1440,
           height: 1104,
-          steps: 4,
-          negative_prompt: style.negativePrompt,
-          guidance_scale: 20,
+          // steps: 20,
+          // negative_prompt: style.negativePrompt,
+          // guidance_scale: 20,
           disable_safety_checker: false,
         }),
       });

@@ -12,3 +12,16 @@ services:
     env_file:
       - .env
 
+    # Persist tmp directory across container restarts
+    # This preserves:
+    # - SQLite cache database (tmp/cache.sqlite)
+    # - Downloaded audio files (tmp/audio/)
+    # - Generated images (tmp/images/)
+    # - Rendered videos (tmp/video/)
+    volumes:
+      - v2v-tmp:/app/tmp
+
+# Named volume for persistence
+volumes:
+  v2v-tmp:
+    driver: local

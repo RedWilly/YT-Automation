@@ -23,7 +23,7 @@ export const historyStyle: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "watercolor painting, soft layered washes, gentle color blending, subtle texture of paper, airy natural lighting, muted and harmonious colors, loose and flowing brushstrokes, delicate and artistic finish",
-  negativePrompt: "photorealistic, photograph, 3d render, digital art, vector, cartoon, anime, cel shaded, ink, pencil sketch, blurry, low quality, watermark, text, signature, bad anatomy, deformed, disfigured, extra limbs, missing fingers, ugly face, airbrushed, heavy impasto, thick paint, rough texture",
+  negativePrompt: "photograph, 3d, vector, oil painting, acrylic, impasto, thick paint, strong outlines, neon colors, watermark, text, deformed, ugly, disfigured",
 
   // === Segmentation ===
   segmentationType: "sentence",

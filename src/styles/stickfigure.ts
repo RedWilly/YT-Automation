@@ -22,7 +22,7 @@ export const stickfigureStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "simple stick figure style, black lines on white background, minimal detail, focus on expression and pose, 2D flat",
-    negativePrompt: "realistic, photorealistic, 3d, detailed, complex, colorful, shading, gradient, shadow, texture, photograph",
+    negativePrompt: "3d render, realistic, color, shading, texture, watermark, text",
 
     // === Segmentation ===
     segmentationType: "sentence",

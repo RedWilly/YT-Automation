@@ -8,6 +8,11 @@
 export type SegmentationType = "sentence" | "wordCount";
 
 /**
+ * Video orientation - horizontal (16:9) or vertical (9:16 shorts)
+ */
+export type VideoOrientation = "horizontal" | "vertical";
+
+/**
  * Caption style configuration - colors, fonts, and visual settings
  * ASS format uses BGR color order: &HAABBGGRR
  */
@@ -90,7 +95,7 @@ export interface VideoStyle {
 
 /**
  * Runtime options that can override style defaults
- * These are parsed from Telegram commands (e.g., --pan, --karaoke)
+ * These are parsed from Telegram commands (e.g., --pan, --karaoke, --short)
  */
 export interface StyleOptions {
   /** Override pan effect setting */
@@ -101,6 +106,8 @@ export interface StyleOptions {
   highlightColor?: string;
   /** Override highlight box setting */
   highlightBox?: boolean;
+  /** Override video orientation (--short sets this to "vertical") */
+  orientation?: VideoOrientation;
 }
 
 /**
@@ -109,6 +116,8 @@ export interface StyleOptions {
 export interface ResolvedStyle extends VideoStyle {
   /** Runtime options that were applied */
   appliedOptions: StyleOptions;
+  /** Video orientation (horizontal or vertical/shorts) */
+  orientation: VideoOrientation;
 }
 
 /**

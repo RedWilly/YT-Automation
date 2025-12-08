@@ -1,90 +1,150 @@
 /**
  * FFmpeg utility functions for video processing
  * Supports configurable pan effects via style system
+ * Supports both horizontal (16:9) and vertical (9:16 shorts) orientations
  */
 
 import type { DownloadedImage, PanDirection, PanParams } from "../types.ts";
+import type { VideoOrientation } from "../styles/types.ts";
+import {
+    VIDEO_WIDTH_HORIZONTAL,
+    VIDEO_HEIGHT_HORIZONTAL,
+    VIDEO_WIDTH_VERTICAL,
+    VIDEO_HEIGHT_VERTICAL,
+} from "../constants.ts";
 import * as logger from "../logger.ts";
 
 /**
- * Calculate pan parameters based on image aspect ratio and duration
- * @param _duration - Scene duration in seconds (reserved for future speed calculations)
- * @param panEnabled - Whether pan effect is enabled
- * @returns Pan parameters for zoompan filter
+ * Get video dimensions based on orientation
+ * @param orientation - Video orientation (horizontal or vertical)
+ * @returns Object with width and height
  */
-export function calculatePanParams(_duration: number, panEnabled: boolean = true): PanParams {
-    // If pan effect is disabled, return disabled params
-    if (!panEnabled) {
+export function getVideoDimensions(orientation: VideoOrientation): { width: number; height: number } {
+    if (orientation === "vertical") {
+        return { width: VIDEO_WIDTH_VERTICAL, height: VIDEO_HEIGHT_VERTICAL };
+    }
+    return { width: VIDEO_WIDTH_HORIZONTAL, height: VIDEO_HEIGHT_HORIZONTAL };
+}
+
+/**
+ * Calculate pan parameters based on image aspect ratio and orientation
+ * - Horizontal video (16:9): vertical pan (up/down)
+ * - Vertical video (9:16 shorts): horizontal pan (left/right)
+ * - Scenes under 3 seconds: no pan (would look too fast/jarring)
+ * 
+ * @param duration - Scene duration in seconds
+ * @param panEnabled - Whether pan effect is enabled
+ * @param orientation - Video orientation
+ * @returns Pan parameters for crop filter
+ */
+export function calculatePanParams(
+    duration: number,
+    panEnabled: boolean = true,
+    orientation: VideoOrientation = "horizontal"
+): PanParams {
+    // Minimum duration for pan effect (3 seconds)
+    // Panning on shorter segments looks jarring/too fast
+    const MIN_PAN_DURATION = 3;
+
+    // If pan effect is disabled or duration is too short, return disabled params
+    if (!panEnabled || duration < MIN_PAN_DURATION) {
         return {
             enabled: false,
             direction: "down",
             yStart: 0,
             yEnd: 0,
+            xStart: 0,
+            xEnd: 0,
         };
     }
 
-    // Target video dimensions
-    const VIDEO_WIDTH = 1920;
-    const VIDEO_HEIGHT = 1080;
+    const { width: VIDEO_WIDTH, height: VIDEO_HEIGHT } = getVideoDimensions(orientation);
 
-    // AI-generated image dimensions (4:3 aspect ratio)
+    // AI-generated image dimensions (4:3 aspect ratio from FLUX)
     const IMAGE_WIDTH = 1472;
     const IMAGE_HEIGHT = 1104;
 
-    // Calculate scaled dimensions when fitting image to video width
-    // The image will be scaled to fit 1920px width while maintaining aspect ratio
-    const scaledHeight = (IMAGE_HEIGHT * VIDEO_WIDTH) / IMAGE_WIDTH; // = 1440px
+    if (orientation === "vertical") {
+        // VERTICAL (SHORTS): Horizontal pan (left/right)
+        // Scale image to fit height, then pan horizontally
+        const scaledWidth = (IMAGE_WIDTH * VIDEO_HEIGHT) / IMAGE_HEIGHT;
+        const totalHeadroom = scaledWidth - VIDEO_WIDTH;
+        const usableHeadroom = totalHeadroom * 0.30;
+        const bufferZone = (totalHeadroom - usableHeadroom) / 2;
 
-    // Calculate total vertical headroom (extra space above and below)
-    const totalHeadroom = scaledHeight - VIDEO_HEIGHT; // = 1440 - 1080 = 360px
+        // Randomly choose pan direction (left or right)
+        const direction: PanDirection = Math.random() > 0.5 ? "right" : "left";
 
-    // Use 30% of available headroom for visible pan effect
-    // NOTE: Increased from 15% to 30% to make pan more visible
-    const usableHeadroom = totalHeadroom * 0.30; // 30% of 360px = 108px
+        let xStart: number;
+        let xEnd: number;
 
-    // Leave buffer zones at top and bottom (remaining 70% of headroom)
-    const bufferZone = (totalHeadroom - usableHeadroom) / 2; // = (360 - 108) / 2 = 126px
+        if (direction === "right") {
+            xStart = bufferZone;
+            xEnd = bufferZone + usableHeadroom;
+        } else {
+            xStart = bufferZone + usableHeadroom;
+            xEnd = bufferZone;
+        }
 
-    // Randomly choose pan direction (up or down)
-    const direction: PanDirection = Math.random() > 0.5 ? "down" : "up";
-
-    // Calculate start and end Y positions in pixels
-    let yStart: number;
-    let yEnd: number;
-
-    if (direction === "down") {
-        // Pan down: start at top buffer, end at top buffer + usable headroom
-        yStart = bufferZone;
-        yEnd = bufferZone + usableHeadroom;
+        return {
+            enabled: true,
+            direction,
+            yStart: 0,
+            yEnd: 0,
+            xStart: Math.round(xStart),
+            xEnd: Math.round(xEnd),
+        };
     } else {
-        // Pan up: start at top buffer + usable headroom, end at top buffer
-        yStart = bufferZone + usableHeadroom;
-        yEnd = bufferZone;
-    }
+        // HORIZONTAL: Vertical pan (up/down)
+        // Scale image to fit width, then pan vertically
+        const scaledHeight = (IMAGE_HEIGHT * VIDEO_WIDTH) / IMAGE_WIDTH;
+        const totalHeadroom = scaledHeight - VIDEO_HEIGHT;
+        const usableHeadroom = totalHeadroom * 0.30;
+        const bufferZone = (totalHeadroom - usableHeadroom) / 2;
 
-    return {
-        enabled: true,
-        direction,
-        yStart: Math.round(yStart),
-        yEnd: Math.round(yEnd),
-    };
+        // Randomly choose pan direction (up or down)
+        const direction: PanDirection = Math.random() > 0.5 ? "down" : "up";
+
+        let yStart: number;
+        let yEnd: number;
+
+        if (direction === "down") {
+            yStart = bufferZone;
+            yEnd = bufferZone + usableHeadroom;
+        } else {
+            yStart = bufferZone + usableHeadroom;
+            yEnd = bufferZone;
+        }
+
+        return {
+            enabled: true,
+            direction,
+            yStart: Math.round(yStart),
+            yEnd: Math.round(yEnd),
+            xStart: 0,
+            xEnd: 0,
+        };
+    }
 }
 
 /**
  * Create FFmpeg filter complex for image transitions
  * @param images - Sorted array of images with timing
  * @param panEnabled - Whether pan effect is enabled (from style config)
- * @param zoomToFit - Whether to scale images to fill 1920x1080 (only used when panEnabled is false)
+ * @param zoomToFit - Whether to scale images to fill frame (crop edges)
+ * @param orientation - Video orientation (horizontal or vertical)
  * @returns Filter complex string and total duration
  */
 export function createFilterComplex(
     images: DownloadedImage[],
     panEnabled: boolean = true,
-    zoomToFit: boolean = false
+    zoomToFit: boolean = false,
+    orientation: VideoOrientation = "horizontal"
 ): { filterComplex: string; totalDuration: number } {
     const filters: string[] = [];
     let totalDuration = 0;
 
+    const { width: VIDEO_WIDTH, height: VIDEO_HEIGHT } = getVideoDimensions(orientation);
     const imagesLength = images.length;
 
     // Process each image with optional pan effect
@@ -92,65 +152,43 @@ export function createFilterComplex(
         const image = images[i];
         if (!image) continue;
 
-        const duration = (image.end - image.start) / 1000; // Convert ms to seconds
+        const duration = (image.end - image.start) / 1000;
         totalDuration += duration;
 
-        // Calculate pan parameters for this image
-        const panParams = calculatePanParams(duration, panEnabled);
+        const panParams = calculatePanParams(duration, panEnabled, orientation);
 
         if (panParams.enabled) {
-            // Apply pan effect using scale + crop (NO ZOOMPAN!)
-            //
-            // Why not zoompan?
-            // - zoompan is designed for zoom effects, not simple panning
-            // - It has complex frame timing issues with -loop 1
-            // - For vertical pan only, we just need: scale → crop with animated Y position
-            //
-            // Filter chain:
-            // 1. scale=1920:-1 → Scale to 1920px width, maintain aspect ratio (creates 1920×1440 for 4:3 images)
-            // 2. fps=30 → Set frame rate to 30fps BEFORE crop (ensures proper frame generation)
-            // 3. crop → Crop to 1920×1080 with animated Y position (this creates the pan effect)
-            // 4. setsar=1 → Set sample aspect ratio to 1:1
-            // 5. format=yuv420p → Convert to YUV420P color format
-
             const fps = 30;
             const totalFrames = Math.round(duration * fps);
 
-            // Animated Y position for crop filter
-            //
-            // The crop filter's y parameter can use expressions with 'n' (frame number)
-            // Formula: yStart + (yEnd - yStart) * (n / totalFrames)
-            //
-            // 'n' starts at 0 and increments by 1 for each frame
-            // We clamp it to totalFrames to prevent overshooting
-            const yExpression = `if(lte(n,${totalFrames}),${panParams.yStart}+(${panParams.yEnd}-${panParams.yStart})*n/${totalFrames},${panParams.yEnd})`;
+            if (orientation === "vertical") {
+                // VERTICAL: Scale to fit height, horizontal pan
+                const xExpression = `if(lte(n,${totalFrames}),${panParams.xStart}+(${panParams.xEnd}-${panParams.xStart})*n/${totalFrames},${panParams.xEnd})`;
 
-            // Crop filter parameters:
-            // - w=1920: Output width (crop to 1920px)
-            // - h=1080: Output height (crop to 1080px)
-            // - x=0: Horizontal position (no horizontal pan, start at left edge)
-            // - y=...: Vertical position (animated from yStart to yEnd)
-            //
-            // This crops a 1920×1080 window from the 1920×1440 scaled image,
-            // with the Y position animating from yStart to yEnd over totalFrames frames
-            filters.push(
-                `[${i}:v]scale=1920:-1,fps=${fps},crop=w=1920:h=1080:x=0:y='${yExpression}',setsar=1,format=yuv420p[v${i}]`
-            );
+                filters.push(
+                    `[${i}:v]scale=-1:${VIDEO_HEIGHT},fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x='${xExpression}':y=0,setsar=1,format=yuv420p[v${i}]`
+                );
 
-            logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (${panParams.yStart}px → ${panParams.yEnd}px) over ${duration.toFixed(2)}s (${totalFrames} frames)`);
+                logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (X: ${panParams.xStart}px → ${panParams.xEnd}px) [shorts]`);
+            } else {
+                // HORIZONTAL: Scale to fit width, vertical pan
+                const yExpression = `if(lte(n,${totalFrames}),${panParams.yStart}+(${panParams.yEnd}-${panParams.yStart})*n/${totalFrames},${panParams.yEnd})`;
+
+                filters.push(
+                    `[${i}:v]scale=${VIDEO_WIDTH}:-1,fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x=0:y='${yExpression}',setsar=1,format=yuv420p[v${i}]`
+                );
+
+                logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (Y: ${panParams.yStart}px → ${panParams.yEnd}px)`);
+            }
         } else {
             // No pan effect - either zoom to fit (crop) or fit with padding
             if (zoomToFit) {
-                // Scale to fill 1920x1080 (center crop, no black bars)
-                // scale=1920:1080:force_original_aspect_ratio=increase → scales to fill
-                // crop=1920:1080 → crops from center to exact dimensions
                 filters.push(
-                    `[${i}:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,setsar=1,fps=30,format=yuv420p[v${i}]`
+                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
                 );
             } else {
-                // Fit within 1920x1080 with black padding (letterbox/pillarbox)
                 filters.push(
-                    `[${i}:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
+                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,pad=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
                 );
             }
         }

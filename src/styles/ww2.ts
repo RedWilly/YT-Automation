@@ -22,7 +22,8 @@ export const ww2Style: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "black-and-white WWII documentary style, historical photojournalism, archival war footage look, dramatic high contrast, period-accurate 1940s military equipment and uniforms, authentic atmospheric lighting, professional composition, subtle film grain, realistic details, clear and sharp focus",
-  negativePrompt: "color, modern, futuristic, anachronistic, illustration, cgi, makeup, watermark, text, deformed, bad anatomy, mutated, disfigured, amputation, malformed",
+  // negativePrompt: "color, modern, futuristic, anachronistic, illustration, cgi, makeup, watermark, text, deformed, bad anatomy, mutated, disfigured, amputation, malformed",
+    negativePrompt: "color, vibrant, modern, contemporary, digital, cartoon, anime, painting, illustration, low quality, blurry, watermark, text, signature, bad anatomy, deformed, unrealistic, fantasy, sci-fi, futuristic",
 
   // === Segmentation ===
   segmentationType: "wordCount",
@@ -50,6 +51,7 @@ export const ww2Style: VideoStyle = {
 
   // === Video Effects ===
   panEffect: false,
+  zoomToFit: true,
 
   // === LLM Context ===
   llmContext: `You are generating image prompts for a World War 2 documentary video.

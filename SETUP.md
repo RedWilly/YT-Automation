@@ -274,6 +274,22 @@ You can override style defaults with command-line flags:
 #history --no-box       # Just change text color
 ```
 
+**Vertical video** (for social media shorts - 9:16 aspect ratio)
+
+> **Note:** `--short` refers to vertical video format (1080x1920), NOT video duration. The output is a tall/portrait video, not a shortened clip.
+
+```
+#history --short        # Create vertical (portrait) video
+#ww2 --short            # Any style works with --short
+```
+
+When using `--short`:
+- Resolution changes from 1920×1080 (horizontal) to 1080×1920 (vertical)
+- Pan effect switches from vertical (up/down) to horizontal (left/right)
+- Font size automatically reduces for narrow screen (52px instead of 72px)
+- Fewer words per caption (2-4 instead of 5-8)
+- Images always zoom to fit (no black bars)
+
 ### Combining Options
 
 You can use multiple options together:
@@ -284,6 +300,10 @@ You can use multiple options together:
 
 ```
 /url https://example.com/audio.mp3 #history --no-pan --highlight=red
+```
+
+```
+#stickfigure --short --karaoke     # Vertical video with karaoke captions
 ```
 
 ---

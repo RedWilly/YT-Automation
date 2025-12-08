@@ -68,13 +68,29 @@ export function styleExists(styleId: string): boolean {
  * @returns ResolvedStyle with options applied
  */
 export function resolveStyle(style: VideoStyle, options: StyleOptions = {}): ResolvedStyle {
+  // Determine orientation (default: horizontal)
+  const orientation = options.orientation || "horizontal";
+  const isShorts = orientation === "vertical";
+
   // Create a deep copy of the style to avoid mutation
   const resolved: ResolvedStyle = {
     ...style,
     captionStyle: { ...style.captionStyle },
     highlightStyle: { ...style.highlightStyle },
     appliedOptions: options,
+    orientation,
   };
+
+  // Apply shorts-specific overrides
+  if (isShorts) {
+    // Smaller font size for narrow vertical screen
+    resolved.captionStyle.fontSize = 62;
+    // Fewer words per caption for readability
+    resolved.minWordsPerCaption = 2;
+    resolved.maxWordsPerCaption = 4;
+    // Always zoom to fit for shorts (no black bars)
+    resolved.zoomToFit = true;
+  }
 
   // Apply pan effect override
   if (options.panEffect !== undefined) {
@@ -161,6 +177,11 @@ export function parseStyleFromMessage(text: string): { styleId: string; options:
   // Parse --no-box or --nobox flag
   if (/--no-?box\b/i.test(text)) {
     options.highlightBox = false;
+  }
+
+  // Parse --short or --shorts flag (vertical 9:16 format)
+  if (/--shorts?\b/i.test(text)) {
+    options.orientation = "vertical";
   }
 
   return { styleId, options };

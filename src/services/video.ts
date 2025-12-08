@@ -41,7 +41,8 @@ export async function generateVideo(
   logger.debug("Video", `Style: ${style.name} (${style.id})`);
 
   if (panEffect) {
-    logger.log("Video", "🎬 Pan effect enabled - applying subtle vertical motion to images");
+    const panDirection = style.orientation === "vertical" ? "horizontal" : "vertical";
+    logger.log("Video", `🎬 Pan effect enabled - applying ${panDirection} motion to images`);
   } else {
     logger.log("Video", "📷 Pan effect disabled - using static images");
   }
@@ -71,7 +72,7 @@ export async function generateVideo(
     await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, style);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
-    const { filterComplex } = createFilterComplex(sortedImages, panEffect, style.zoomToFit);
+    const { filterComplex } = createFilterComplex(sortedImages, panEffect, style.zoomToFit, style.orientation);
     let assFilePath: string | undefined;
     if (captionsEnabled) {
       const captionResult = await generateCaptions(segments, words, style);
@@ -276,7 +277,7 @@ async function renderVideoInChunks(
     chunkPaths.push(chunkPath);
 
     // Create filter complex for this chunk
-    const { filterComplex } = createFilterComplex(chunk, panEffect, style.zoomToFit);
+    const { filterComplex } = createFilterComplex(chunk, panEffect, style.zoomToFit, style.orientation);
 
     let chunkAssPath: string | undefined;
     if (captionsEnabled) {

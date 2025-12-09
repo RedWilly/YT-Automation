@@ -14,6 +14,8 @@ import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
 import { getProvider, getFallbackProvider } from "../providers/image/index.ts";
 import { calculateBackoffDelay, sleep } from "../providers/image/retry.ts";
+import { isUnsafePromptError } from "../providers/image/errors.ts";
+import { rewriteUnsafePrompt } from "./llm.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
 
@@ -110,10 +112,12 @@ async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle
 ): Promise<DownloadedImage> {
-  const { query, start, end } = queryData;
+  const { start, end } = queryData;
   const provider = getProvider();
 
   let lastError: Error | null = null;
+  let rewriteCount = 0;
+  const MAX_REWRITES = 5;
 
   // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
@@ -121,12 +125,12 @@ async function generateAIImageForQuery(
       logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
 
       const result = await provider.generate({
-        prompt: query,
+        prompt: queryData.query,
         negativePrompt: style.negativePrompt,
       });
 
       // Save the image
-      const sanitizedQuery = sanitizeFilename(query);
+      const sanitizedQuery = sanitizeFilename(queryData.query);
       const filename = `ai_${sanitizedQuery}.${result.format}`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
@@ -137,10 +141,25 @@ async function generateAIImageForQuery(
         logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
       }
 
-      return { query, start, end, filePath };
+      return { query: queryData.query, start, end, filePath };
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+
+      // If prompt was flagged as unsafe, rewrite it and retry (max 3 rewrites)
+      if (isUnsafePromptError(error) && rewriteCount < MAX_REWRITES) {
+        rewriteCount++;
+        logger.warn("AI-Images", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${MAX_REWRITES}), requesting LLM rewrite...`);
+        const rewrittenQuery = await rewriteUnsafePrompt(error.originalPrompt, style);
+
+        // Update query for next attempt
+        queryData.query = rewrittenQuery;
+        logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
+
+        // Don't count this as a failed attempt - reset and try with new prompt
+        attempt = 0;
+        continue;
+      }
 
       if (attempt < IMAGE_RETRY_ATTEMPTS) {
         // Exponential backoff: 1s, 2s, 4s, 8s... capped at 10min
@@ -161,18 +180,18 @@ async function generateAIImageForQuery(
         logger.debug("AI-Images", `[${fallback.name}] Fallback attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS}`);
 
         const result = await fallback.generate({
-          prompt: query,
+          prompt: queryData.query,
           negativePrompt: style.negativePrompt,
         });
 
-        const sanitizedQuery = sanitizeFilename(query);
+        const sanitizedQuery = sanitizeFilename(queryData.query);
         const filename = `ai_${sanitizedQuery}.${result.format}`;
         const filePath = join(TMP_IMAGES_DIR, filename);
 
         await Bun.write(filePath, result.data);
         logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-        return { query, start, end, filePath };
+        return { query: queryData.query, start, end, filePath };
 
       } catch (fallbackError) {
         lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
@@ -191,7 +210,7 @@ async function generateAIImageForQuery(
 
   // No fallback available
   throw new Error(
-    `Failed to generate AI image for "${query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
+    `Failed to generate AI image for "${queryData.query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
 }
 

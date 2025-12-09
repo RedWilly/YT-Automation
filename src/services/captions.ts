@@ -4,7 +4,7 @@
  * Supports configurable caption styles, karaoke on/off, and highlight colors
  */
 
-import { writeFile } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as logger from "../logger.ts";
 import type { AssemblyAIWord, TranscriptSegment } from "../types.ts";
@@ -277,6 +277,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   // Combine header and dialogue lines
   const assContent = assHeader + dialogueLines.join("\n");
+
+  // Ensure output directory exists
+  await mkdir(TMP_VIDEO_DIR, { recursive: true });
 
   // Write to file
   await writeFile(assFilePath, assContent, "utf-8");

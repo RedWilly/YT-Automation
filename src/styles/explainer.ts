@@ -48,7 +48,7 @@ export const explainerStyle: VideoStyle = {
         ...DEFAULT_HIGHLIGHT_STYLE,
         enabled: true,
         color: "&H00FFAA00",  // Blue (professional)
-        useBox: true,
+        useBox: false,
     },
 
     // === Video Effects ===

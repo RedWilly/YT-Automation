@@ -424,3 +424,76 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
 
   return true;
 }
+
+/**
+ * Rewrite an unsafe image prompt to make it safe for AI image generation
+ * Called when an image provider rejects a prompt due to safety filters
+ * 
+ * @param originalPrompt - The prompt that was rejected
+ * @param style - Resolved style configuration for context
+ * @returns Rewritten safe prompt
+ */
+export async function rewriteUnsafePrompt(
+  originalPrompt: string,
+  style: ResolvedStyle
+): Promise<string> {
+  logger.step("LLM", "Rewriting unsafe prompt...");
+  logger.debug("LLM", `Original: ${originalPrompt.substring(0, 80)}...`);
+
+  const systemPrompt = `You are a prompt safety editor. Your task is to take any image prompt that was rejected for safety reasons and rewrite it so it is fully safe while preserving the core meaning, all key elements, and visual style. You may neutralize sensitive objects or themes but do not remove important elements unless they cannot be represented safely. If an object could be presented abstractly or symbolically, do so while keeping its identity clear.
+
+Keep the same scene composition, objects, and visual style.
+
+Preserve the intent of the prompt, including context like tools, weapons, or other items, by rendering them in a neutral, non-harmful, or abstract form.
+
+Maintain style details such as shading, perspective, color palette, and illustration style.
+
+Do not explain your changes.
+
+Return only the rewritten prompt, fully safe and ready for image generation.`;
+
+  const userPrompt = `Rewrite this rejected prompt:\n\n${originalPrompt}`;
+
+  const requestBody: LLMRequest = {
+    model: AI_MODEL,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    max_tokens: 500,
+  };
+
+  try {
+    const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${AI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`LLM rewrite request failed: ${response.status} - ${errorText}`);
+    }
+
+    const data = (await response.json()) as LLMResponse;
+    const rewrittenPrompt = data.choices[0]?.message?.content?.trim();
+
+    if (!rewrittenPrompt) {
+      throw new Error("No content in LLM rewrite response");
+    }
+
+    logger.success("LLM", `Rewritten: ${rewrittenPrompt.substring(0, 80)}...`);
+    return rewrittenPrompt;
+
+  } catch (error) {
+    logger.error("LLM", `Failed to rewrite prompt: ${error instanceof Error ? error.message : String(error)}`);
+    // Return a generic safe version as fallback
+    const fallback = `Abstract scene illustration showing ${style.imageStyle.substring(0, 50)}`;
+    logger.warn("LLM", `Using fallback prompt: ${fallback}`);
+    return fallback;
+  }
+}

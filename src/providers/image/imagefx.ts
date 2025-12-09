@@ -6,6 +6,7 @@
 
 import { ImageFX, Prompt, AspectRatio as OriginalAspectRatio } from "@rohitaryal/imagefx-api";
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
+import { UnsafePromptError } from "./errors.ts";
 import { GOOGLE_COOKIE } from "../../constants.ts";
 import * as logger from "../../logger.ts";
 import { join } from "node:path";
@@ -144,6 +145,14 @@ class ImageFXProvider implements ImageProvider {
             // Update last request time even on failure
             this.lastRequestEndTime = Date.now();
             const errorMsg = error instanceof Error ? error.message : String(error);
+
+            // Check for unsafe content error from ImageFX
+            if (errorMsg.includes("PUBLIC_ERROR_UNSAFE_GENERATION") ||
+                errorMsg.includes("PUBLIC_ERROR_PROMINENT_PEOPLE_FILTER_FAILED")) {
+                logger.warn("ImageFX", `Prompt flagged as unsafe: ${promptText.substring(0, 50)}...`);
+                throw new UnsafePromptError(promptText, "ImageFX safety filter", "imagefx");
+            }
+
             logger.error("ImageFX", `Generation failed: ${errorMsg}`);
             throw new Error(`ImageFX generation failed: ${errorMsg}`);
         }

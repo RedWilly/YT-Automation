@@ -297,7 +297,9 @@ export class WorkflowService {
             validateDownloadedImages(downloadedImages);
 
             // Save to style-specific cache
+            // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
             updateStyleCache(audioHash, style.id, {
+                image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),
             });
 

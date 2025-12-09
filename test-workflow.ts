@@ -18,7 +18,8 @@ import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
 import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import {
   hashAudioFile,
-  updateCache,
+  updateAudioCache,
+  updateStyleCache,
   getCachedTranscript,
   getCachedSegments,
   getCachedImageQueries,
@@ -103,7 +104,7 @@ async function runTestWorkflow(): Promise<void> {
     logger.log("Test", `Audio hash: ${audioHash.substring(0, 12)}...`);
 
     // Initialize cache entry
-    updateCache(audioHash, {
+    updateAudioCache(audioHash, {
       audio_filename: basename(audioFilePath),
       audio_path: audioFilePath,
     });
@@ -133,8 +134,8 @@ async function runTestWorkflow(): Promise<void> {
       transcriptWords = transcript.words;
       audioDuration = transcript.audio_duration;
 
-      // Save to cache
-      updateCache(audioHash, {
+      // Save to cache (shared)
+      updateAudioCache(audioHash, {
         transcript_id: transcript.id,
         transcript_words: JSON.stringify(transcript.words),
         audio_duration: transcript.audio_duration ?? undefined,
@@ -166,11 +167,10 @@ async function runTestWorkflow(): Promise<void> {
       segments = result.segments;
       formattedTranscript = result.formattedTranscript;
 
-      // Save to cache
-      updateCache(audioHash, {
+      // Save to style-specific cache
+      updateStyleCache(audioHash, style.id, {
         segments: JSON.stringify(segments),
         formatted_transcript: formattedTranscript,
-        style_id: style.id,
       });
 
       logger.success("Test", `Created ${segments.length} segments and cached`);
@@ -194,8 +194,8 @@ async function runTestWorkflow(): Promise<void> {
       imageQueries = await generateImageQueries(formattedTranscript, style);
       validateImageQueries(imageQueries);
 
-      // Save to cache
-      updateCache(audioHash, {
+      // Save to style-specific cache
+      updateStyleCache(audioHash, style.id, {
         image_queries: JSON.stringify(imageQueries),
       });
 
@@ -216,7 +216,7 @@ async function runTestWorkflow(): Promise<void> {
 
     let downloadedImages: DownloadedImage[];
 
-    const cachedImages = getCachedImages(audioHash);
+    const cachedImages = getCachedImages(audioHash, style.id);
 
     if (cachedImages && cachedImages.length === imageQueries.length) {
       logger.log("Test", "📦 Using cached images (all files verified)");
@@ -227,8 +227,8 @@ async function runTestWorkflow(): Promise<void> {
       downloadedImages = await downloadImagesForQueries(imageQueries, style);
       validateDownloadedImages(downloadedImages);
 
-      // Save to cache
-      updateCache(audioHash, {
+      // Save to style-specific cache
+      updateStyleCache(audioHash, style.id, {
         downloaded_images: JSON.stringify(downloadedImages),
       });
 

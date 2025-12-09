@@ -181,15 +181,23 @@ export function createFilterComplex(
                 logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (Y: ${panParams.yStart}px → ${panParams.yEnd}px)`);
             }
         } else {
-            // No pan effect - either zoom to fit (crop) or fit with padding
-            if (zoomToFit) {
+            // No pan effect - determine how to scale the image
+            // If panEnabled was true (but scene too short), always zoom to fit
+            // If panEnabled was false (user choice), check zoomToFit setting
+            const shouldZoomToFit = panEnabled || zoomToFit;
+
+            if (shouldZoomToFit) {
+                // Zoom to fit: scale to fill frame, crop edges
                 filters.push(
                     `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
                 );
+                logger.debug("Video", `Image ${i + 1}: Static (zoom to fit)`);
             } else {
+                // Fit with padding: scale to fit, add black bars
                 filters.push(
                     `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,pad=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
                 );
+                logger.debug("Video", `Image ${i + 1}: Static (fit with padding)`);
             }
         }
     }

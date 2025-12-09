@@ -85,7 +85,7 @@ export interface VideoStyle {
   // === Video Effects ===
   /** Whether pan effect is enabled by default */
   panEffect: boolean;
-  /** Optional: Scale image to fill 1920x1080 (crop edges). Only used when panEffect is false. */
+  /** Scale image to fill frame (crop edges). Only used when panEffect is false. When panEffect is true, zoom is implied. */
   zoomToFit?: boolean;
 
   // === LLM Context ===

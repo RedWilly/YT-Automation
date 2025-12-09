@@ -91,7 +91,7 @@ export const VIDEO_HEIGHT_VERTICAL = 1920;
 
 // Web Search Configuration
 export const WEB_SEARCH_DELAY_MS = 2200;
-export const IMAGE_RETRY_ATTEMPTS = 3;
+export const IMAGE_RETRY_ATTEMPTS = 30;
 
 // AssemblyAI Polling Configuration
 export const ASSEMBLYAI_POLL_INTERVAL_MS = 2200;

@@ -25,7 +25,8 @@ import { uploadVideoToMinIO } from "./minio.ts";
 import { ProgressTracker } from "./progress.ts";
 import {
     hashAudioFile,
-    updateCache,
+    updateAudioCache,
+    updateStyleCache,
     getCachedTranscript,
     getCachedSegments,
     getCachedImageQueries,
@@ -152,7 +153,7 @@ export class WorkflowService {
         const filename = path.basename(audioFilePath);
 
         // Initialize cache entry with filename
-        updateCache(audioHash, {
+        updateAudioCache(audioHash, {
             audio_filename: filename,
             audio_path: audioFilePath
         });
@@ -179,8 +180,8 @@ export class WorkflowService {
             transcriptWords = transcript.words;
             audioDuration = transcript.audio_duration;
 
-            // Save to cache
-            updateCache(audioHash, {
+            // Save to cache (shared - same for all styles)
+            updateAudioCache(audioHash, {
                 transcript_id: transcript.id,
                 transcript_words: JSON.stringify(transcript.words),
                 audio_duration: transcript.audio_duration ?? undefined,
@@ -214,11 +215,10 @@ export class WorkflowService {
             segments = result.segments;
             formattedTranscript = result.formattedTranscript;
 
-            // Save to cache (include style_id for style-specific caching)
-            updateCache(audioHash, {
+            // Save to style-specific cache
+            updateStyleCache(audioHash, style.id, {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
-                style_id: style.id,
             });
 
             logger.step("Workflow", `Created ${segments.length} segments and cached`);
@@ -243,8 +243,8 @@ export class WorkflowService {
             imageQueries = await generateImageQueries(formattedTranscript, style);
             validateImageQueries(imageQueries);
 
-            // Save to cache
-            updateCache(audioHash, {
+            // Save to style-specific cache
+            updateStyleCache(audioHash, style.id, {
                 image_queries: JSON.stringify(imageQueries),
             });
 
@@ -280,7 +280,7 @@ export class WorkflowService {
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
-        const cachedImages = getCachedImages(audioHash);
+        const cachedImages = getCachedImages(audioHash, style.id);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
@@ -296,8 +296,8 @@ export class WorkflowService {
             downloadedImages = await downloadImagesForQueries(imageQueries, style);
             validateDownloadedImages(downloadedImages);
 
-            // Save to cache
-            updateCache(audioHash, {
+            // Save to style-specific cache
+            updateStyleCache(audioHash, style.id, {
                 downloaded_images: JSON.stringify(downloadedImages),
             });
 

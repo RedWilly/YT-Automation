@@ -7,6 +7,7 @@ import { HIGHLIGHT_COLORS } from "./types.ts";
 import { historyStyle } from "./history.ts";
 import { ww2Style } from "./ww2.ts";
 import { stickfigureStyle } from "./stickfigure.ts";
+import { explainerStyle } from "./explainer.ts";
 
 // Re-export types
 export * from "./types.ts";
@@ -18,6 +19,7 @@ export const STYLES: Record<string, VideoStyle> = {
   history: historyStyle,
   ww2: ww2Style,
   stickfigure: stickfigureStyle,
+  explainer: explainerStyle,
 };
 
 /**

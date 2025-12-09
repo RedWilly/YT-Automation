@@ -223,6 +223,7 @@ Styles control how your video looks: image aesthetic, captions, effects, and mor
 | History | `#history` | Watercolor painting aesthetic, karaoke captions with purple highlight, pan effect |
 | WW2 | `#ww2` | Black-and-white archival photography, bold white captions, no pan |
 | Stick Figure | `#stickfigure` | Minimalist black lines on white, expressive poses, zoom to fit |
+| Explainer | `#explainer` | Flat 2D Kurzgesagt-style illustration, muted professional colors, pan effect |
 
 ### Using Styles
 

@@ -98,20 +98,15 @@ export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (pre
 
 // AI Image Generation Configuration
 export const USE_AI_IMAGE = process.env.USE_AI_IMAGE === "true";
-export const WORKER_API_URL = process.env.WORKER_API_URL || "";
-export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
 
 // AI Image Model Provider Configuration
-export type AIImageModel = "cloudflare" | "togetherai";
+export type AIImageModel = "cloudflare" | "togetherai" | "imagefx";
 export const AI_IMAGE_MODEL = (process.env.AI_IMAGE_MODEL) as AIImageModel;
-export const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || "";
 
-// Together AI Configuration
-export const TOGETHER_API_URL = "https://api.together.xyz/v1/images/generations";
-//black-forest-labs/FLUX.2-dev (best image generation -- better than FLUX.1-schnell-Free)
-export const TOGETHER_MODEL = "black-forest-labs/FLUX.1-schnell-Free";
-export const TOGETHER_RATE_LIMIT_PER_MIN = 6; // black-forest-labs/FLUX.1-schnell-Free - Free has 6 img/min limit
-export const TOGETHER_MIN_DELAY_MS = 60000 / TOGETHER_RATE_LIMIT_PER_MIN; // ~10000ms minimum between requests
+// API Keys only - provider configs (api url) moved to src/providers/image/
+export const WORKER_API_KEY = process.env.WORKER_API_KEY || "";
+export const TOGETHER_API_KEY = process.env.TOGETHER_API_KEY || "";
+export const GOOGLE_COOKIE = process.env.GOOGLE_COOKIE || "";
 
 // Debug Mode
 export const DEBUG = process.env.DEBUG === "true";

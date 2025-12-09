@@ -4,8 +4,15 @@
  */
 
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
-import { WORKER_API_URL, WORKER_API_KEY } from "../../constants.ts";
+import { WORKER_API_KEY } from "../../constants.ts";
 import * as logger from "../../logger.ts";
+
+/**
+ * Set your Cloudflare Worker URL via WORKER_API_URL environment variable
+ * if you do not have a worker you can deploy one- jut copy and paste the cloudflare.js code 
+ * you can ref the setup.md there is a video to help you set it up
+ */
+const WORKER_API_URL = process.env.WORKER_API_URL || "";
 
 /**
  * Cloudflare Worker-based image provider

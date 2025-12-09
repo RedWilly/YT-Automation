@@ -5,13 +5,15 @@
  */
 
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
-import {
-    TOGETHER_API_KEY,
-    TOGETHER_API_URL,
-    TOGETHER_MODEL,
-    TOGETHER_MIN_DELAY_MS,
-} from "../../constants.ts";
+import { TOGETHER_API_KEY } from "../../constants.ts";
 import * as logger from "../../logger.ts";
+
+// Provider-specific configuration
+const TOGETHER_API_URL = "https://api.together.xyz/v1/images/generations";
+// Available models: black-forest-labs/FLUX.1-schnell-Free (free), black-forest-labs/FLUX.2-dev (paid)
+const TOGETHER_MODEL = "black-forest-labs/FLUX.1-schnell-Free";
+const TOGETHER_RATE_LIMIT_PER_MIN = 6; // Free tier limit but if am uing the paid model i can raise it 50 or more
+const TOGETHER_MIN_DELAY_MS = 60000 / TOGETHER_RATE_LIMIT_PER_MIN; // ~10000ms between requests
 
 /**
  * Together AI response type for image generation
@@ -31,7 +33,7 @@ interface TogetherAIImageResponse {
 
 /**
  * Together AI image provider with rate limiting
- * Implements the ImageProvider interface for Together AI (FLUX models)
+ * the ImageProvider interface for Together AI (FLUX models)
  */
 class TogetherAIProvider implements ImageProvider {
     readonly name = "Together AI (FLUX)";
@@ -75,7 +77,7 @@ class TogetherAIProvider implements ImageProvider {
                 n: 1,
                 width,
                 height,
-                // might delete thiz ( depending of the model -e.g flux2dev)
+                // might delete thiz ( depending of the model -e.g FLUX.2-dev -it doe not accept it)
                 steps: 4,
                 negative_prompt: negativePrompt,
                 guidance_scale: 20,
@@ -129,7 +131,7 @@ class TogetherAIProvider implements ImageProvider {
 
     /**
      * Wait for rate limit if needed
-     * Ensures minimum delay between requests (6 img/min = 10s between requests)
+     * Ensures minimum delay between requests (6 img/min = 10s between requests - ztill ref to uing the free model)
      */
     private async waitForRateLimit(): Promise<void> {
         const now = Date.now();

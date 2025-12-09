@@ -11,6 +11,7 @@
 import type { ImageProvider } from "./types.ts";
 import { cloudflareProvider } from "./cloudflare.ts";
 import { togetherAIProvider } from "./togetherai.ts";
+import { imageFXProvider } from "./imagefx.ts";
 import { AI_IMAGE_MODEL } from "../../constants.ts";
 import * as logger from "../../logger.ts";
 
@@ -24,13 +25,14 @@ export * from "./types.ts";
 const PROVIDERS = new Map<string, ImageProvider>([
     ["cloudflare", cloudflareProvider],
     ["togetherai", togetherAIProvider],
+    ["imagefx", imageFXProvider],
 ]);
 
 /**
  * Fallback order for providers (used when primary fails)
  * Lower index = higher priority
  */
-const FALLBACK_ORDER: string[] = ["togetherai", "cloudflare"];
+const FALLBACK_ORDER: string[] = ["imagefx", "togetherai", "cloudflare"];
 
 /**
  * Get the currently configured primary provider

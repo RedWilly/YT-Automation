@@ -4,7 +4,6 @@
  */
 
 import { TMP_VIDEO_DIR, IMAGES_PER_CHUNK } from "../constants.ts";
-// Note: PAN_EFFECT and CAPTIONS_ENABLED are now handled by the style system
 import type { DownloadedImage, VideoGenerationResult, AssemblyAIWord, TranscriptSegment } from "../types.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
 import { join, basename } from "node:path";

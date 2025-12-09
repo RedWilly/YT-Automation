@@ -89,9 +89,13 @@ export const VIDEO_HEIGHT_HORIZONTAL = 1080;
 export const VIDEO_WIDTH_VERTICAL = 1080;
 export const VIDEO_HEIGHT_VERTICAL = 1920;
 
-// Processing Configuration
-export const POLL_INTERVAL_MS = 2200; // 2.2 seconds between poll attempts
-export const MAX_POLL_ATTEMPTS = 60; // 10 minutes max
+// Web Search Configuration
+export const WEB_SEARCH_DELAY_MS = 2200;
+export const IMAGE_RETRY_ATTEMPTS = 3;
+
+// AssemblyAI Polling Configuration
+export const ASSEMBLYAI_POLL_INTERVAL_MS = 2200;
+export const ASSEMBLYAI_MAX_POLLS = 60; // Max polls (~2 minutes total)
 
 // Video Generation Configuration
 export const IMAGES_PER_CHUNK = 8; // Number of images to process per chunk (prevents memory exhaustion - ffmpeg)

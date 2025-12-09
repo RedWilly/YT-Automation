@@ -26,7 +26,7 @@ export type AspectRatioType = keyof typeof AspectRatio;
 
 /**
  * ImageFX image provider using Google's IMAGEN 3.5 model
- * Implements the ImageProvider interface
+ * Implements the ImageProvider interface with rate limiting
  */
 class ImageFXProvider implements ImageProvider {
     readonly name = "ImageFX (IMAGEN 3.5)";
@@ -34,6 +34,12 @@ class ImageFXProvider implements ImageProvider {
 
     /** ImageFX client instance */
     private client: ImageFX | null = null;
+
+    /** Track last request end time for rate limiting */
+    private lastRequestEndTime = 0;
+
+    /** Minimum delay between requests in milliseconds */
+    private readonly MIN_DELAY_MS = 2000;
 
     /**
      * Check if ImageFX is configured (has Google cookie)
@@ -56,6 +62,21 @@ class ImageFXProvider implements ImageProvider {
     }
 
     /**
+     * Wait for rate limit if needed
+     * If the last request took less than 2 seconds, wait for the remaining time
+     */
+    private async waitForRateLimit(): Promise<void> {
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestEndTime;
+
+        if (this.lastRequestEndTime > 0 && timeSinceLastRequest < this.MIN_DELAY_MS) {
+            const waitTime = this.MIN_DELAY_MS - timeSinceLastRequest;
+            logger.debug("ImageFX", `Rate limiting: waiting ${Math.ceil(waitTime / 1000)}s before next request`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+    }
+
+    /**
      * Generate an image using ImageFX (IMAGEN 3.5)
      * @param options - Generation options
      * @returns Generated image data
@@ -63,9 +84,13 @@ class ImageFXProvider implements ImageProvider {
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
         const { prompt: promptText } = options;
 
+        // Apply rate limiting before starting
+        await this.waitForRateLimit();
+
         logger.debug("ImageFX", `Generating image for: "${promptText.substring(0, 60)}..."`);
 
         const client = this.getClient();
+        const requestStartTime = Date.now();
 
         // Create prompt with optimal settings for video generation
         const prompt = new Prompt({
@@ -79,6 +104,11 @@ class ImageFXProvider implements ImageProvider {
 
         try {
             const generatedImages = await client.generateImage(prompt);
+
+            // Update last request time after completion
+            this.lastRequestEndTime = Date.now();
+            const requestDuration = this.lastRequestEndTime - requestStartTime;
+            logger.debug("ImageFX", `Request took ${Math.ceil(requestDuration / 1000)}s`);
 
             if (!generatedImages || generatedImages.length === 0) {
                 throw new Error("No images returned from ImageFX");
@@ -111,6 +141,8 @@ class ImageFXProvider implements ImageProvider {
                 format: "png", // ImageFX generates PNG
             };
         } catch (error) {
+            // Update last request time even on failure
+            this.lastRequestEndTime = Date.now();
             const errorMsg = error instanceof Error ? error.message : String(error);
             logger.error("ImageFX", `Generation failed: ${errorMsg}`);
             throw new Error(`ImageFX generation failed: ${errorMsg}`);

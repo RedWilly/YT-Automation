@@ -5,8 +5,8 @@
 import { AssemblyAI } from "assemblyai";
 import {
   ASSEMBLYAI_API_KEY,
-  POLL_INTERVAL_MS,
-  MAX_POLL_ATTEMPTS,
+  ASSEMBLYAI_POLL_INTERVAL_MS,
+  ASSEMBLYAI_MAX_POLLS,
 } from "../constants.ts";
 import type {
   AssemblyAIUploadResponse,
@@ -84,12 +84,12 @@ export async function pollForCompletion(
 
   let attempts = 0;
 
-  while (attempts < MAX_POLL_ATTEMPTS) {
+  while (attempts < ASSEMBLYAI_MAX_POLLS) {
     const transcript = await getTranscript(transcriptId);
 
     logger.debug(
       "AssemblyAI",
-      `Poll attempt ${attempts + 1}/${MAX_POLL_ATTEMPTS} - Status: ${transcript.status}`
+      `Poll attempt ${attempts + 1}/${ASSEMBLYAI_MAX_POLLS} - Status: ${transcript.status}`
     );
 
     if (transcript.status === "completed") {
@@ -103,12 +103,12 @@ export async function pollForCompletion(
       );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, ASSEMBLYAI_POLL_INTERVAL_MS));
     attempts++;
   }
 
   throw new Error(
-    `Transcription polling timed out after ${MAX_POLL_ATTEMPTS} attempts`
+    `Transcription polling timed out after ${ASSEMBLYAI_MAX_POLLS} attempts`
   );
 }
 

@@ -16,17 +16,38 @@ const WORKER_API_URL = process.env.WORKER_API_URL || "";
 
 /**
  * Cloudflare Worker-based image provider
- * Implements the ImageProvider interface for Cloudflare Workers AI
+ * Implements the ImageProvider interface for Cloudflare Workers AI with rate limiting
  */
 class CloudflareProvider implements ImageProvider {
     readonly name = "Cloudflare Worker";
     readonly id = "cloudflare";
+
+    /** Track last request end time for rate limiting */
+    private lastRequestEndTime = 0;
+
+    /** Minimum delay between requests in milliseconds (3 seconds) */
+    private readonly MIN_DELAY_MS = 3000;
 
     /**
      * Check if Cloudflare Worker is configured
      */
     isConfigured(): boolean {
         return WORKER_API_URL.length > 0 && WORKER_API_KEY.length > 0;
+    }
+
+    /**
+     * Wait for rate limit if needed
+     * If the last request took less than MIN_DELAY_MS, wait for the remaining time
+     */
+    private async waitForRateLimit(): Promise<void> {
+        const now = Date.now();
+        const timeSinceLastRequest = now - this.lastRequestEndTime;
+
+        if (this.lastRequestEndTime > 0 && timeSinceLastRequest < this.MIN_DELAY_MS) {
+            const waitTime = this.MIN_DELAY_MS - timeSinceLastRequest;
+            logger.debug("Cloudflare", `Rate limiting: waiting ${Math.ceil(waitTime / 1000)}s before next request`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
     }
 
     /**
@@ -37,7 +58,12 @@ class CloudflareProvider implements ImageProvider {
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
         const { prompt, negativePrompt } = options;
 
+        // Apply rate limiting before starting
+        await this.waitForRateLimit();
+
         logger.debug("Cloudflare", `Generating image for: "${prompt.substring(0, 60)}..."`);
+
+        const requestStartTime = Date.now();
 
         const response = await fetch(WORKER_API_URL, {
             method: "POST",
@@ -50,6 +76,11 @@ class CloudflareProvider implements ImageProvider {
                 negative_prompt: negativePrompt,
             }),
         });
+
+        // Update last request time after completion
+        this.lastRequestEndTime = Date.now();
+        const requestDuration = this.lastRequestEndTime - requestStartTime;
+        logger.debug("Cloudflare", `Request took ${Math.ceil(requestDuration / 1000)}s`);
 
         if (!response.ok) {
             const errorText = await response.text();

@@ -6,14 +6,14 @@
 import { duckDuckGoImageSearch } from "../utils/dim.ts";
 import {
   TMP_IMAGES_DIR,
-  POLL_INTERVAL_MS,
-  MAX_POLL_ATTEMPTS,
+  WEB_SEARCH_DELAY_MS,
+  IMAGE_RETRY_ATTEMPTS,
   USE_AI_IMAGE,
-  AI_IMAGE_MODEL,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
 import { getProvider, getFallbackProvider } from "../providers/image/index.ts";
+import { calculateBackoffDelay, sleep } from "../providers/image/retry.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
 
@@ -32,8 +32,8 @@ const WATERMARKED_DOMAINS = [
 /**
  * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
  * Both AI generation and web search follow the same patterns:
- * - POLL_INTERVAL_MS delays between each image
- * - Retry logic with MAX_POLL_ATTEMPTS for failed images
+ * - WEB_SEARCH_DELAY_MS delays between each image
+ * - Retry logic with IMAGE_RETRY_ATTEMPTS for failed images
  * - Same error handling and logging approach
  * - Track progress the same way (current/total)
  * - Continue processing even if individual images fail
@@ -75,12 +75,11 @@ export async function downloadImagesForQueries(
         `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
 
-      // Add delay between queries to avoid rate limiting (except for last query)
-      // Note: Together AI has its own rate limiting logic in the provider
-      const skipDelay = USE_AI_IMAGE && AI_IMAGE_MODEL === "togetherai";
-      if (i < queriesLength - 1 && !skipDelay) {
-        logger.debug("Images", `Waiting ${POLL_INTERVAL_MS}ms before next query`);
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      // Add delay between web search queries to avoid rate limiting (except for last query)
+      // Note: AI providers manage their own rate limiting internally
+      if (i < queriesLength - 1 && !USE_AI_IMAGE) {
+        logger.debug("Images", `Waiting ${WEB_SEARCH_DELAY_MS}ms before next query`);
+        await new Promise((resolve) => setTimeout(resolve, WEB_SEARCH_DELAY_MS));
       }
     } catch (error) {
       logger.error(
@@ -102,7 +101,7 @@ export async function downloadImagesForQueries(
 
 /**
  * Generate a single AI image for a query using the configured provider with retry logic
- * Uses modular provider system with automatic fallback
+ * Uses modular provider system with automatic fallback and exponential backoff
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
  * @returns Generated image information
@@ -116,10 +115,10 @@ async function generateAIImageForQuery(
 
   let lastError: Error | null = null;
 
-  // Retry with primary provider
-  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+  // Retry with primary provider using exponential backoff
+  for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
     try {
-      logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+      logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
 
       const result = await provider.generate({
         prompt: query,
@@ -143,43 +142,56 @@ async function generateAIImageForQuery(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (attempt < MAX_POLL_ATTEMPTS) {
-        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (attempt < IMAGE_RETRY_ATTEMPTS) {
+        // Exponential backoff: 1s, 2s, 4s, 8s... capped at 10min
+        const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
+        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
+        await sleep(delay);
       }
     }
   }
 
-  // Primary provider failed - try fallback
+  // Primary provider failed - try fallback with exponential backoff
   const fallback = getFallbackProvider(provider.id);
   if (fallback) {
     logger.step("AI-Images", `Switching to fallback provider: ${fallback.name}`);
 
-    try {
-      const result = await fallback.generate({
-        prompt: query,
-        negativePrompt: style.negativePrompt,
-      });
+    for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
+      try {
+        logger.debug("AI-Images", `[${fallback.name}] Fallback attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS}`);
 
-      const sanitizedQuery = sanitizeFilename(query);
-      const filename = `ai_${sanitizedQuery}.${result.format}`;
-      const filePath = join(TMP_IMAGES_DIR, filename);
+        const result = await fallback.generate({
+          prompt: query,
+          negativePrompt: style.negativePrompt,
+        });
 
-      await Bun.write(filePath, result.data);
-      logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
+        const sanitizedQuery = sanitizeFilename(query);
+        const filename = `ai_${sanitizedQuery}.${result.format}`;
+        const filePath = join(TMP_IMAGES_DIR, filename);
 
-      return { query, start, end, filePath };
+        await Bun.write(filePath, result.data);
+        logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-    } catch (fallbackError) {
-      const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-      logger.error("AI-Images", `Fallback provider also failed: ${fallbackErrorMsg}`);
-      throw new Error(`Both providers failed. Primary: ${lastError?.message}. Fallback: ${fallbackErrorMsg}`);
+        return { query, start, end, filePath };
+
+      } catch (fallbackError) {
+        lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
+
+        if (attempt < IMAGE_RETRY_ATTEMPTS) {
+          const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
+          logger.warn("AI-Images", `Fallback attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
+          await sleep(delay);
+        }
+      }
     }
+
+    logger.error("AI-Images", `Fallback provider also failed after ${IMAGE_RETRY_ATTEMPTS} attempts`);
+    throw new Error(`Both providers failed after retries. Last error: ${lastError?.message}`);
   }
 
   // No fallback available
   throw new Error(
-    `Failed to generate AI image for "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Error: ${lastError?.message}`
+    `Failed to generate AI image for "${query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
 }
 
@@ -219,10 +231,10 @@ async function downloadImageForQuery(
 
   let lastError: Error | null = null;
 
-  // Retry up to MAX_POLL_ATTEMPTS times
-  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
+  // Retry up to IMAGE_RETRY_ATTEMPTS times
+  for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
     try {
-      logger.debug("Images", `Searching for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+      logger.debug("Images", `Searching for: "${query}" (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
 
       // Fetch 10 results at once to find non-watermarked images
       const searchResults = await duckDuckGoImageSearch(query, 10);
@@ -320,16 +332,17 @@ async function downloadImageForQuery(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      if (attempt < MAX_POLL_ATTEMPTS) {
-        logger.warn("Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      if (attempt < IMAGE_RETRY_ATTEMPTS) {
+        const delay = calculateBackoffDelay(attempt, { logTag: "Images" });
+        logger.warn("Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
+        await sleep(delay);
       }
     }
   }
 
   // All attempts failed
   throw new Error(
-    `Failed to download image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
+    `Failed to download image for query "${query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Last error: ${lastError?.message}`
   );
 }
 

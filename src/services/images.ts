@@ -1,5 +1,6 @@
 /**
  * Image search and download service using DuckDuckGo or AI generation
+ * Uses modular provider system for AI image generation
  */
 
 import { duckDuckGoImageSearch } from "../utils/dim.ts";
@@ -8,21 +9,13 @@ import {
   POLL_INTERVAL_MS,
   MAX_POLL_ATTEMPTS,
   USE_AI_IMAGE,
-  WORKER_API_URL,
-  WORKER_API_KEY,
   AI_IMAGE_MODEL,
-  TOGETHER_API_KEY,
-  TOGETHER_API_URL,
-  TOGETHER_MODEL,
-  TOGETHER_MIN_DELAY_MS,
 } from "../constants.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../types.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
+import { getProvider, getFallbackProvider } from "../providers/image/index.ts";
 import { join, extname } from "node:path";
 import * as logger from "../logger.ts";
-
-// Track the last Together AI request time for rate limiting
-let lastTogetherRequestTime = 0;
 
 /**
  * Domains that typically serve watermarked stock photos
@@ -55,8 +48,8 @@ export async function downloadImagesForQueries(
 ): Promise<DownloadedImage[]> {
   // Log which mode we're using
   if (USE_AI_IMAGE) {
-    const providerName = AI_IMAGE_MODEL === "togetherai" ? "Together AI (FLUX.1-schnell)" : "Cloudflare Worker";
-    logger.step("Images", `🎨 AI Image Generation Mode: Using ${providerName} to generate ${queries.length} images`);
+    const provider = getProvider();
+    logger.step("Images", `🎨 AI Image Generation Mode: Using ${provider.name} to generate ${queries.length} images`);
     logger.debug("Images", `Image style: "${style.imageStyle.substring(0, 60)}..."`);
   } else {
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
@@ -83,10 +76,10 @@ export async function downloadImagesForQueries(
       );
 
       // Add delay between queries to avoid rate limiting (except for last query)
-      // Note: Together AI has its own rate limiting logic, so we skip delay for it
+      // Note: Together AI has its own rate limiting logic in the provider
       const skipDelay = USE_AI_IMAGE && AI_IMAGE_MODEL === "togetherai";
       if (i < queriesLength - 1 && !skipDelay) {
-        logger.debug("Images", `Waiting ${POLL_INTERVAL_MS}ms before next query to avoid rate limiting`);
+        logger.debug("Images", `Waiting ${POLL_INTERVAL_MS}ms before next query`);
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
     } catch (error) {
@@ -109,8 +102,7 @@ export async function downloadImagesForQueries(
 
 /**
  * Generate a single AI image for a query using the configured provider with retry logic
- * Routes to Cloudflare Worker or Together AI based on AI_IMAGE_MODEL setting
- * Includes fallback logic: if primary provider fails after all retries, try the other provider
+ * Uses modular provider system with automatic fallback
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
  * @returns Generated image information
@@ -119,112 +111,34 @@ async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle
 ): Promise<DownloadedImage> {
-  const primaryProvider = AI_IMAGE_MODEL === "togetherai" ? "togetherai" : "cloudflare";
-  const fallbackProvider = primaryProvider === "togetherai" ? "cloudflare" : "togetherai";
-
-  // Check if fallback provider is configured
-  const canFallbackToTogether = TOGETHER_API_KEY.length > 0;
-  const canFallbackToCloudflare = WORKER_API_URL.length > 0 && WORKER_API_KEY.length > 0;
-  const canUseFallback = fallbackProvider === "togetherai" ? canFallbackToTogether : canFallbackToCloudflare;
-
-  try {
-    // Try primary provider first
-    if (primaryProvider === "togetherai") {
-      return await generateTogetherAIImage(queryData, style);
-    }
-    return await generateCloudflareImage(queryData, style);
-  } catch (primaryError) {
-    // Primary provider failed after all retries
-    const primaryErrorMsg = primaryError instanceof Error ? primaryError.message : String(primaryError);
-    logger.warn("AI-Images", `Primary provider (${primaryProvider}) failed: ${primaryErrorMsg}`);
-
-    // Try fallback provider if configured
-    if (canUseFallback) {
-      logger.step("AI-Images", `Switching to fallback provider: ${fallbackProvider}`);
-
-      try {
-        if (fallbackProvider === "togetherai") {
-          return await generateTogetherAIImage(queryData, style);
-        }
-        return await generateCloudflareImage(queryData, style);
-      } catch (fallbackError) {
-        const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-        logger.error("AI-Images", `Fallback provider (${fallbackProvider}) also failed: ${fallbackErrorMsg}`);
-        throw new Error(`Both providers failed. Primary (${primaryProvider}): ${primaryErrorMsg}. Fallback (${fallbackProvider}): ${fallbackErrorMsg}`);
-      }
-    }
-
-    // No fallback available
-    throw primaryError;
-  }
-}
-
-/**
- * Generate a single AI image using Cloudflare Worker with retry logic
- * @param queryData - Image search query with timestamps
- * @param style - Resolved style configuration for prompts
- * @returns Generated image information
- */
-async function generateCloudflareImage(
-  queryData: ImageSearchQuery,
-  style: ResolvedStyle
-): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
+  const provider = getProvider();
 
   let lastError: Error | null = null;
 
-  // Retry up to MAX_POLL_ATTEMPTS times (same as web search)
+  // Retry with primary provider
   for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
     try {
-      logger.debug("AI-Images", `[Cloudflare] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
+      logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
 
-      // Use query directly - LLM now includes style keywords in the query
-      logger.debug("AI-Images", `Prompt: "${query}"`);
-
-      // Make request to Cloudflare Worker with negative prompt
-      const response = await fetch(WORKER_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${WORKER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: query,
-          negative_prompt: style.negativePrompt,
-        }),
+      const result = await provider.generate({
+        prompt: query,
+        negativePrompt: style.negativePrompt,
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error("AI-Images", `API request failed: ${response.status} ${response.statusText}`);
-        logger.debug("AI-Images", `Response body: ${errorText}`);
-        throw new Error(`Cloudflare Worker API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      // Get image data
-      const imageData = await response.arrayBuffer();
-
-      // Sanitize query for filename
+      // Save the image
       const sanitizedQuery = sanitizeFilename(query);
-      const filename = `ai_${sanitizedQuery}.jpg`;
+      const filename = `ai_${sanitizedQuery}.${result.format}`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
-      // Save the image
-      await Bun.write(filePath, imageData);
+      await Bun.write(filePath, result.data);
+      logger.debug("AI-Images", `Saved image to: ${filePath}`);
 
-      logger.debug("AI-Images", `Saved AI image to: ${filePath}`);
-
-      // If this succeeded after retries, log success
       if (attempt > 1) {
         logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
       }
 
-      return {
-        query,
-        start,
-        end,
-        filePath,
-      };
+      return { query, start, end, filePath };
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -236,157 +150,36 @@ async function generateCloudflareImage(
     }
   }
 
-  // All attempts failed
-  throw new Error(
-    `Failed to generate AI image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
-  );
-}
+  // Primary provider failed - try fallback
+  const fallback = getFallbackProvider(provider.id);
+  if (fallback) {
+    logger.step("AI-Images", `Switching to fallback provider: ${fallback.name}`);
 
-/**
- * Together AI response type for image generation
- */
-interface TogetherAIImageResponse {
-  id: string;
-  model: string;
-  object: string;
-  data: Array<{
-    index: number;
-    url: string;
-    timings?: {
-      inference: number;
-    };
-  }>;
-}
-
-/**
- * Generate a single AI image using Together AI (FLUX.1-schnell) with rate limiting
- * Handles the 6 img/min rate limit by tracking request timing
- * @param queryData - Image search query with timestamps
- * @param style - Resolved style configuration for prompts
- * @returns Generated image information
- */
-async function generateTogetherAIImage(
-  queryData: ImageSearchQuery,
-  style: ResolvedStyle
-): Promise<DownloadedImage> {
-  const { query, start, end } = queryData;
-
-  let lastError: Error | null = null;
-
-  // Retry up to MAX_POLL_ATTEMPTS times
-  for (let attempt = 1; attempt <= MAX_POLL_ATTEMPTS; attempt++) {
     try {
-      logger.debug("AI-Images", `[Together AI] Generating image for: "${query}" (attempt ${attempt}/${MAX_POLL_ATTEMPTS})`);
-
-      // Handle rate limiting - ensure minimum delay between requests
-      const now = Date.now();
-      const timeSinceLastRequest = now - lastTogetherRequestTime;
-      if (lastTogetherRequestTime > 0 && timeSinceLastRequest < TOGETHER_MIN_DELAY_MS) {
-        const waitTime = TOGETHER_MIN_DELAY_MS - timeSinceLastRequest;
-        logger.debug("AI-Images", `Rate limiting: waiting ${Math.ceil(waitTime / 1000)}s before next request`);
-        await new Promise((resolve) => setTimeout(resolve, waitTime));
-      }
-
-      // Use query directly - LLM now includes style keywords in the query
-      logger.debug("AI-Images", `Prompt: "${query}"`);
-
-      // Note: FLUX.1-schnell doesn't support negative prompts, but we pass it anyway
-      // for consistency and in case the model changes
-      // Record request time before making the call
-      const requestStartTime = Date.now();
-
-      // Make request to Together AI
-      const response = await fetch(TOGETHER_API_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${TOGETHER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: TOGETHER_MODEL,
-          prompt: query,
-          n: 1,
-          width: 1440,
-          height: 1104,
-          // ill delete this later depending on the model
-          steps: 4,
-          negative_prompt: style.negativePrompt,
-          guidance_scale: 20,
-          //
-          disable_safety_checker: false,
-        }),
+      const result = await fallback.generate({
+        prompt: query,
+        negativePrompt: style.negativePrompt,
       });
 
-      // Update last request time after response received
-      lastTogetherRequestTime = Date.now();
-      const requestDuration = lastTogetherRequestTime - requestStartTime;
-      logger.debug("AI-Images", `Request took ${Math.ceil(requestDuration / 1000)}s`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error("AI-Images", `Together AI request failed: ${response.status} ${response.statusText}`);
-        logger.debug("AI-Images", `Response body: ${errorText}`);
-        throw new Error(`Together AI request failed: ${response.status} ${response.statusText}`);
-      }
-
-      // Parse JSON response
-      const result = await response.json() as TogetherAIImageResponse;
-
-      // Extract image URL from response
-      const imageUrl = result.data?.[0]?.url;
-      if (!imageUrl) {
-        throw new Error("No image URL in Together AI response");
-      }
-
-      // Log inference time if available
-      const inferenceTime = result.data?.[0]?.timings?.inference;
-      if (inferenceTime) {
-        logger.debug("AI-Images", `Together AI inference time: ${inferenceTime.toFixed(2)}s`);
-      }
-
-      // Download the image from the URL
-      logger.debug("AI-Images", `Downloading image from Together AI URL...`);
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to download image from Together AI: ${imageResponse.status}`);
-      }
-      const binaryData = await imageResponse.arrayBuffer();
-
-      // Sanitize query for filename
       const sanitizedQuery = sanitizeFilename(query);
-      const filename = `ai_${sanitizedQuery}.jpg`;
+      const filename = `ai_${sanitizedQuery}.${result.format}`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
-      // Save the image
-      await Bun.write(filePath, binaryData);
+      await Bun.write(filePath, result.data);
+      logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-      logger.debug("AI-Images", `Saved Together AI image to: ${filePath}`);
+      return { query, start, end, filePath };
 
-      // If this succeeded after retries, log success
-      if (attempt > 1) {
-        logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
-      }
-
-      return {
-        query,
-        start,
-        end,
-        filePath,
-      };
-
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      if (attempt < MAX_POLL_ATTEMPTS) {
-        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${POLL_INTERVAL_MS}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      }
+    } catch (fallbackError) {
+      const fallbackErrorMsg = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      logger.error("AI-Images", `Fallback provider also failed: ${fallbackErrorMsg}`);
+      throw new Error(`Both providers failed. Primary: ${lastError?.message}. Fallback: ${fallbackErrorMsg}`);
     }
   }
 
-  // All attempts failed
+  // No fallback available
   throw new Error(
-    `Failed to generate Together AI image for query "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Last error: ${lastError?.message}`
+    `Failed to generate AI image for "${query}" after ${MAX_POLL_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
 }
 

@@ -4,7 +4,7 @@
  * Requires GOOGLE_COOKIE environment variable for authentication
  */
 
-import { ImageFX, Prompt, AspectRatio as OriginalAspectRatio } from "@rohitaryal/imagefx-api";
+import { ImageFX, Prompt } from "@rohitaryal/imagefx-api";
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
 import { UnsafePromptError } from "./errors.ts";
 import { GOOGLE_COOKIE } from "../../constants.ts";
@@ -12,18 +12,6 @@ import * as logger from "../../logger.ts";
 import { join } from "node:path";
 import { readFile, rm } from "node:fs/promises";
 import { TMP_IMAGES_DIR } from "../../constants.ts";
-
-/**
- * Extended AspectRatio with additional options not yet in the library
- * TODO: Remove wrapper when library adds MOBILE_LANDSCAPE support
- */
-export const AspectRatio = {
-    ...OriginalAspectRatio,
-    // Custom aspect ratio for 4:3 landscape (good for video thumbnails)
-    MOBILE_LANDSCAPE: "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
-} as const;
-
-export type AspectRatioType = keyof typeof AspectRatio;
 
 /**
  * ImageFX image provider using Google's IMAGEN 3.5 model
@@ -99,7 +87,7 @@ class ImageFXProvider implements ImageProvider {
             numberOfImages: 1,
             prompt: promptText,
             // Use 4:3 landscape for video-friendly aspect ratio
-            aspectRatio: AspectRatio.MOBILE_LANDSCAPE as unknown as OriginalAspectRatio,
+            aspectRatio: "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
             generationModel: "IMAGEN_3_5",
         });
 

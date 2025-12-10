@@ -14,7 +14,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@rohitaryal/imagefx-api": "^3.0.0",
+    "@rohitaryal/imagefx-api": "^3.0.1",
     "assemblyai": "^4.19.0",
     "dotenv": "^17.2.3",
     "telegraf": "^4.16.3"

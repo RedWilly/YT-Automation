@@ -4,7 +4,7 @@
     "": {
       "name": "v2v",
       "dependencies": {
-        "@rohitaryal/imagefx-api": "^3.0.0",
+        "@rohitaryal/imagefx-api": "^3.0.1",
         "assemblyai": "^4.19.0",
         "dotenv": "^17.2.3",
         "telegraf": "^4.16.3",
@@ -18,7 +18,7 @@
     },
   },
   "packages": {
-    "@rohitaryal/imagefx-api": ["@rohitaryal/imagefx-api@3.0.0", "", { "dependencies": { "yargs": "^18.0.0" }, "bin": { "imagefx": "dist/cli.js" } }, "sha512-hDfGVeaR+LBqdIYz63LCj7R8WFgU9POEdAkJH5xL+UV1MBGmnpVZbB62IS/SvgUYAFb46BngjO12P4VAONEEjg=="],
+    "@rohitaryal/imagefx-api": ["@rohitaryal/imagefx-api@3.0.1", "", { "dependencies": { "yargs": "^18.0.0" }, "bin": { "imagefx": "dist/cli.js" } }, "sha512-YYXkDK04yoL/pyQ0rPtuwr2dg7RJHL3zjzNCfd3HTwqXJGlg/92sQBfuywUuI9FyaAuKuZKlwmYrME9IbA5lOg=="],
 
     "@telegraf/types": ["@telegraf/types@7.1.0", "", {}, "sha512-kGevOIbpMcIlCDeorKGpwZmdH7kHbqlk/Yj6dEpJMKEQw5lk0KVQY0OLXaCswy8GqlIVLd5625OB+rAntP9xVw=="],
 

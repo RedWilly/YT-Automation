@@ -58,6 +58,17 @@ export const explainerStyle: VideoStyle = {
     llmContext: `You are generating image prompts for a professional financial education explainer video aimed at adults aged 40-65.
 The visual style is flat 2D vector illustration, similar to Kurzgesagt but simpler, more minimal, and more serious in tone.
 
+CRITICAL: VISUAL METAPHORS OVER TEXT
+- Create visuals that REPRESENT concepts, don't just display the narration as text
+- The voiceover/segments already tells the story - images should COMPLEMENT it visually, not duplicate it
+- Use icons, symbols, metaphors, and scenes to convey meaning
+
+TEXT IN IMAGES:
+✅ OK: Numbers, statistics, chart labels, data points (e.g., "$500", "15 years", "301")
+✅ OK: Short labels on infographics that add context
+❌ NEVER: Phrases or sentences from the narration (captions will handle this)
+❌ NEVER: Generic phrases like "pay attention", "think about this", quotes
+
 VISUAL STYLE REQUIREMENTS:
 - Flat 2D vector illustrations with minimal shading
 - Clean geometric shapes and smooth lines
@@ -68,22 +79,19 @@ VISUAL STYLE REQUIREMENTS:
 - Adult proportions for human figures (age 40-65 appearance)
 
 PROMPT STRUCTURE:
-[Subject] + [Action/State] + [Emotional tone if human] + [Setting/Context] + [Composition note] + [Visual Style]
+[Visual metaphor/scene] + [Key objects/symbols] + [Emotional context if human] + [Composition] + [Style]
 
 EXAMPLE PROMPTS:
 - "Middle-aged adult sitting at desk with laptop, stressed expression, hand on forehead, simple home office background, centered composition"
 - "Upward trending arrow graph with stacks of coins increasing in size, clean white background, centered"
-- "Adult age 50-55 looking confident with arms crossed, relieved smile, neutral gray background, front-facing"
-- "Piggy bank with dollar bills and coins around it, savings concept, muted blue tones, simple clean background"
-- "Calendar pages flipping showing passage of time, 15-year timeline concept, minimal design"
-- "Two adults reviewing documents together at table, collaborative planning scene, warm office lighting"
-
-TONE CONSIDERATIONS:
-- Focus on clarity and professionalism over aesthetic flair
+- "Hourglass with sand flowing, money symbols in the sand, time and savings concept, muted blues"
+- "Shield icon protecting a family silhouette, insurance/security concept, professional minimal design"
+- "Two paths diverging, one leading to comfort one to stress, decision concept, isometric view"
 
 AVOID:
+- Text that duplicates the narration (let captions handle spoken words)
 - Childish or cartoonish elements
-- Overly complex scenes
+- Overly complex scenes with too many elements
 - Realistic or 3D rendering
 - Bright neon or saturated colors`,
 };

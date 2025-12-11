@@ -137,7 +137,7 @@ async function generateAIImageForQuery(
 
   let lastError: Error | null = null;
   let rewriteCount = 0;
-  const MAX_REWRITES = 5;
+  const MAX_REWRITES = 25;
 
   // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
@@ -167,11 +167,14 @@ async function generateAIImageForQuery(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      // If prompt was flagged as unsafe, rewrite it and retry (max 3 rewrites)
+      // If prompt was flagged as unsafe, rewrite it and retry (max rewrites)
       if (isUnsafePromptError(error) && rewriteCount < MAX_REWRITES) {
         rewriteCount++;
         logger.warn("AI-Images", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${MAX_REWRITES}), requesting LLM rewrite...`);
-        const rewrittenQuery = await rewriteUnsafePrompt(error.originalPrompt, style);
+
+        // IMPORTANT: Rewrite the CURRENT query, not the original
+        // This way each rewrite builds on the previous one
+        const rewrittenQuery = await rewriteUnsafePrompt(queryData.query, style);
 
         // Update query for next attempt
         queryData.query = rewrittenQuery;

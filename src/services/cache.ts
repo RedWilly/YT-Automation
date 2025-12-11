@@ -43,12 +43,13 @@ export interface AudioCacheEntry {
 }
 
 /**
- * Style-specific cache entry (per audio + style combination)
+ * Style-specific cache entry (per audio + style + orientation combination)
  */
 export interface StyleCacheEntry {
     id: number;
     audio_hash: string;
     style_id: string;
+    orientation: string;
     segments: string | null;
     formatted_transcript: string | null;
     image_queries: string | null;
@@ -114,25 +115,44 @@ export function initDatabase(): void {
     )
   `);
 
-    // Create style-specific cache table
+    // Create style-specific cache table with orientation
+    // The unique key is now (audio_hash, style_id, orientation) to cache
+    // horizontal and vertical videos separately
     db.run(`
     CREATE TABLE IF NOT EXISTS style_cache (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       audio_hash TEXT NOT NULL,
       style_id TEXT NOT NULL,
+      orientation TEXT NOT NULL DEFAULT 'horizontal',
       segments TEXT,
       formatted_transcript TEXT,
       image_queries TEXT,
       downloaded_images TEXT,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
       updated_at INTEGER DEFAULT (strftime('%s', 'now')),
-      UNIQUE(audio_hash, style_id)
+      UNIQUE(audio_hash, style_id, orientation)
     )
   `);
 
+    // // Migration: Add orientation column if it doesn't exist (for existing databases)
+    // // SQLite doesn't have IF NOT EXISTS for columns, so we check pragma first
+    // try {
+    //     const columns = db.prepare("PRAGMA table_info(style_cache)").all() as Array<{ name: string }>;
+    //     const hasOrientation = columns.some(col => col.name === "orientation");
+    //     if (!hasOrientation) {
+    //         logger.log("Cache", "Migrating style_cache table: adding orientation column");
+    //         db.run("ALTER TABLE style_cache ADD COLUMN orientation TEXT NOT NULL DEFAULT 'horizontal'");
+    //         // Recreate unique index for new schema
+    //         db.run("DROP INDEX IF EXISTS idx_style_cache");
+    //     }
+    // } catch (error) {
+    //     // Table might be new, ignore migration errors
+    //     logger.debug("Cache", "Migration check completed (table may be new)");
+    // }
+
     // Create indexes for fast lookups
     db.run(`CREATE INDEX IF NOT EXISTS idx_audio_hash ON audio_cache(audio_hash)`);
-    db.run(`CREATE INDEX IF NOT EXISTS idx_style_cache ON style_cache(audio_hash, style_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_style_cache ON style_cache(audio_hash, style_id, orientation)`);
 
     logger.debug("Cache", `Database initialized at ${CACHE_DB_PATH}`);
 }
@@ -228,24 +248,25 @@ export function updateAudioCache(audioHash: string, data: AudioCacheUpdate): voi
 }
 
 // ============================================================
-// STYLE CACHE (Per audio + style combination)
+// STYLE CACHE (Per audio + style + orientation combination)
 // ============================================================
 
 /**
  * Get style-specific cache entry
  * @param audioHash - MD5 hash of the audio file
  * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
  * @returns Style cache entry or null if not found
  */
-export function getStyleCache(audioHash: string, styleId: string): StyleCacheEntry | null {
+export function getStyleCache(audioHash: string, styleId: string, orientation: string = "horizontal"): StyleCacheEntry | null {
     const database = getDb();
     const stmt = database.prepare(
-        "SELECT * FROM style_cache WHERE audio_hash = ? AND style_id = ?"
+        "SELECT * FROM style_cache WHERE audio_hash = ? AND style_id = ? AND orientation = ?"
     );
-    const result = stmt.get(audioHash, styleId) as StyleCacheEntry | null;
+    const result = stmt.get(audioHash, styleId, orientation) as StyleCacheEntry | null;
 
     if (result) {
-        logger.debug("Cache", `Found style cache for ${audioHash.substring(0, 8)}... + ${styleId}`);
+        logger.debug("Cache", `Found style cache for ${audioHash.substring(0, 8)}... + ${styleId} (${orientation})`);
     }
 
     return result;
@@ -255,11 +276,12 @@ export function getStyleCache(audioHash: string, styleId: string): StyleCacheEnt
  * Create or update style-specific cache entry
  * @param audioHash - MD5 hash of the audio file
  * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
  * @param data - Partial cache data to update
  */
-export function updateStyleCache(audioHash: string, styleId: string, data: StyleCacheUpdate): void {
+export function updateStyleCache(audioHash: string, styleId: string, orientation: string, data: StyleCacheUpdate): void {
     const database = getDb();
-    const existing = getStyleCache(audioHash, styleId);
+    const existing = getStyleCache(audioHash, styleId, orientation);
 
     if (existing) {
         // Build UPDATE query dynamically
@@ -275,26 +297,26 @@ export function updateStyleCache(audioHash: string, styleId: string, data: Style
 
         if (fields.length > 0) {
             fields.push("updated_at = strftime('%s', 'now')");
-            values.push(audioHash, styleId);
+            values.push(audioHash, styleId, orientation);
 
-            const sql = `UPDATE style_cache SET ${fields.join(", ")} WHERE audio_hash = ? AND style_id = ?`;
+            const sql = `UPDATE style_cache SET ${fields.join(", ")} WHERE audio_hash = ? AND style_id = ? AND orientation = ?`;
             const stmt = database.prepare(sql);
             stmt.run(...values);
-            logger.debug("Cache", `Updated style cache for ${audioHash.substring(0, 8)}... + ${styleId}`);
+            logger.debug("Cache", `Updated style cache for ${audioHash.substring(0, 8)}... + ${styleId} (${orientation})`);
         }
     } else {
         // INSERT new entry
         const insertStmt = database.prepare(
-            `INSERT INTO style_cache (audio_hash, style_id) VALUES (?, ?)`
+            `INSERT INTO style_cache (audio_hash, style_id, orientation) VALUES (?, ?, ?)`
         );
-        insertStmt.run(audioHash, styleId);
+        insertStmt.run(audioHash, styleId, orientation);
 
         // Now update with remaining data
         if (Object.keys(data).length > 0) {
-            updateStyleCache(audioHash, styleId, data);
+            updateStyleCache(audioHash, styleId, orientation, data);
         }
 
-        logger.debug("Cache", `Created style cache for ${audioHash.substring(0, 8)}... + ${styleId}`);
+        logger.debug("Cache", `Created style cache for ${audioHash.substring(0, 8)}... + ${styleId} (${orientation})`);
     }
 }
 
@@ -391,13 +413,14 @@ export function getCachedTranscript(audioHash: string): {
  * Get cached segments (style-specific)
  * @param audioHash - Audio file hash
  * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
  * @returns Segments data or null
  */
-export function getCachedSegments(audioHash: string, styleId: string): {
+export function getCachedSegments(audioHash: string, styleId: string, orientation: string = "horizontal"): {
     segments: TranscriptSegment[];
     formattedTranscript: string;
 } | null {
-    const cache = getStyleCache(audioHash, styleId);
+    const cache = getStyleCache(audioHash, styleId, orientation);
 
     if (cache?.segments && cache?.formatted_transcript) {
         try {
@@ -419,10 +442,11 @@ export function getCachedSegments(audioHash: string, styleId: string): {
  * Get cached image queries (style-specific)
  * @param audioHash - Audio file hash
  * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
  * @returns Image queries or null
  */
-export function getCachedImageQueries(audioHash: string, styleId: string): ImageSearchQuery[] | null {
-    const cache = getStyleCache(audioHash, styleId);
+export function getCachedImageQueries(audioHash: string, styleId: string, orientation: string = "horizontal"): ImageSearchQuery[] | null {
+    const cache = getStyleCache(audioHash, styleId, orientation);
 
     if (cache?.image_queries) {
         try {
@@ -440,10 +464,11 @@ export function getCachedImageQueries(audioHash: string, styleId: string): Image
  * Get cached downloaded images (style-specific, with file existence verification)
  * @param audioHash - Audio file hash
  * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
  * @returns Downloaded images or null (returns null if any file is missing)
  */
-export function getCachedImages(audioHash: string, styleId: string): DownloadedImage[] | null {
-    const cache = getStyleCache(audioHash, styleId);
+export function getCachedImages(audioHash: string, styleId: string, orientation: string = "horizontal"): DownloadedImage[] | null {
+    const cache = getStyleCache(audioHash, styleId, orientation);
 
     if (cache?.downloaded_images) {
         try {

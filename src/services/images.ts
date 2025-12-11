@@ -104,6 +104,9 @@ export async function downloadImagesForQueries(
 /**
  * Generate a single AI image for a query using the configured provider with retry logic
  * Uses modular provider system with automatic fallback and exponential backoff
+ * Determines aspect ratio based on scene duration and orientation:
+ * - Scenes ≥3s (with pan effect): 4:3 for pan headroom
+ * - Scenes <3s (static): Native resolution (16:9 or 9:16 based on orientation)
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
  * @returns Generated image information
@@ -114,6 +117,23 @@ async function generateAIImageForQuery(
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
+
+  // Calculate scene duration and determine aspect ratio
+  const durationSeconds = (end - start) / 1000;
+  const MIN_PAN_DURATION = 3; // Same as in ffmpeg.ts
+  const isPanning = style.panEffect && durationSeconds >= MIN_PAN_DURATION;
+
+  // Determine aspect ratio based on whether scene will pan
+  let aspectRatio: "4:3" | "16:9" | "9:16";
+  if (isPanning) {
+    // Panning scenes need 4:3 for headroom
+    aspectRatio = "4:3";
+  } else {
+    // Static scenes use native video resolution
+    aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
+  }
+
+  logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${isPanning ? "panning" : "static"} → ${aspectRatio}`);
 
   let lastError: Error | null = null;
   let rewriteCount = 0;
@@ -127,6 +147,7 @@ async function generateAIImageForQuery(
       const result = await provider.generate({
         prompt: queryData.query,
         negativePrompt: style.negativePrompt,
+        aspectRatio,
       });
 
       // Save the image
@@ -182,6 +203,7 @@ async function generateAIImageForQuery(
         const result = await fallback.generate({
           prompt: queryData.query,
           negativePrompt: style.negativePrompt,
+          aspectRatio,
         });
 
         const sanitizedQuery = sanitizeFilename(queryData.query);

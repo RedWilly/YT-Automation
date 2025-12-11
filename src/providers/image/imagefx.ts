@@ -4,7 +4,7 @@
  * Requires GOOGLE_COOKIE environment variable for authentication
  */
 
-import { ImageFX, Prompt } from "@rohitaryal/imagefx-api";
+import { ImageFX, Prompt, type AspectRatio } from "@rohitaryal/imagefx-api";
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
 import { UnsafePromptError } from "./errors.ts";
 import { GOOGLE_COOKIE } from "../../constants.ts";
@@ -71,23 +71,31 @@ class ImageFXProvider implements ImageProvider {
      * @returns Generated image data
      */
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
-        const { prompt: promptText } = options;
+        const { prompt: promptText, aspectRatio = "4:3" } = options;
 
         // Apply rate limiting before starting
         await this.waitForRateLimit();
 
-        logger.debug("ImageFX", `Generating image for: "${promptText.substring(0, 60)}..."`);
+        logger.debug("ImageFX", `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio})`);
 
         const client = this.getClient();
         const requestStartTime = Date.now();
+
+        // Map our aspect ratio to ImageFX API values
+        // 4:3 = 1472x1104 (panning), 16:9 = 1920x1080 (horizontal), 9:16 = 1080x1920 (vertical)
+        let imageFxAspectRatio: AspectRatio = "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE";
+        if (aspectRatio === "16:9") {
+            imageFxAspectRatio = "IMAGE_ASPECT_RATIO_LANDSCAPE";
+        } else if (aspectRatio === "9:16") {
+            imageFxAspectRatio = "IMAGE_ASPECT_RATIO_PORTRAIT";
+        }
 
         // Create prompt with optimal settings for video generation
         const prompt = new Prompt({
             seed: 0, // Random seed for variety
             numberOfImages: 1,
             prompt: promptText,
-            // Use 4:3 landscape for video-friendly aspect ratio
-            aspectRatio: "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
+            aspectRatio: imageFxAspectRatio,
             generationModel: "IMAGEN_3_5",
         });
 

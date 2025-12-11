@@ -199,7 +199,7 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        const cachedSegments = getCachedSegments(audioHash, style.id);
+        const cachedSegments = getCachedSegments(audioHash, style.id, style.orientation);
 
         if (cachedSegments) {
             logger.log("Workflow", "📦 Using cached segments (same style)");
@@ -216,7 +216,7 @@ export class WorkflowService {
             formattedTranscript = result.formattedTranscript;
 
             // Save to style-specific cache
-            updateStyleCache(audioHash, style.id, {
+            updateStyleCache(audioHash, style.id, style.orientation, {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
             });
@@ -229,7 +229,7 @@ export class WorkflowService {
         // =============================================================
         let imageQueries: ImageSearchQuery[];
 
-        const cachedQueries = getCachedImageQueries(audioHash, style.id);
+        const cachedQueries = getCachedImageQueries(audioHash, style.id, style.orientation);
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -244,7 +244,7 @@ export class WorkflowService {
             validateImageQueries(imageQueries);
 
             // Save to style-specific cache
-            updateStyleCache(audioHash, style.id, {
+            updateStyleCache(audioHash, style.id, style.orientation, {
                 image_queries: JSON.stringify(imageQueries),
             });
 
@@ -280,7 +280,7 @@ export class WorkflowService {
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
-        const cachedImages = getCachedImages(audioHash, style.id);
+        const cachedImages = getCachedImages(audioHash, style.id, style.orientation);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
@@ -298,7 +298,7 @@ export class WorkflowService {
 
             // Save to style-specific cache
             // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
-            updateStyleCache(audioHash, style.id, {
+            updateStyleCache(audioHash, style.id, style.orientation, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),
             });

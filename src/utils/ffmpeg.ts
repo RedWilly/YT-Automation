@@ -129,16 +129,21 @@ export function calculatePanParams(
 
 /**
  * Create FFmpeg filter complex for image transitions
+ * 
+ * Images generated at the appropriate resolution:
+ * - Panning scenes (≥3s): 4:3 aspect ratio for pan headroom
+ * - Static scenes (<3s): Native video resolution (16:9 or 9:16)
+ * 
+ * This means static images don't need cropping - they already fit perfectly.
+ * 
  * @param images - Sorted array of images with timing
  * @param panEnabled - Whether pan effect is enabled (from style config)
- * @param zoomToFit - Whether to scale images to fill frame (crop edges)
  * @param orientation - Video orientation (horizontal or vertical)
  * @returns Filter complex string and total duration
  */
 export function createFilterComplex(
     images: DownloadedImage[],
     panEnabled: boolean = true,
-    zoomToFit: boolean = false,
     orientation: VideoOrientation = "horizontal"
 ): { filterComplex: string; totalDuration: number } {
     const filters: string[] = [];
@@ -158,6 +163,7 @@ export function createFilterComplex(
         const panParams = calculatePanParams(duration, panEnabled, orientation);
 
         if (panParams.enabled) {
+            // PANNING: Image is 4:3, needs scaling and animated crop
             const fps = 30;
             const totalFrames = Math.round(duration * fps);
 
@@ -181,24 +187,12 @@ export function createFilterComplex(
                 logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (Y: ${panParams.yStart}px → ${panParams.yEnd}px)`);
             }
         } else {
-            // No pan effect - determine how to scale the image
-            // If panEnabled was true (but scene too short), always zoom to fit
-            // If panEnabled was false (user choice), check zoomToFit setting
-            const shouldZoomToFit = panEnabled || zoomToFit;
-
-            if (shouldZoomToFit) {
-                // Zoom to fit: scale to fill frame, crop edges
-                filters.push(
-                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
-                );
-                logger.debug("Video", `Image ${i + 1}: Static (zoom to fit)`);
-            } else {
-                // Fit with padding: scale to fit, add black bars
-                filters.push(
-                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:force_original_aspect_ratio=decrease,pad=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30,format=yuv420p[v${i}]`
-                );
-                logger.debug("Video", `Image ${i + 1}: Static (fit with padding)`);
-            }
+            // STATIC: Image is already at native video resolution (16:9 or 9:16)
+            // Simple scale to exact dimensions - no cropping needed
+            filters.push(
+                `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
+            );
+            logger.debug("Video", `Image ${i + 1}: Static (native resolution)`);
         }
     }
 

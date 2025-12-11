@@ -50,7 +50,6 @@ export const stickfigureStyle: VideoStyle = {
 
     // === Video Effects ===
     panEffect: false,  // Static images work better for stick figures
-    zoomToFit: true,   // Scale to fill 1920x1080 (crop edges if needed)
 
     // === LLM Context ===
     llmContext: `You are generating image prompts for stick figure illustrations.

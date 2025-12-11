@@ -16,6 +16,14 @@ export interface ImageGenerationResult {
 }
 
 /**
+ * Supported aspect ratios for image generation
+ * - "4:3": Used for panning scenes (provides headroom for movement)
+ * - "16:9": Native horizontal video resolution (for static scenes)
+ * - "9:16": Native vertical/shorts resolution (for static scenes)
+ */
+export type ImageAspectRatio = "4:3" | "16:9" | "9:16";
+
+/**
  * Options for image generation
  */
 export interface ImageGenerationOptions {
@@ -27,6 +35,8 @@ export interface ImageGenerationOptions {
     width?: number;
     /** Optional height (provider may ignore if unsupported) */
     height?: number;
+    /** Aspect ratio hint for providers that support it */
+    aspectRatio?: ImageAspectRatio;
 }
 
 /**

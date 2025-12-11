@@ -90,8 +90,7 @@ export function resolveStyle(style: VideoStyle, options: StyleOptions = {}): Res
     // Fewer words per caption for readability
     resolved.minWordsPerCaption = 2;
     resolved.maxWordsPerCaption = 4;
-    // Always zoom to fit for shorts (no black bars)
-    resolved.zoomToFit = true;
+    // Note: Images are now generated at native 9:16 resolution for shorts
   }
 
   // Apply pan effect override

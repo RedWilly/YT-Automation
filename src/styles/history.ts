@@ -19,11 +19,11 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from "./types.ts";
 export const historyStyle: VideoStyle = {
   id: "history",
   name: "History",
-  description: "Classic documentary style with watercolor aesthetic and karaoke captions",
+  description: "Classic documentary style with gouache illustration aesthetic and karaoke captions",
 
   // === Image Generation ===
-  imageStyle: "watercolor painting, soft layered washes, gentle color blending, subtle texture of paper, airy natural lighting, muted and harmonious colors, loose and flowing brushstrokes, delicate and artistic finish",
-  negativePrompt: "photograph, 3d, vector, oil painting, acrylic, impasto, thick paint, strong outlines, neon colors, watermark, text, deformed, ugly, disfigured",
+  imageStyle: "A high-quality gouache and watercolor illustration. The image features soft blended colors and painterly textures but creates a fully finished scene. The background is a detailed landscape that fills the entire frame with no empty space. Atmospheric lighting, matte painting style, rich soft colors,  delicate and artistic finish.",
+  negativePrompt: "photograph, 3d, vector, oil painting, acrylic, impasto, thick paint, strong outlines, neon colors, watermark, text, deformed, ugly, disfigured, white border, white edges, frame, paper edge, margin, vignette, faded edges, blank space, empty corners, white corners, light edges, unfinished edges",
 
   // === Segmentation ===
   segmentationType: "sentence",
@@ -49,11 +49,12 @@ export const historyStyle: VideoStyle = {
 
   // === LLM Context ===
   llmContext: `You are generating image prompts for a historical documentary video.
-The visual style is watercolor painting with a soft, artistic aesthetic.
+The visual style is gouache and watercolor illustration with painterly textures.
 Focus on:
 - Historical accuracy in costumes, settings, and props
-- Gentle, balanced compositions with flowing brushstrokes
-- Clear subject focus with contextual backgrounds
-- Natural, airy lighting typical of watercolor paintings`,
+- Fully finished scenes with detailed backgrounds filling the entire frame
+- Atmospheric lighting with rich, soft colors
+- Matte painting style with gentle, balanced compositions
+- Clear subject focus with contextual, detailed environments`,
 };
 

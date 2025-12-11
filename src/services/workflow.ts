@@ -199,7 +199,8 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        const cachedSegments = getCachedSegments(audioHash, style.id, style.orientation);
+        // Segments are shared across orientations (same text regardless of video format)
+        const cachedSegments = getCachedSegments(audioHash, style.id);
 
         if (cachedSegments) {
             logger.log("Workflow", "📦 Using cached segments (same style)");
@@ -215,8 +216,8 @@ export class WorkflowService {
             segments = result.segments;
             formattedTranscript = result.formattedTranscript;
 
-            // Save to style-specific cache
-            updateStyleCache(audioHash, style.id, style.orientation, {
+            // Save to style-specific cache (shared across orientations)
+            updateStyleCache(audioHash, style.id, "horizontal", {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
             });
@@ -229,7 +230,8 @@ export class WorkflowService {
         // =============================================================
         let imageQueries: ImageSearchQuery[];
 
-        const cachedQueries = getCachedImageQueries(audioHash, style.id, style.orientation);
+        // Image queries are shared across orientations (same prompts regardless of video format)
+        const cachedQueries = getCachedImageQueries(audioHash, style.id);
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -243,8 +245,8 @@ export class WorkflowService {
             imageQueries = await generateImageQueries(formattedTranscript, style);
             validateImageQueries(imageQueries);
 
-            // Save to style-specific cache
-            updateStyleCache(audioHash, style.id, style.orientation, {
+            // Save to style-specific cache (shared across orientations)
+            updateStyleCache(audioHash, style.id, "horizontal", {
                 image_queries: JSON.stringify(imageQueries),
             });
 

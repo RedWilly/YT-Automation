@@ -36,7 +36,7 @@ export const stickStyle: VideoStyle = {
     maxWordsPerCaption: 6,
     captionStyle: {
         fontName: "Resolve-Bold",
-        fontSize: 72,
+        fontSize: 42,
         primaryColor: "&H00FFFFFF",  // White text
         outlineColor: "&H00000000",  // Black outline
         backgroundColor: "&H80000000",  // Semi-transparent black
@@ -45,7 +45,7 @@ export const stickStyle: VideoStyle = {
         useBox: false,
     },
     highlightStyle: {
-        enabled: true,
+        enabled: false,
         color: "&H0000FFFF",  // Yellow highlight
         useBox: true,
     },

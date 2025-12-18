@@ -55,6 +55,10 @@ export const explainerStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: true,
 
+    // === Multi-Image Segmentation ===
+    multiImageSegments: false,  // Keep single image per segment
+    multiImageThreshold: 14,
+
     // === LLM Context ===
     llmContext: `You are generating image prompts for a professional adult education explainer video.
 The visual style is clean modern animation with smooth shapes, soft shading, and simple lines.

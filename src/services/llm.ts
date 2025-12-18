@@ -67,10 +67,67 @@ export async function generateImageQueries(
     );
   }
 
+  // Calculate multi-image info if enabled
+  let multiImageInfo: { enabled: boolean; expectedTotal: number; segmentImageCounts: number[] } | undefined;
+  let annotatedTranscript = formattedTranscript;
+  let expectedQueryCount = segmentCount;
+
+  if (style.multiImageSegments) {
+    const threshold = style.multiImageThreshold;
+    const segmentImageCounts: number[] = [];
+    const annotatedLines: string[] = [];
+
+    for (const line of lines) {
+      // Extract text after the timestamp marker
+      const textMatch = line.match(/\[[\d–\-]+ms\]:\s*(.+)/);
+      const segmentText = textMatch?.[1] ?? line;
+      const wordCount = segmentText.split(/\s+/).length;
+
+      // Calculate how many images this segment needs
+      let imageCount = 1;
+      if (wordCount > threshold) {
+        // For longer segments, split into chunks based on threshold
+        imageCount = Math.ceil(wordCount / threshold);
+        // Cap at 3 images per segment to avoid too many
+        imageCount = Math.min(imageCount, 3);
+      }
+
+      segmentImageCounts.push(imageCount);
+
+      // Annotate the line with image count
+      if (imageCount > 1) {
+        // Add annotation: "[0ms-6000ms] (2 images): The text..."
+        const annotatedLine = line.replace(
+          /(\[\d+[–\-]\d+ms\]):?\s*/,
+          `$1 (${imageCount} images): `
+        );
+        annotatedLines.push(annotatedLine);
+      } else {
+        annotatedLines.push(line.replace(/(\[\d+[–\-]\d+ms\]):?\s*/, `$1 (1 image): `));
+      }
+    }
+
+    const totalImages = segmentImageCounts.reduce((sum, count) => sum + count, 0);
+    expectedQueryCount = totalImages;
+
+    multiImageInfo = {
+      enabled: true,
+      expectedTotal: totalImages,
+      segmentImageCounts,
+    };
+
+    annotatedTranscript = annotatedLines.join("\n");
+
+    logger.log(
+      "LLM",
+      `📸 Multi-image mode: ${segmentCount} segments → ${totalImages} images (threshold: ${threshold} words)`
+    );
+  }
+
   // If small enough, single request
   const batchSize = LLM_SEGMENTS_PER_BATCH;
   if (segmentCount <= batchSize) {
-    const userPrompt = buildUserPrompt(lines.join("\n"), segmentCount, USE_AI_IMAGE);
+    const userPrompt = buildUserPrompt(annotatedTranscript, segmentCount, USE_AI_IMAGE, multiImageInfo);
     const queries = await callLLMWithRetry(
       systemPrompt,
       userPrompt,

@@ -199,8 +199,8 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        // Segments are shared across orientations (same text regardless of video format)
-        const cachedSegments = getCachedSegments(audioHash, style.id);
+        // Segments are shared across orientations but depend on multi-image mode
+        const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", style.multiImageSegments);
 
         if (cachedSegments) {
             logger.log("Workflow", "📦 Using cached segments (same style)");
@@ -217,7 +217,7 @@ export class WorkflowService {
             formattedTranscript = result.formattedTranscript;
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", {
+            updateStyleCache(audioHash, style.id, "horizontal", style.multiImageSegments, {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
             });
@@ -230,8 +230,8 @@ export class WorkflowService {
         // =============================================================
         let imageQueries: ImageSearchQuery[];
 
-        // Image queries are shared across orientations (same prompts regardless of video format)
-        const cachedQueries = getCachedImageQueries(audioHash, style.id);
+        // Image queries depend on multi-image mode setting
+        const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", style.multiImageSegments);
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -246,34 +246,49 @@ export class WorkflowService {
             validateImageQueries(imageQueries);
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", {
+            updateStyleCache(audioHash, style.id, "horizontal", style.multiImageSegments, {
                 image_queries: JSON.stringify(imageQueries),
             });
 
             logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);
         }
 
-        // Validate that we have exactly one query per segment
-        if (imageQueries.length !== segments.length) {
-            throw new Error(
-                `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
-            );
-        }
-        logger.success("Workflow", `Query count matches segment count (${segments.length})`);
-
-        // Validate that timestamps match
-        for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            const query = imageQueries[i];
-            if (!segment || !query) continue;
-
-            if (query.start !== segment.start || query.end !== segment.end) {
-                logger.warn(
-                    "Workflow",
-                    `Timestamp mismatch at segment ${i + 1}: ` +
-                    `Expected [${segment.start}-${segment.end}ms], ` +
-                    `Got [${query.start}-${query.end}ms]`
+        // Validate query count
+        // When multiImageSegments is enabled, we expect more queries than segments
+        if (style.multiImageSegments) {
+            // In multi-image mode: queries should be >= segments (longer sentences get multiple images)
+            if (imageQueries.length < segments.length) {
+                throw new Error(
+                    `Mismatch: Expected at least ${segments.length} queries, but got ${imageQueries.length} from LLM`
                 );
+            }
+            logger.success("Workflow", `Multi-image mode: ${segments.length} segments → ${imageQueries.length} images`);
+        } else {
+            // Standard mode: exactly one query per segment
+            if (imageQueries.length !== segments.length) {
+                throw new Error(
+                    `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
+                );
+            }
+            logger.success("Workflow", `Query count matches segment count (${segments.length})`);
+        }
+
+        // Validate that timestamps are within valid range (only for standard mode)
+        // In multi-image mode, LLM distributes timestamps within segment ranges
+        if (!style.multiImageSegments) {
+            for (let i = 0; i < segments.length; i++) {
+                const segment = segments[i];
+                const query = imageQueries[i];
+                if (!segment || !query) continue;
+
+                if (query.start !== segment.start || query.end !== segment.end) {
+                    logger.warn(
+                        "Workflow",
+                        `Timestamp mismatch at segment ${i + 1}: ` +
+                        `Expected [${segment.start}-${segment.end}ms], ` +
+                        `Got [${query.start}-${query.end}ms]`
+                    );
+                }
             }
         }
 
@@ -282,7 +297,7 @@ export class WorkflowService {
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
-        const cachedImages = getCachedImages(audioHash, style.id, style.orientation);
+        const cachedImages = getCachedImages(audioHash, style.id, style.orientation, style.multiImageSegments);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
@@ -300,7 +315,7 @@ export class WorkflowService {
 
             // Save to style-specific cache
             // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
-            updateStyleCache(audioHash, style.id, style.orientation, {
+            updateStyleCache(audioHash, style.id, style.orientation, style.multiImageSegments, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),
             });

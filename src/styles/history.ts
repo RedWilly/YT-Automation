@@ -47,6 +47,10 @@ export const historyStyle: VideoStyle = {
   // === Video Effects ===
   panEffect: true,
 
+  // === Multi-Image Segmentation ===
+  multiImageSegments: true,  // Enable multi-image for longer sentences
+  multiImageThreshold: 12,   // Split sentences with >12 words
+
   // === LLM Context ===
   llmContext: `You are generating image prompts for a historical documentary video.
 The visual style is gouache and watercolor illustration with painterly textures.

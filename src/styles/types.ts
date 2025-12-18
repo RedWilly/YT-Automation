@@ -86,6 +86,12 @@ export interface VideoStyle {
   /** Whether pan effect is enabled by default */
   panEffect: boolean;
 
+  // === Multi-Image Segmentation ===
+  /** Whether to split long segments into multiple images (default: false) */
+  multiImageSegments: boolean;
+  /** Word count threshold to trigger multi-image splitting (default: maxWordsPerCaption * 2) */
+  multiImageThreshold: number;
+
   // === LLM Context ===
   /** Additional context for LLM prompts (style-specific guidance) */
   llmContext: string;

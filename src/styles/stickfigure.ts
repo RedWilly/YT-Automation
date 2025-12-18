@@ -51,6 +51,10 @@ export const stickfigureStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: false,  // Static images work better for stick figures
 
+    // === Multi-Image Segmentation ===
+    multiImageSegments: false,  // Keep single image per segment
+    multiImageThreshold: 12,
+
     // === LLM Context ===
     llmContext: `You are generating image prompts for stick figure illustrations.
 

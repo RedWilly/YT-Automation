@@ -52,6 +52,10 @@ export const ww2Style: VideoStyle = {
   // === Video Effects ===
   panEffect: false,
 
+  // === Multi-Image Segmentation ===
+  multiImageSegments: false,  // Keep single image per segment (uses wordCount segmentation)
+  multiImageThreshold: 16,
+
   // === LLM Context ===
   llmContext: `You are generating image prompts for a World War 2 documentary video.
 The visual style matches archival black-and-white photography from the 1940s.

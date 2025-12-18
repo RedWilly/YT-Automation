@@ -79,36 +79,63 @@ Before generating, identify these elements and REUSE them consistently:
 /**
  * User prompt for image query generation
  * Provides the transcript and reinforces key rules
+ * Supports multi-image mode for longer segments
  */
 export function buildUserPrompt(
    formattedTranscript: string,
    segmentCount: number,
-   useAiImage: boolean
+   useAiImage: boolean,
+   multiImageInfo?: { enabled: boolean; expectedTotal: number; segmentImageCounts: number[] }
 ): string {
    const wordCount = useAiImage ? "35-60" : "8-15";
 
+   // Multi-image mode instructions
+   const multiImageInstructions = multiImageInfo?.enabled
+      ? `
+## MULTI-IMAGE MODE (CRITICAL)
+Some segments require MULTIPLE images. The number after each segment tells you how many.
+You must generate the EXACT number of images specified for each segment.
+
+For multi-image segments:
+- Split the segment's time range proportionally across the images
+- Each image should show a different moment or angle of the action
+- Maintain visual continuity between images in the same segment
+
+Example for segment "[0ms-6000ms] (2 images): The soldier walked across the field and found a tank":
+→ Image 1: {"start": 0, "end": 3000, "query": "soldier walking across battlefield..."}
+→ Image 2: {"start": 3000, "end": 6000, "query": "soldier discovering abandoned tank..."}
+
+TOTAL IMAGES EXPECTED: ${multiImageInfo.expectedTotal}
+`
+      : "";
+
+   const outputCount = multiImageInfo?.enabled
+      ? multiImageInfo.expectedTotal
+      : segmentCount;
+
    return `## TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}
-
+${multiImageInstructions}
 ## STEP 1: IDENTIFY RECURRING ELEMENTS
 Before generating queries, list in your mind:
 - Characters: Who appears? (names, titles, roles)
 - Locations: Where does it happen? (places, settings)
 - Theme: What is the overall topic?
 
-## STEP 2: GENERATE ${segmentCount} QUERIES
-For each segment, create ONE query following this format:
+## STEP 2: GENERATE ${outputCount} QUERIES
+For each segment, create the specified number of queries following this format:
 [WHO] + [ACTION] + [WHERE] + [DETAILS]
 
 Requirements:
 - Word count: ${wordCount} words per query
-- Use EXACT timestamps from segments
+- Use EXACT timestamps from segments (split proportionally for multi-image)
 - Same person = same descriptor throughout
 - Same location = same descriptor throughout
 
 ## OUTPUT
-Return ONLY a JSON array with ${segmentCount} objects:
+Return ONLY a JSON array with ${outputCount} objects:
 [{"start": 0, "end": 5000, "query": "..."}, ...]
 
 No text before or after the JSON. No markdown. No explanations.`;
 }
+

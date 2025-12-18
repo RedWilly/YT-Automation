@@ -4,15 +4,16 @@
  * Supports both horizontal (16:9) and vertical (9:16 shorts) orientations
  */
 
-import type { DownloadedImage, PanDirection, PanParams } from "../types.ts";
+import type { DownloadedImage, PanDirection, PanParams } from "../types/index.ts";
 import type { VideoOrientation } from "../styles/types.ts";
-import {
-    VIDEO_WIDTH_HORIZONTAL,
-    VIDEO_HEIGHT_HORIZONTAL,
-    VIDEO_WIDTH_VERTICAL,
-    VIDEO_HEIGHT_VERTICAL,
-} from "../constants.ts";
-import * as logger from "../logger.ts";
+import { DEFAULT_VIDEO_DIMENSIONS } from "../config/defaults.ts";
+import * as logger from "./logger.ts";
+
+// Video dimensions from config
+const VIDEO_WIDTH_HORIZONTAL = DEFAULT_VIDEO_DIMENSIONS.horizontal.width;
+const VIDEO_HEIGHT_HORIZONTAL = DEFAULT_VIDEO_DIMENSIONS.horizontal.height;
+const VIDEO_WIDTH_VERTICAL = DEFAULT_VIDEO_DIMENSIONS.vertical.width;
+const VIDEO_HEIGHT_VERTICAL = DEFAULT_VIDEO_DIMENSIONS.vertical.height;
 
 /**
  * Get video dimensions based on orientation

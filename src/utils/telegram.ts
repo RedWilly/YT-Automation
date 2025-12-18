@@ -4,8 +4,13 @@
  */
 
 import { Telegraf, type Context } from "telegraf";
-import { TELEGRAM_BOT_TOKEN, ALLOWED_CHAT_IDS, ALLOWED_USER_IDS } from "../constants.ts";
-import * as logger from "../logger.ts";
+import { TELEGRAM } from "../config/environment.ts";
+import * as logger from "./logger.ts";
+
+// Get config values
+const TELEGRAM_BOT_TOKEN = TELEGRAM.botToken;
+const ALLOWED_CHAT_IDS = TELEGRAM.allowedChatIds;
+const ALLOWED_USER_IDS = TELEGRAM.allowedUserIds;
 
 // Singleton instance
 let botInstance: Telegraf | null = null;

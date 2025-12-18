@@ -8,13 +8,14 @@
  *   bun test-workflow.ts  (uses first file in tmp/audio/)
  */
 
-import { transcribeAudio } from "./src/services/assemblyai.ts";
-import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
-import { generateImageQueries, validateImageQueries } from "./src/services/llm.ts";
-import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
-import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
-import { uploadVideoToMinIO } from "./src/services/minio.ts";
-import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
+import { transcribeAudio } from "./src/services/transcription/index.ts";
+import { processTranscript, validateTranscriptData } from "./src/services/transcription/index.ts";
+import { generateImageQueries, validateImageQueries } from "./src/services/llm/index.ts";
+import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/image/index.ts";
+import { generateVideo, validateVideoInputs } from "./src/services/video/index.ts";
+import { uploadVideoToMinIO } from "./src/services/storage/index.ts";
+import { DEFAULT_PATHS } from "./src/config/defaults.ts";
+import { MINIO } from "./src/config/environment.ts";
 import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import {
   hashAudioFile,
@@ -25,9 +26,12 @@ import {
   getCachedImageQueries,
   getCachedImages,
   initDatabase,
-} from "./src/services/cache.ts";
-import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "./src/types.ts";
-import * as logger from "./src/logger.ts";
+} from "./src/services/storage/index.ts";
+import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "./src/types/index.ts";
+import * as logger from "./src/utils/logger.ts";
+
+const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
+const MINIO_ENABLED = MINIO.enabled;
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";

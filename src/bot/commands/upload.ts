@@ -2,7 +2,7 @@
  * /upload command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
+import type { Context } from "../../utils/telegram/index.ts";
 import { AI_TEXT } from "../../config/index.ts";
 
 /**

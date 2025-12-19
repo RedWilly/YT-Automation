@@ -3,9 +3,9 @@
  * Assembles commands and handlers into a configured bot instance
  */
 
-import { getTelegramBot, type Context } from "../utils/telegram.ts";
+import { getTelegramBot, type Context } from "../utils/telegram/index.ts";
 import { WorkflowService } from "../core/workflow.ts";
-import { jobQueue, type Job } from "../core/queue.ts";
+import { jobQueue, type Job } from "../core/queue/index.ts";
 import * as logger from "../utils/logger.ts";
 
 // Import commands

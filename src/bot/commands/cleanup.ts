@@ -2,7 +2,7 @@
  * /cleanup command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
+import type { Context } from "../../utils/telegram/index.ts";
 import { cleanupTempFiles } from "../../services/storage/cleanup.ts";
 import { PATHS } from "../../config/index.ts";
 import * as logger from "../../utils/logger.ts";

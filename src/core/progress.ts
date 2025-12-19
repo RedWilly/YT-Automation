@@ -3,7 +3,7 @@
  * Manages workflow progress and sends updates via Telegram
  */
 
-import { sendMessage, editMessage, type Context } from "../utils/telegram.ts";
+import { sendMessage, editMessage, type Context } from "../utils/telegram/index.ts";
 import * as logger from "../utils/logger.ts";
 import type { ProgressUpdate } from "../types/index.ts";
 

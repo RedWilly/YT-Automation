@@ -2,7 +2,7 @@
  * /styles command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
+import type { Context } from "../../utils/telegram/index.ts";
 import { getDefaultStyle, getStyleIds, getStyle } from "../../styles/index.ts";
 import { escapeMarkdownV2 } from "../utils.ts";
 import * as logger from "../../utils/logger.ts";

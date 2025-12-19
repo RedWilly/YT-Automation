@@ -5,7 +5,7 @@
 
 import { parseStyleFromMessage, getStyle, getDefaultStyle, resolveStyle } from "../styles/index.ts";
 import type { ResolvedStyle } from "../styles/types.ts";
-import type { Context } from "../utils/telegram.ts";
+import type { Context } from "../utils/telegram/index.ts";
 
 /**
  * State management for tracking users waiting to provide URLs

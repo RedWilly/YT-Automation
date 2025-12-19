@@ -2,7 +2,7 @@
  * /help command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
+import type { Context } from "../../utils/telegram/index.ts";
 import * as logger from "../../utils/logger.ts";
 
 /**

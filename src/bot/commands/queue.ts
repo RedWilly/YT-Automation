@@ -2,8 +2,8 @@
  * /queue command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
-import { jobQueue } from "../../core/queue.ts";
+import type { Context } from "../../utils/telegram/index.ts";
+import { jobQueue } from "../../core/queue/index.ts";
 import * as logger from "../../utils/logger.ts";
 
 /**

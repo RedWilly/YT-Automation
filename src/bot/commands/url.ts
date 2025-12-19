@@ -2,10 +2,10 @@
  * /url command handler
  */
 
-import type { Context } from "../../utils/telegram.ts";
+import type { Context } from "../../utils/telegram/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { parseStyleFromMessage, getStyle, getDefaultStyle, resolveStyle } from "../../styles/index.ts";
-import { jobQueue } from "../../core/queue.ts";
+import { jobQueue } from "../../core/queue/index.ts";
 import { waitingForUrl } from "../utils.ts";
 import * as logger from "../../utils/logger.ts";
 

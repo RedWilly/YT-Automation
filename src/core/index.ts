@@ -4,5 +4,5 @@
  */
 
 export * from "./workflow.ts";
-export * from "./queue.ts";
+export * from "./queue/index.ts";
 export * from "./progress.ts";

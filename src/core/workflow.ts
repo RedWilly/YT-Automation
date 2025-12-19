@@ -8,7 +8,7 @@ import {
     downloadTelegramFile,
     downloadAudioFromUrl,
     type Context,
-} from "../utils/telegram.ts";
+} from "../utils/telegram/index.ts";
 import { DEFAULT_PATHS } from "../config/defaults.ts";
 import { MINIO } from "../config/environment.ts";
 import type { WorkflowResult, AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "../types/index.ts";

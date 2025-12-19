@@ -531,11 +531,11 @@ Longer audio takes proportionally longer. The bot updates you with progress.
 
 ## Creating Custom Styles
 
-To add your own style, create a new file in `src/styles/`:
+To add your own style, create a new file in `src/styles/presets/`:
 
 ```typescript
-// src/styles/mystyle.ts
-import type { VideoStyle } from "./types.ts";
+// src/styles/presets/mystyle.ts
+import type { VideoStyle } from "../types.ts";
 
 export const myStyle: VideoStyle = {
   id: "mystyle",
@@ -563,16 +563,33 @@ export const myStyle: VideoStyle = {
     outlineWidth: 2,
     shadowDepth: 2,
     useBox: false,
+    // Position & Layout
+    alignment: 2,
+    marginV: 130,
+    marginVVertical: 550,
+    marginL: 10,
+    marginR: 10,
+    // Text Transform
+    scaleX: 100,
+    scaleY: 100,
+    letterSpacing: 0,
+    bold: true,
+    italic: false,
+    uppercase: true,
   },
   highlightStyle: {
     enabled: true,
     color: "&H00FF008B",  // Purple
     useBox: true,
+    outlineWidth: 2,
   },
 
   // Video effects
   panEffect: true,
-  zoomToFit: false,  // Only used when panEffect is false
+
+  // Multi-image segments (optional)
+  multiImageSegments: false,
+  multiImageThreshold: 16,
 
   // LLM context
   llmContext: `Instructions for the LLM on how to generate image prompts for this style...`,
@@ -582,7 +599,7 @@ export const myStyle: VideoStyle = {
 Then register it in `src/styles/index.ts`:
 
 ```typescript
-import { myStyle } from "./mystyle.ts";
+import { myStyle } from "./presets/mystyle.ts";
 
 export const STYLES: Record<string, VideoStyle> = {
   history: historyStyle,

@@ -173,33 +173,22 @@ function calculateZoomParams(duration: number): ZoomParams {
 
 /**
  * Determine effect type based on shot type, panEnabled, and naturalEdit
- * When naturalEdit is true: shot type controls the effect
- * When naturalEdit is false: panEnabled controls all shots
  * 
- * @param shotType - Shot type from LLM (vertical/zoom/static)
+ * NOTE: Shot type effects are currently DISABLED.
+ * For now, always uses global panEnabled setting.
+ * The shot type infrastructure is in place for future use.
+ * 
+ * @param shotType - Shot type from LLM (vertical/zoom/static) - currently unused
  * @param panEnabled - Global pan effect setting from style
- * @param naturalEdit - Whether natural editing is enabled
+ * @param naturalEdit - Whether natural editing is enabled - currently unused
  */
 function determineEffectType(
-    shotType: ShotType | undefined,
+    _shotType: ShotType | undefined,
     panEnabled: boolean,
-    naturalEdit: boolean
+    _naturalEdit: boolean
 ): EffectType {
-    // If naturalEdit is disabled, use global panEnabled
-    if (!naturalEdit) {
-        return panEnabled ? "pan" : "static";
-    }
-
-    // naturalEdit is enabled: use shot type
-    switch (shotType) {
-        case "vertical":
-            return "pan";
-        case "zoom":
-            return "zoom";
-        case "static":
-        default:
-            return "static";
-    }
+    // Shot type effects disabled for now - always use global panEnabled
+    return panEnabled ? "pan" : "static";
 }
 
 /**

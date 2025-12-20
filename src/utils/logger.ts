@@ -2,8 +2,10 @@
  * Logger utility for debug and lite logging
  */
 
-// Read DEBUG directly to avoid circular dependency with config/environment.ts
-const DEBUG = process.env.DEBUG === "true" || process.env.DEBUG === "1";
+import { envBool } from "./env.ts";
+
+// Read DEBUG using envBool utility (same logic as environment.ts)
+const DEBUG = envBool("DEBUG");
 
 /**
  * Log levels

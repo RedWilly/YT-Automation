@@ -137,18 +137,6 @@ export const DEFAULT_SEGMENTATION = {
     timingToleranceMs: 100,
 } as const;
 
-/**
- * Default multi-image segmentation settings
- */
-export const DEFAULT_MULTI_IMAGE = {
-    /** Enable multi-image generation for longer sentences */
-    enabled: false,
-    /** Word threshold before splitting into multiple images */
-    threshold: 12,
-    /** Maximum images per segment */
-    maxImagesPerSegment: 3,
-} as const;
-
 // =============================================================
 // LLM SETTINGS
 // =============================================================

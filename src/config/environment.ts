@@ -4,6 +4,7 @@
  */
 
 import * as logger from "../utils/logger.ts";
+import { envBool, envNumber, envString } from "../utils/env.ts";
 import {
     DEFAULT_PATHS,
     DEFAULT_LLM_SETTINGS,
@@ -57,32 +58,6 @@ export function parseIdList(envValue?: string): number[] {
         }
     }
     return values;
-}
-
-/**
- * Get boolean from environment variable
- */
-function envBool(key: string, defaultValue = false): boolean {
-    const value = process.env[key];
-    if (value === undefined) return defaultValue;
-    return value.toLowerCase() === "true";
-}
-
-/**
- * Get number from environment variable
- */
-function envNumber(key: string, defaultValue: number): number {
-    const value = process.env[key];
-    if (value === undefined) return defaultValue;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : defaultValue;
-}
-
-/**
- * Get string from environment variable
- */
-function envString(key: string, defaultValue = ""): string {
-    return process.env[key] ?? defaultValue;
 }
 
 // =============================================================

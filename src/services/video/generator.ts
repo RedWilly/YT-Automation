@@ -12,7 +12,7 @@ import { writeFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import * as logger from "../../utils/logger.ts";
 import { generateCaptions } from "../captions/index.ts";
-import { createFilterComplex } from "../../utils/ffmpeg.ts";
+import { createFilterComplex } from "./ffmpeg/index.ts";
 
 const TMP_VIDEO_DIR = DEFAULT_PATHS.video;
 const IMAGES_PER_CHUNK = DEFAULT_VIDEO_SETTINGS.imagesPerChunk;

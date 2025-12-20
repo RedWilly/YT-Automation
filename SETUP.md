@@ -589,7 +589,7 @@ export const myStyle: VideoStyle = {
 
   // Natural editing (optional)
   // When true: splits long segments (>5s) into smaller chunks for dynamic pacing
-  // LLM will also assign shot types (main/detail/wide) for varied visuals
+  // LLM will also assign shot types (static/pan/zoom) for varied visuals
   naturalEdit: false,
 
   // LLM context

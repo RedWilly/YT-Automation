@@ -137,7 +137,7 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
     const results: ImageSearchQuery[] = [];
 
     // Match object-like pattern containing start, end, query, and optionally type
-    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(vertical|zoom|static)\5)?/gi;
+    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(pan|zoom|static)\5)?/gi;
 
     let match: RegExpExecArray | null;
 
@@ -148,7 +148,7 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
         const startVal = parseInt(match[1], 10);
         const endVal = parseInt(match[2], 10);
         const queryVal = match[4].trim();
-        const typeVal = match[6] as "vertical" | "zoom" | "static" | undefined;
+        const typeVal = match[6] as "pan" | "zoom" | "static" | undefined;
 
         if (!isNaN(startVal) && !isNaN(endVal) && queryVal.length > 0) {
             results.push({

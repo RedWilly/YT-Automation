@@ -46,11 +46,11 @@ export interface SegmentProcessingResult {
 
 /**
  * Shot type for natural editing - controls per-shot video effects
- * - vertical: subtle pan up/down (random direction)
- * - zoom: subtle zoom in/out (random direction)
- * - static: no movement
+ * - pan: vertical pan up/down (random direction), uses 4:3 aspect ratio for headroom
+ * - zoom: subtle zoom in/out (random direction), uses 16:9 aspect ratio
+ * - static: no movement, uses 16:9 aspect ratio
  */
-export type ShotType = "vertical" | "zoom" | "static";
+export type ShotType = "pan" | "zoom" | "static";
 
 export interface ImageSearchQuery {
   start: number;

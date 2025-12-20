@@ -38,23 +38,23 @@ Use concrete, searchable terms. Avoid abstract or artistic language.`;
 ## SHOT TYPES (Natural Editing Mode)
 For each segment, assign a shot type to create visual variety:
 
-- **"vertical"** - For establishing shots, wide scenes, or when panning movement would enhance the visual
+- **"pan"** - For establishing shots, wide scenes, or when panning movement would enhance the visual
 - **"zoom"** - For close-ups, details, specific facts, or moments needing focus
 - **"static"** - For primary actions, dialogue, or when the subject should be clearly visible without movement
 
-Your output MUST include: {"start": N, "end": N, "query": "...", "type": "vertical|zoom|static"}
+Your output MUST include: {"start": N, "end": N, "query": "...", "type": "pan|zoom|static"}
 
 SHOT TYPE GUIDELINES:
-1. Opening segments: use "vertical" to establish the scene
+1. Opening segments: use "pan" to establish the scene
 2. Specific details, numbers, close-ups: use "zoom"
 3. Main action or primary subject: use "static"
 4. Vary types for rhythm - don't use the same type 3+ times in a row
-5. Scene transitions: consider "vertical" for new locations
+5. Scene transitions: consider "pan" for new locations
 `
       : "";
 
    const outputFormat = style.naturalEdit
-      ? `Each object: {"start": number, "end": number, "query": "string", "type": "vertical"|"zoom"|"static"}`
+      ? `Each object: {"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
       : `Each object: {"start": number, "end": number, "query": "string"}`;
 
    return `You are a visual query generator for video content.
@@ -120,15 +120,15 @@ export function buildUserPrompt(
    const shotTypeReminder = naturalEdit
       ? `
 ## SHOT TYPES REMINDER
-Each query MUST include a "type" field: "vertical", "zoom", or "static"
-- "vertical" → establishing shots, wide scenes, panning moments
+Each query MUST include a "type" field: "pan", "zoom", or "static"
+- "pan" → establishing shots, wide scenes, panning moments
 - "zoom" → close-ups, details, focus moments
 - "static" → main action, clear subjects, dialogue
 `
       : "";
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "...", "type": "vertical"}, ...]`
+      ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan"}, ...]`
       : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
    return `## TRANSCRIPT (${segmentCount} segments)

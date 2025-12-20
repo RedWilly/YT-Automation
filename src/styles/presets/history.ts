@@ -45,7 +45,7 @@ export const historyStyle: VideoStyle = {
   },
 
   // === Video Effects ===
-  panEffect: true,
+  panEffect: false,
 
   // === Natural Editing ===
   naturalEdit: true,  // Enable time-based splitting and b-roll types

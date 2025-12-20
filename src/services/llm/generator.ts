@@ -64,7 +64,7 @@ export async function generateImageQueries(
     if (naturalEdit) {
         logger.log(
             "LLM",
-            `🎬 Natural editing mode - LLM will assign shot types (main/detail/wide)`
+            `🎬 Natural editing mode - LLM will assign shot types (static/pan/zoom)`
         );
     }
 

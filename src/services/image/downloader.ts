@@ -119,22 +119,33 @@ async function generateAIImageForQuery(
   const { start, end } = queryData;
   const provider = getProvider();
 
-  // Calculate scene duration and determine aspect ratio
+  // Calculate scene duration
   const durationSeconds = (end - start) / 1000;
   const MIN_PAN_DURATION = 3; // Same as in ffmpeg.ts
-  const isPanning = style.panEffect && durationSeconds >= MIN_PAN_DURATION;
 
-  // Determine aspect ratio based on whether scene will pan
+  // Determine aspect ratio based on shot type (when naturalEdit enabled) or fallback to panEffect + duration
   let aspectRatio: "4:3" | "16:9" | "9:16";
-  if (isPanning) {
-    // Panning scenes need 4:3 for headroom
-    aspectRatio = "4:3";
-  } else {
-    // Static scenes use native video resolution
-    aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
-  }
 
-  logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${isPanning ? "panning" : "static"} → ${aspectRatio}`);
+  if (style.naturalEdit && queryData.type) {
+    // Shot type determines aspect ratio:
+    // - pan: 4:3 for vertical pan headroom
+    // - zoom/static: native resolution (no extra headroom needed)
+    if (queryData.type === "pan") {
+      aspectRatio = "4:3";
+    } else {
+      aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
+    }
+    logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${queryData.type} → ${aspectRatio}`);
+  } else {
+    // Fallback: use panEffect + duration logic (original behavior)
+    const isPanning = style.panEffect && durationSeconds >= MIN_PAN_DURATION;
+    if (isPanning) {
+      aspectRatio = "4:3";
+    } else {
+      aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
+    }
+    logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${isPanning ? "panning" : "static"} → ${aspectRatio}`);
+  }
 
   let lastError: Error | null = null;
   let rewriteCount = 0;

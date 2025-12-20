@@ -2,9 +2,10 @@
  * FFmpeg utility functions for video processing
  * Supports configurable pan effects via style system
  * Supports both horizontal (16:9) and vertical (9:16 shorts) orientations
+ * Supports per-shot effects via shot type (when naturalEdit is enabled)
  */
 
-import type { DownloadedImage, PanDirection, PanParams } from "../types/index.ts";
+import type { DownloadedImage, PanDirection, PanParams, ShotType } from "../types/index.ts";
 import type { VideoOrientation } from "../styles/types.ts";
 import { DEFAULT_VIDEO_DIMENSIONS } from "../config/defaults.ts";
 import * as logger from "./logger.ts";
@@ -14,6 +15,24 @@ const VIDEO_WIDTH_HORIZONTAL = DEFAULT_VIDEO_DIMENSIONS.horizontal.width;
 const VIDEO_HEIGHT_HORIZONTAL = DEFAULT_VIDEO_DIMENSIONS.horizontal.height;
 const VIDEO_WIDTH_VERTICAL = DEFAULT_VIDEO_DIMENSIONS.vertical.width;
 const VIDEO_HEIGHT_VERTICAL = DEFAULT_VIDEO_DIMENSIONS.vertical.height;
+
+/**
+ * Effect type for per-shot effects
+ * - "pan" = vertical/horizontal pan (based on orientation)
+ * - "zoom" = zoom in/out animation
+ * - "static" = no movement
+ */
+type EffectType = "pan" | "zoom" | "static";
+
+/**
+ * Zoom parameters for zoom effect
+ */
+interface ZoomParams {
+    enabled: boolean;
+    zoomIn: boolean;      // true = zoom in (1.0 → 1.05), false = zoom out (1.05 → 1.0)
+    startScale: number;   // Starting scale factor
+    endScale: number;     // Ending scale factor
+}
 
 /**
  * Get video dimensions based on orientation
@@ -129,23 +148,79 @@ export function calculatePanParams(
 }
 
 /**
+ * Calculate zoom parameters for zoom effect
+ * @param duration - Scene duration in seconds
+ * @returns Zoom parameters
+ */
+function calculateZoomParams(duration: number): ZoomParams {
+    const MIN_ZOOM_DURATION = 2;
+
+    if (duration < MIN_ZOOM_DURATION) {
+        return { enabled: false, zoomIn: true, startScale: 1.0, endScale: 1.0 };
+    }
+
+    // Randomly choose zoom direction (in or out)
+    const zoomIn = Math.random() > 0.5;
+
+    // Subtle zoom: 5% scale change
+    return {
+        enabled: true,
+        zoomIn,
+        startScale: zoomIn ? 1.0 : 1.05,
+        endScale: zoomIn ? 1.05 : 1.0,
+    };
+}
+
+/**
+ * Determine effect type based on shot type, panEnabled, and naturalEdit
+ * When naturalEdit is true: shot type controls the effect
+ * When naturalEdit is false: panEnabled controls all shots
+ * 
+ * @param shotType - Shot type from LLM (vertical/zoom/static)
+ * @param panEnabled - Global pan effect setting from style
+ * @param naturalEdit - Whether natural editing is enabled
+ */
+function determineEffectType(
+    shotType: ShotType | undefined,
+    panEnabled: boolean,
+    naturalEdit: boolean
+): EffectType {
+    // If naturalEdit is disabled, use global panEnabled
+    if (!naturalEdit) {
+        return panEnabled ? "pan" : "static";
+    }
+
+    // naturalEdit is enabled: use shot type
+    switch (shotType) {
+        case "vertical":
+            return "pan";
+        case "zoom":
+            return "zoom";
+        case "static":
+        default:
+            return "static";
+    }
+}
+
+/**
  * Create FFmpeg filter complex for image transitions
+ * Supports per-shot effects when naturalEdit is enabled
  * 
  * Images generated at the appropriate resolution:
  * - Panning scenes (≥3s): 4:3 aspect ratio for pan headroom
  * - Static scenes (<3s): Native video resolution (16:9 or 9:16)
  * 
- * This means static images don't need cropping - they already fit perfectly.
- * 
- * @param images - Sorted array of images with timing
+ * @param images - Sorted array of images with timing and optional shot type
  * @param panEnabled - Whether pan effect is enabled (from style config)
  * @param orientation - Video orientation (horizontal or vertical)
+ * @param naturalEdit - Whether natural editing is enabled
  * @returns Filter complex string and total duration
  */
 export function createFilterComplex(
     images: DownloadedImage[],
     panEnabled: boolean = true,
-    orientation: VideoOrientation = "horizontal"
+    orientation: VideoOrientation = "horizontal",
+    naturalEdit: boolean = false
 ): { filterComplex: string; totalDuration: number } {
     const filters: string[] = [];
     let totalDuration = 0;
@@ -153,7 +228,7 @@ export function createFilterComplex(
     const { width: VIDEO_WIDTH, height: VIDEO_HEIGHT } = getVideoDimensions(orientation);
     const imagesLength = images.length;
 
-    // Process each image with optional pan effect
+    // Process each image with optional effects
     for (let i = 0; i < imagesLength; i++) {
         const image = images[i];
         if (!image) continue;
@@ -161,39 +236,70 @@ export function createFilterComplex(
         const duration = (image.end - image.start) / 1000;
         totalDuration += duration;
 
-        const panParams = calculatePanParams(duration, panEnabled, orientation);
+        // Determine what effect to apply to this shot
+        const effectType = determineEffectType(image.type, panEnabled, naturalEdit);
 
-        if (panParams.enabled) {
-            // PANNING: Image is 4:3, needs scaling and animated crop
-            const fps = 30;
-            const totalFrames = Math.round(duration * fps);
+        if (effectType === "pan") {
+            // PAN EFFECT
+            const panParams = calculatePanParams(duration, true, orientation);
 
-            if (orientation === "vertical") {
-                // VERTICAL: Scale to fit height, horizontal pan
-                const xExpression = `if(lte(n,${totalFrames}),${panParams.xStart}+(${panParams.xEnd}-${panParams.xStart})*n/${totalFrames},${panParams.xEnd})`;
+            if (panParams.enabled) {
+                const fps = 30;
+                const totalFrames = Math.round(duration * fps);
 
-                filters.push(
-                    `[${i}:v]scale=-1:${VIDEO_HEIGHT},fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x='${xExpression}':y=0,setsar=1,format=yuv420p[v${i}]`
-                );
-
-                logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (X: ${panParams.xStart}px → ${panParams.xEnd}px) [shorts]`);
+                if (orientation === "vertical") {
+                    const xExpression = `if(lte(n,${totalFrames}),${panParams.xStart}+(${panParams.xEnd}-${panParams.xStart})*n/${totalFrames},${panParams.xEnd})`;
+                    filters.push(
+                        `[${i}:v]scale=-1:${VIDEO_HEIGHT},fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x='${xExpression}':y=0,setsar=1,format=yuv420p[v${i}]`
+                    );
+                    logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} [${image.type ?? "global"}]`);
+                } else {
+                    const yExpression = `if(lte(n,${totalFrames}),${panParams.yStart}+(${panParams.yEnd}-${panParams.yStart})*n/${totalFrames},${panParams.yEnd})`;
+                    filters.push(
+                        `[${i}:v]scale=${VIDEO_WIDTH}:-1,fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x=0:y='${yExpression}',setsar=1,format=yuv420p[v${i}]`
+                    );
+                    logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} [${image.type ?? "global"}]`);
+                }
             } else {
-                // HORIZONTAL: Scale to fit width, vertical pan
-                const yExpression = `if(lte(n,${totalFrames}),${panParams.yStart}+(${panParams.yEnd}-${panParams.yStart})*n/${totalFrames},${panParams.yEnd})`;
-
+                // Duration too short for pan, fall back to static
                 filters.push(
-                    `[${i}:v]scale=${VIDEO_WIDTH}:-1,fps=${fps},crop=w=${VIDEO_WIDTH}:h=${VIDEO_HEIGHT}:x=0:y='${yExpression}',setsar=1,format=yuv420p[v${i}]`
+                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
                 );
-
-                logger.debug("Video", `Image ${i + 1}: Pan ${panParams.direction} (Y: ${panParams.yStart}px → ${panParams.yEnd}px)`);
+                logger.debug("Video", `Image ${i + 1}: Static (duration too short for pan)`);
             }
+
+        } else if (effectType === "zoom") {
+            // ZOOM EFFECT
+            const zoomParams = calculateZoomParams(duration);
+
+            if (zoomParams.enabled) {
+                const fps = 30;
+                const totalFrames = Math.round(duration * fps);
+
+                // Subtle zoom using zoompan filter
+                // Scale expression: linear interpolation between startScale and endScale
+                const zoomExpr = `${zoomParams.startScale}+(${zoomParams.endScale}-${zoomParams.startScale})*on/${totalFrames}`;
+
+                // For zoom, start with oversized image at center
+                // zoompan: z=zoom expression, x/y keep center, d=duration in frames
+                filters.push(
+                    `[${i}:v]scale=${VIDEO_WIDTH * 2}:${VIDEO_HEIGHT * 2},zoompan=z='${zoomExpr}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${totalFrames}:fps=${fps}:s=${VIDEO_WIDTH}x${VIDEO_HEIGHT},setsar=1,format=yuv420p[v${i}]`
+                );
+                logger.debug("Video", `Image ${i + 1}: Zoom ${zoomParams.zoomIn ? "in" : "out"} [${image.type ?? "zoom"}]`);
+            } else {
+                // Duration too short for zoom, fall back to static
+                filters.push(
+                    `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
+                );
+                logger.debug("Video", `Image ${i + 1}: Static (duration too short for zoom)`);
+            }
+
         } else {
-            // STATIC: Image is already at native video resolution (16:9 or 9:16)
-            // Simple scale to exact dimensions - no cropping needed
+            // STATIC: No effect
             filters.push(
                 `[${i}:v]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[v${i}]`
             );
-            logger.debug("Video", `Image ${i + 1}: Static (native resolution)`);
+            logger.debug("Video", `Image ${i + 1}: Static [${image.type ?? "default"}]`);
         }
     }
 

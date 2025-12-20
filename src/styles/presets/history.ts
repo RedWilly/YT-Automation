@@ -47,9 +47,8 @@ export const historyStyle: VideoStyle = {
   // === Video Effects ===
   panEffect: true,
 
-  // === Multi-Image Segmentation ===
-  multiImageSegments: true,  // Enable multi-image for longer sentences
-  multiImageThreshold: 12,   // Split sentences with >12 words
+  // === Natural Editing ===
+  naturalEdit: true,  // Enable time-based splitting and b-roll types
 
   // === LLM Context ===
   llmContext: `You are generating image prompts for a historical documentary video.

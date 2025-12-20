@@ -1,5 +1,6 @@
 /**
  * LLM Prompt templates and generation logic
+ * Supports natural editing mode with shot type effects
  */
 
 import type { ResolvedStyle } from "../../styles/types.ts";
@@ -31,14 +32,39 @@ Use concrete, searchable terms. Avoid abstract or artistic language.`;
       ? `\n## STYLE-SPECIFIC GUIDANCE\n${style.llmContext}\n`
       : "";
 
+   // Natural editing shot type instructions
+   const naturalEditInstructions = style.naturalEdit
+      ? `
+## SHOT TYPES (Natural Editing Mode)
+For each segment, assign a shot type to create visual variety:
+
+- **"vertical"** - For establishing shots, wide scenes, or when panning movement would enhance the visual
+- **"zoom"** - For close-ups, details, specific facts, or moments needing focus
+- **"static"** - For primary actions, dialogue, or when the subject should be clearly visible without movement
+
+Your output MUST include: {"start": N, "end": N, "query": "...", "type": "vertical|zoom|static"}
+
+SHOT TYPE GUIDELINES:
+1. Opening segments: use "vertical" to establish the scene
+2. Specific details, numbers, close-ups: use "zoom"
+3. Main action or primary subject: use "static"
+4. Vary types for rhythm - don't use the same type 3+ times in a row
+5. Scene transitions: consider "vertical" for new locations
+`
+      : "";
+
+   const outputFormat = style.naturalEdit
+      ? `Each object: {"start": number, "end": number, "query": "string", "type": "vertical"|"zoom"|"static"}`
+      : `Each object: {"start": number, "end": number, "query": "string"}`;
+
    return `You are a visual query generator for video content.
 
 ${styleGuidance}
-${styleContext}
+${styleContext}${naturalEditInstructions}
 ## YOUR OUTPUT FORMAT
 Return ONLY a valid JSON array. No text before or after.
 Copy "start" and "end" exactly from the transcript segments; do not modify them.
-Each object: {"start": number, "end": number, "query": "string"}
+${outputFormat}
 
 ## QUERY REQUIREMENTS
 Every query MUST follow this structure:
@@ -78,64 +104,56 @@ Before generating, identify these elements and REUSE them consistently:
 
 /**
  * User prompt for image query generation
- * Provides the transcript and reinforces key rules
- * Supports multi-image mode for longer segments
+ * @param formattedTranscript - Formatted transcript with timestamps
+ * @param segmentCount - Number of segments
+ * @param useAiImage - Whether AI image generation is enabled
+ * @param naturalEdit - Whether natural editing mode is active
  */
 export function buildUserPrompt(
    formattedTranscript: string,
    segmentCount: number,
    useAiImage: boolean,
-   multiImageInfo?: { enabled: boolean; expectedTotal: number; segmentImageCounts: number[] }
+   naturalEdit: boolean = false
 ): string {
    const wordCount = useAiImage ? "35-60" : "8-15";
 
-   // Multi-image mode instructions
-   const multiImageInstructions = multiImageInfo?.enabled
+   const shotTypeReminder = naturalEdit
       ? `
-## MULTI-IMAGE MODE (CRITICAL)
-Some segments require MULTIPLE images. The number after each segment tells you how many.
-You must generate the EXACT number of images specified for each segment.
-
-For multi-image segments:
-- Split the segment's time range proportionally across the images
-- Each image should show a different moment or angle of the action
-- Maintain visual continuity between images in the same segment
-
-Example for segment "[0ms-6000ms] (2 images): The soldier walked across the field and found a tank":
-→ Image 1: {"start": 0, "end": 3000, "query": "soldier walking across battlefield..."}
-→ Image 2: {"start": 3000, "end": 6000, "query": "soldier discovering abandoned tank..."}
-
-TOTAL IMAGES EXPECTED: ${multiImageInfo.expectedTotal}
+## SHOT TYPES REMINDER
+Each query MUST include a "type" field: "vertical", "zoom", or "static"
+- "vertical" → establishing shots, wide scenes, panning moments
+- "zoom" → close-ups, details, focus moments
+- "static" → main action, clear subjects, dialogue
 `
       : "";
 
-   const outputCount = multiImageInfo?.enabled
-      ? multiImageInfo.expectedTotal
-      : segmentCount;
+   const outputExample = naturalEdit
+      ? `[{"start": 0, "end": 5000, "query": "...", "type": "vertical"}, ...]`
+      : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
    return `## TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}
-${multiImageInstructions}
+${shotTypeReminder}
 ## STEP 1: IDENTIFY RECURRING ELEMENTS
 Before generating queries, list in your mind:
 - Characters: Who appears? (names, titles, roles)
 - Locations: Where does it happen? (places, settings)
 - Theme: What is the overall topic?
 
-## STEP 2: GENERATE ${outputCount} QUERIES
-For each segment, create the specified number of queries following this format:
+## STEP 2: GENERATE ${segmentCount} QUERIES
+For each segment, create one query following this format:
 [WHO] + [ACTION] + [WHERE] + [DETAILS]
 
 Requirements:
 - Word count: ${wordCount} words per query
-- Use EXACT timestamps from segments (split proportionally for multi-image)
+- Use EXACT timestamps from segments
 - Same person = same descriptor throughout
 - Same location = same descriptor throughout
+${naturalEdit ? "- Include \"type\" field for each query (vertical/zoom/static)" : ""}
 
 ## OUTPUT
-Return ONLY a JSON array with ${outputCount} objects:
-[{"start": 0, "end": 5000, "query": "..."}, ...]
+Return ONLY a JSON array with ${segmentCount} objects:
+${outputExample}
 
 No text before or after the JSON. No markdown. No explanations.`;
 }
-

@@ -163,7 +163,7 @@ async function generateAIImageForQuery(
         logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
       }
 
-      return { query: queryData.query, start, end, filePath };
+      return { query: queryData.query, start, end, filePath, type: queryData.type };
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -217,7 +217,7 @@ async function generateAIImageForQuery(
         await Bun.write(filePath, result.data);
         logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-        return { query: queryData.query, start, end, filePath };
+        return { query: queryData.query, start, end, filePath, type: queryData.type };
 
       } catch (fallbackError) {
         lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
@@ -368,6 +368,7 @@ async function downloadImageForQuery(
           start,
           end,
           filePath,
+          type: queryData.type,
         };
       }
 

@@ -587,9 +587,10 @@ export const myStyle: VideoStyle = {
   // Video effects
   panEffect: true,
 
-  // Multi-image segments (optional)
-  multiImageSegments: false,
-  multiImageThreshold: 16,
+  // Natural editing (optional)
+  // When true: splits long segments (>5s) into smaller chunks for dynamic pacing
+  // LLM will also assign shot types (main/detail/wide) for varied visuals
+  naturalEdit: false,
 
   // LLM context
   llmContext: `Instructions for the LLM on how to generate image prompts for this style...`,

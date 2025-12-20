@@ -67,9 +67,8 @@ export const stickStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: false,  // Static images work better for stick figures
 
-    // === Multi-Image Segmentation ===
-    multiImageSegments: true,  // Enable multi-image for longer sentences
-    multiImageThreshold: 12,   // Split sentences with >12 words
+    // === Natural Editing ===
+    naturalEdit: true,  // Enable time-based splitting and b-roll types
 
     // === LLM Context ===
     llmContext: `You are generating image prompts for cartoon stick figure illustrations with CONSISTENT character design.

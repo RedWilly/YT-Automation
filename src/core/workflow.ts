@@ -34,6 +34,7 @@ import {
     getCachedImages,
 } from "../services/storage/index.ts";
 import * as logger from "../utils/logger.ts";
+import { splitLongSegments } from "../services/segmentation/natural-split.ts";
 import path from "node:path";
 
 const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
@@ -202,8 +203,9 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        // Segments are shared across orientations but depend on multi-image mode
-        const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", style.multiImageSegments);
+        // Segments are shared across orientations but depend on naturalEdit mode
+        const naturalEdit = style.naturalEdit ?? false;
+        const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", naturalEdit);
 
         if (cachedSegments) {
             logger.log("Workflow", "📦 Using cached segments (same style)");
@@ -217,10 +219,26 @@ export class WorkflowService {
 
             const result = processTranscript(transcriptWords, audioDuration, style);
             segments = result.segments;
-            formattedTranscript = result.formattedTranscript;
+
+            // Natural edit mode: split long segments into smaller chunks for more dynamic pacing
+            if (naturalEdit) {
+                const originalCount = segments.length;
+                segments = splitLongSegments(segments);
+                if (segments.length > originalCount) {
+                    logger.log(
+                        "Workflow",
+                        `🎬 Natural edit: ${originalCount} → ${segments.length} segments (time-based splitting)`
+                    );
+                }
+            }
+
+            // Build formatted transcript for LLM
+            formattedTranscript = segments
+                .map(seg => `[${seg.start}–${seg.end}ms]: ${seg.text}`)
+                .join("\n");
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", style.multiImageSegments, {
+            updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
             });
@@ -233,8 +251,8 @@ export class WorkflowService {
         // =============================================================
         let imageQueries: ImageSearchQuery[];
 
-        // Image queries depend on multi-image mode setting
-        const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", style.multiImageSegments);
+        // Image queries depend on naturalEdit mode setting
+        const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", naturalEdit);
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -249,49 +267,34 @@ export class WorkflowService {
             validateImageQueries(imageQueries);
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", style.multiImageSegments, {
+            updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
                 image_queries: JSON.stringify(imageQueries),
             });
 
             logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);
         }
 
-        // Validate query count
-        // When multiImageSegments is enabled, we expect more queries than segments
-        if (style.multiImageSegments) {
-            // In multi-image mode: queries should be >= segments (longer sentences get multiple images)
-            if (imageQueries.length < segments.length) {
-                throw new Error(
-                    `Mismatch: Expected at least ${segments.length} queries, but got ${imageQueries.length} from LLM`
-                );
-            }
-            logger.success("Workflow", `Multi-image mode: ${segments.length} segments → ${imageQueries.length} images`);
-        } else {
-            // Standard mode: exactly one query per segment
-            if (imageQueries.length !== segments.length) {
-                throw new Error(
-                    `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
-                );
-            }
-            logger.success("Workflow", `Query count matches segment count (${segments.length})`);
+        // Validate query count - should always match segment count now
+        if (imageQueries.length !== segments.length) {
+            throw new Error(
+                `Mismatch: Expected ${segments.length} queries (one per segment), but got ${imageQueries.length} queries from LLM`
+            );
         }
+        logger.success("Workflow", `Query count matches segment count (${segments.length})`);
 
-        // Validate that timestamps are within valid range (only for standard mode)
-        // In multi-image mode, LLM distributes timestamps within segment ranges
-        if (!style.multiImageSegments) {
-            for (let i = 0; i < segments.length; i++) {
-                const segment = segments[i];
-                const query = imageQueries[i];
-                if (!segment || !query) continue;
+        // Validate that timestamps are within valid range
+        for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const query = imageQueries[i];
+            if (!segment || !query) continue;
 
-                if (query.start !== segment.start || query.end !== segment.end) {
-                    logger.warn(
-                        "Workflow",
-                        `Timestamp mismatch at segment ${i + 1}: ` +
-                        `Expected [${segment.start}-${segment.end}ms], ` +
-                        `Got [${query.start}-${query.end}ms]`
-                    );
-                }
+            if (query.start !== segment.start || query.end !== segment.end) {
+                logger.warn(
+                    "Workflow",
+                    `Timestamp mismatch at segment ${i + 1}: ` +
+                    `Expected [${segment.start}-${segment.end}ms], ` +
+                    `Got [${query.start}-${query.end}ms]`
+                );
             }
         }
 
@@ -300,7 +303,7 @@ export class WorkflowService {
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
-        const cachedImages = getCachedImages(audioHash, style.id, style.orientation, style.multiImageSegments);
+        const cachedImages = getCachedImages(audioHash, style.id, style.orientation, naturalEdit);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
@@ -318,7 +321,7 @@ export class WorkflowService {
 
             // Save to style-specific cache
             // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
-            updateStyleCache(audioHash, style.id, style.orientation, style.multiImageSegments, {
+            updateStyleCache(audioHash, style.id, style.orientation, naturalEdit, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),
             });

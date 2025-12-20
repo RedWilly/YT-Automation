@@ -66,9 +66,8 @@ export const ww2Style: VideoStyle = {
   // === Video Effects ===
   panEffect: false,
 
-  // === Multi-Image Segmentation ===
-  multiImageSegments: false,  // Keep single image per segment (uses wordCount segmentation)
-  multiImageThreshold: 16,
+  // === Natural Editing ===
+  naturalEdit: false,  // Uses word-count segmentation
 
   // === LLM Context ===
   llmContext: `You are generating image prompts for a World War 2 documentary video.

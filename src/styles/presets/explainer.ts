@@ -55,9 +55,8 @@ export const explainerStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: true,
 
-    // === Multi-Image Segmentation ===
-    multiImageSegments: false,  // Keep single image per segment
-    multiImageThreshold: 14,
+    // === Natural Editing ===
+    naturalEdit: false,  // Keep single image per segment
 
     // === LLM Context ===
     llmContext: `You are generating image prompts for a professional adult education explainer video.

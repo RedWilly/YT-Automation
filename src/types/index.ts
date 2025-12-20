@@ -43,10 +43,21 @@ export interface SegmentProcessingResult {
 }
 
 // LLM Types
+
+/**
+ * Shot type for natural editing - controls per-shot video effects
+ * - vertical: subtle pan up/down (random direction)
+ * - zoom: subtle zoom in/out (random direction)
+ * - static: no movement
+ */
+export type ShotType = "vertical" | "zoom" | "static";
+
 export interface ImageSearchQuery {
   start: number;
   end: number;
   query: string;
+  /** Shot type for natural editing effects */
+  type?: ShotType;
 }
 
 export interface LLMMessage {
@@ -87,6 +98,8 @@ export interface DownloadedImage {
   start: number;
   end: number;
   filePath: string;
+  /** Shot type for natural editing effects (when naturalEdit is enabled) */
+  type?: ShotType;
 }
 
 // Video Generation Types

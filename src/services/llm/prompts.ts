@@ -95,6 +95,24 @@ Before generating, identify these elements and REUSE them consistently:
 4. **FLOW**: Consecutive segments in same scene should have visual continuity
    - Only change settings when the transcript explicitly indicates a scene change
 
+## TEXT IN IMAGES (CRITICAL)
+NEVER include readable text, words, letters, or labels in image prompts because:
+- AI image generators render text poorly (distorted, misspelled, illegible)
+- Text in images looks unprofessional and distracting
+
+INSTEAD of text, use VISUAL SYMBOLS:
+- Question mark (?) for questions
+- Exclamation mark (!) for emphasis
+- Lightbulb icon for ideas
+- Arrow icons for direction
+- Check marks (✓) and X marks
+- Empty speech/thought bubbles
+
+If the transcript mentions specific text (signs, titles, labels):
+- Replace with an iconic symbol
+- Example: "EXIT sign" → "signpost with arrow icon"
+- Example: "book titled Science" → "open book with beaker icon"
+
 ## PROCESS
 1. Read ALL segments first
 2. List recurring: characters, locations, themes

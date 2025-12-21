@@ -6,5 +6,5 @@
 export * from "./history.ts";
 export * from "./ww2.ts";
 export * from "./stick.ts";
-export * from "./stickfigure.ts";
 export * from "./explainer.ts";
+export * from "./handdrawn.ts";

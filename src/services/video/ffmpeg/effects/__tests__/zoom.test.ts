@@ -41,7 +41,7 @@ describe("Zoom Effect Logic", () => {
 
         // 4. Must use proper Easing and Centering
         // cos(PI*...) check
-        expect(filter).toContain("cos(PI*");
+        expect(filter).not.toContain("cos(PI*"); // No longer using cosine easing
         // Centering (using input width/height internal vars)
         expect(filter).toContain("x='iw/2-(iw/zoom/2)'");
         expect(filter).toContain("y='ih/2-(ih/zoom/2)'");
@@ -52,6 +52,14 @@ describe("Zoom Effect Logic", () => {
         // 6. Must Finalize format
         expect(filter).toContain("setsar=1");
         expect(filter).toContain("format=yuv420p");
+    });
+
+    test("createZoomFilter logic should be Linear (constant speed)", () => {
+        const result = createZoomFilter("0:v", "v0", 5, "horizontal");
+        // Verify we are NOT using cosine easing anymore
+        expect(result.filter).not.toContain("cos(PI*");
+        // Verify we are using linear progress
+        expect(result.filter).toContain("*on/(150-1)");
     });
 
     // SIMULATION TEST remains valid as math hasn't changed, only resolution
@@ -70,8 +78,8 @@ describe("Zoom Effect Logic", () => {
             console.log(`\n--- ${scene.name} ---`);
             checkFrames.forEach(n => {
                 const progress = n / (frames - 1);
-                // Cosine ease-in-out: (1 - cos(PI * progress)) / 2
-                const eased = (1 - Math.cos(Math.PI * progress)) / 2;
+                // Linear: progress is exactly n / (frames - 1)
+                const eased = progress;
 
                 // Interpolate zoom level
                 const currentZoom = scene.start + (scene.end - scene.start) * eased;

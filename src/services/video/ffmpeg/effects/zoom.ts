@@ -64,7 +64,6 @@ export function createZoomFilter(
     const totalFrames = Math.round(duration * ZOOM_FPS);
 
     // Easing Logic: Switched to Linear to prevent "finishing early" feel.
-    // User requested zoom should take entirely duration to complete.
     // Cosine/Sine easing slows down effectively to 0 speed at the end, making it look stopped.
     // Linear ensures constant motion until the very last frame.
     const progress = `on/(${totalFrames}-1)`;

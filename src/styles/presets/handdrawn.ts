@@ -23,8 +23,8 @@ export const handdrawnStyle: VideoStyle = {
     description: "Clean explainer doodles on pale yellow background with simple stick figures",
 
     // === Image Generation ===
-    imageStyle: "hand-drawn explainer doodle illustration, very pale pastel yellow background, thin uniform black outline line art, simple stick-figure cartoon character, rounded head thin limbs simple proportions, dot eyes small curved mouth, flat clean educational explainer style, minimal vector-like doodle, no shading no gradients no 3D, absolutely no text no words no letters no writing",
-    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, photorealistic, 3D, Pixar, Disney, anime, manga, comic book, watercolor, oil paint, digital painting, infographic, sketchbook, rough pencil, gradients, lighting effects, depth, texture, detailed, complex, realistic faces, white background",
+    imageStyle: "hand-drawn doodle illustration, very pale pastel yellow background, thin uniform black outline line art, simple stick-figure cartoon character, rounded head thin limbs simple proportions, dot eyes small curved mouth, flat clean minimal style, vector-like doodle, no shading no gradients no 3D, NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS",
+    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, EXPLAINER, TITLE, photorealistic, 3D, Pixar, Disney, anime, manga, comic book, watercolor, oil paint, digital painting, infographic, sketchbook, rough pencil, gradients, lighting effects, depth, texture, detailed, complex, realistic faces, white background",
 
     // === Segmentation ===
     segmentationType: "sentence",
@@ -71,7 +71,7 @@ export const handdrawnStyle: VideoStyle = {
     naturalEdit: true,  // Enable shot type variety
 
     // === LLM Context ===
-    llmContext: `You are generating image prompts for hand-drawn explainer doodle illustrations.
+    llmContext: `You are generating image prompts for hand-drawn doodle illustrations.
 
 === ABSOLUTE TEXT BAN (CRITICAL - READ THIS FIRST) ===
 🚫 ABSOLUTELY NO TEXT IN ANY IMAGE PROMPT 🚫
@@ -123,13 +123,13 @@ All images must have: VERY PALE PASTEL YELLOW background
 
 === STYLE LOCK — DO NOT DEVIATE ===
 All prompts must produce images in this EXACT style:
-- Hand-drawn explainer doodle illustration
+- Hand-drawn doodle illustration
 - Very pale pastel yellow background
 - Thin, uniform black outline line art
 - Simple stick-figure / minimal cartoon characters
 - Rounded heads, thin limbs, simple proportions
 - Facial features: dot eyes, small curved smile or neutral mouth
-- Flat, clean, educational explainer video style
+- Flat, clean, minimal doodle style
 
 EXPLICITLY FORBIDDEN:
 - Photorealistic, 3D, Pixar, Disney
@@ -138,8 +138,23 @@ EXPLICITLY FORBIDDEN:
 - Sketchbook, rough pencil texture, shading
 - Gradients, lighting effects, depth
 - ANY TEXT, WORDS, LETTERS, NUMBERS
+- Concept labels (e.g., "The Overthinker", "Stress", "Goal")
+- Speech bubbles with words (ONLY symbols allowed)
+- Numbers on clocks, scales, or calendars
 
-=== CHARACTER CONSISTENCY (MANDATORY) ===
+=== ANTI-PATTERNS (THESE ARE FAILURES) ===
+❌ labeling a character "The Overthinker" → ✅ show character scratching head (visual only)
+❌ clock showing "4:45" → ✅ clock icon with hands only (no numbers)
+❌ weight showing "50KG" → ✅ simple weight shape (no text)
+❌ sign saying "Explaining" → ✅ character pointing to abstract diagram
+❌ phone screen with text → ✅ phone screen with abstract lines
+
+=== FINAL CHECKS (DO NOT IGNORE) ===
+1. Did you include ANY text? -> REMOVE IT.
+2. Did you include a label? -> REMOVE IT.
+3. Did you include a number? -> REMOVE IT.
+4. Is everything purely visual/symbolic? -> YES.
+5. But you imply to include a text in label or a number.? if so REMOVE IT.
 Use ONE main recurring character with these EXACT features:
 - Stick-figure body with thin uniform lines
 - Round circle head (not oval)
@@ -169,28 +184,28 @@ If additional characters are needed:
 - Simple geometric props if needed
 
 === STYLE KEYWORDS (ALWAYS END EVERY PROMPT WITH) ===
-"hand-drawn explainer doodle, very pale pastel yellow background, thin black outlines, stick-figure character with dot eyes, flat clean minimal style, absolutely no text no words no letters, no shading"
+"hand-drawn doodle, very pale pastel yellow background, thin black outlines, stick-figure character with dot eyes, flat clean minimal style, absolutely no text no words no letters, no shading"
 
 === OUTPUT FORMAT ===
 Each prompt should follow this pattern:
 
 Image 1:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
 
 Image 2:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
 
 === EXAMPLE PROMPTS ===
 
 Image 1:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, round head with dot eyes and excited smile, arms raised in celebration, confetti symbols around, simple podium shape, flat clean minimal style, absolutely no text no words no letters, no shading
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, round head with dot eyes and excited smile, arms raised in celebration, confetti symbols around, simple podium shape, flat clean minimal style, absolutely no text no words no letters, no shading
 
 Image 2:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes and confused expression scratching head, large question mark icon floating above, lightbulb icon nearby, flat clean minimal style, absolutely no text no words no letters, no shading
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes and confused expression scratching head, large question mark icon floating above, lightbulb icon nearby, flat clean minimal style, absolutely no text no words no letters, no shading
 
 Image 3:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes looking sad, sitting slumped, hourglass icon with sand flowing beside character, calendar icon with pages flipping, flat clean minimal style, absolutely no text no words no letters, no shading
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes looking sad, sitting slumped, hourglass icon with sand flowing beside character, calendar icon with pages flipping, flat clean minimal style, absolutely no text no words no letters, no shading
 
 Image 4:
-A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring two stick-figure characters with thin black outlines, both with round heads and dot eyes, one pointing at whiteboard with chart line icon, other nodding with smile, simple desk shape, flat clean minimal style, absolutely no text no words no letters, no shading`,
+A clean hand-drawn doodle illustration on a very pale pastel yellow background, featuring two stick-figure characters with thin black outlines, both with round heads and dot eyes, one pointing at whiteboard with chart line icon, other nodding with smile, simple desk shape, flat clean minimal style, absolutely no text no words no letters, no shading`,
 };

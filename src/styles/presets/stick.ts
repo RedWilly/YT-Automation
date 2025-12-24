@@ -23,8 +23,8 @@ export const stickStyle: VideoStyle = {
     description: "White line stick figures on black background, consistent round-head characters with expressive faces",
 
     // === Image Generation ===
-    imageStyle: "cartoon stick figure, round circle head with dot eyes and curved mouth, white lines on pure black background, consistent line weight, simple expressive faces, focus on expression and pose, no text, 2D flat, high contrast",
-    negativePrompt: "3d render, realistic, color, shading, texture, watermark, text, words, letters, writing, labels, captions, detailed hands, fingers, realistic faces",
+    imageStyle: "cartoon stick figure, round circle head with dot eyes and curved mouth, white lines on pure black background, consistent line weight, simple expressive faces, focus on expression and pose, 2D flat, high contrast, NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS",
+    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, 3d render, realistic, color, shading, texture, watermark, detailed hands, fingers, realistic faces",
 
     // === Segmentation ===
     segmentationType: "sentence",
@@ -93,7 +93,7 @@ Every stick figure MUST have these exact features:
 - WORRIED: "round head with dot eyes and small frown, raised eyebrow lines"
 
 === CRITICAL RULES ===
-1. NO TEXT in images - never include words, labels, letters, or writing
+1. NO TEXT in images - never include words, labels, letters, NUMBERS, or writing
 2. Use VISUAL SYMBOLS instead of text:
    - Speech bubbles with icons (!, ?, ❤, 💡, ⚡) 
    - Signs with arrows or simple icons
@@ -126,6 +126,13 @@ Every stick figure MUST have these exact features:
 - Pure black background
 - Minimal white line props only
 - Simple geometric shapes for environment
+
+=== ANTI-PATTERNS (FAILURES) ===
+❌ labeling a character "The Overthinker"
+❌ sign with "Start"
+❌ clock showing "12:00"
+❌ weight showing "100lbs"
+❌ speech bubble with "Hello"
 
 === STYLE KEYWORDS (ALWAYS END WITH) ===
 "cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"

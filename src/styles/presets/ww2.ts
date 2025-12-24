@@ -21,9 +21,9 @@ export const ww2Style: VideoStyle = {
   description: "Realistic black-and-white documentary with archival photography aesthetic",
 
   // === Image Generation ===
-  imageStyle: "black-and-white WWII documentary style, historical photojournalism, archival war footage look, dramatic high contrast, period-accurate 1940s military equipment and uniforms, authentic atmospheric lighting, professional composition, subtle film grain, realistic details, clear and sharp focus",
+  imageStyle: "black-and-white WWII documentary style, historical photojournalism, archival war footage look, dramatic high contrast, period-accurate 1940s military equipment and uniforms, authentic atmospheric lighting, professional composition, subtle film grain, realistic details, clear and sharp focus. NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS.",
   // negativePrompt: "color, modern, futuristic, anachronistic, illustration, cgi, makeup, watermark, text, deformed, bad anatomy, mutated, disfigured, amputation, malformed",
-  negativePrompt: "color, vibrant, modern, contemporary, digital, cartoon, anime, painting, illustration, low quality, blurry, watermark, text, signature, bad anatomy, deformed, unrealistic, fantasy, sci-fi, futuristic",
+  negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, color, vibrant, modern, contemporary, digital, cartoon, anime, painting, illustration, low quality, blurry, watermark, signature, bad anatomy, deformed, unrealistic, fantasy, sci-fi, futuristic",
 
   // === Segmentation ===
   segmentationType: "wordCount",
@@ -79,6 +79,8 @@ CRITICAL REQUIREMENTS:
 - Specify environmental details: weather, time of day, terrain, background elements
 - Maintain historical accuracy with period-correct uniforms, vehicles, weapons, and architecture
 - Keep focus grounded, immersive, and visually cohesive with archival footage style
+- ABSOLUTELY NO TEXT, LABELS, COUNTDOWNS, or DATES in the image
+- Avoid showing maps, documents, or newspapers unless described as "blurred" or "illegible"
 
 VISUAL STYLE:
 - Black-and-white documentary aesthetic

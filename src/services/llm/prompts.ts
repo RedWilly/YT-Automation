@@ -21,9 +21,13 @@ export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): st
    const styleGuidance = useAiImage
       ? `IMAGE STYLE KEYWORDS: "${style.imageStyle}"
 
+FORBIDDEN ELEMENTS (NEVER include these in your prompts):
+${style.negativePrompt}
+
 IMPORTANT: You MUST include the style keywords at the END of each query.
 Your job: Describe the SCENE (who, doing what, where, with what details) + ADD style keywords at the end.
-The style keywords ensure visual consistency across all generated images.`
+The style keywords ensure visual consistency across all generated images.
+NEVER describe anything from the FORBIDDEN ELEMENTS list.`
       : `IMAGE SOURCE: Web search (DuckDuckGo)
 Use concrete, searchable terms. Avoid abstract or artistic language.`;
 
@@ -94,44 +98,28 @@ Before generating, identify these elements and REUSE them consistently:
 
 4. **FLOW**: Consecutive segments in same scene should have visual continuity
    - Only change settings when the transcript explicitly indicates a scene change
+4.1. Verify: same person = same words, same place = same words
 
-## TEXT IN IMAGES (CRITICAL - ABSOLUTE BAN)
-🚫 NEVER include ANY text, words, letters, numbers, or labels in image prompts.
 
-AI image generators CANNOT render text properly - it always appears:
-- Misspelled and distorted
-- Illegible and unprofessional
-- Distracting to viewers
-
-BANNED ELEMENTS (do not include):
-- Signs with readable text
-- Book titles/covers with text
-- Screens with text/numbers
-- Clocks with numbers
-- Calendars with text
-- ANY readable writing
-
-ALWAYS USE VISUAL SYMBOLS INSTEAD:
-- ❓ Question mark icon (floating)
-- ❗ Exclamation mark icon
-- 💡 Lightbulb icon for ideas
-- ➡️ Arrow icons for direction
-- ✓ Check marks, ✗ X marks
-- 💭 Empty speech/thought bubbles
-- 🕐 Clock with hands only (NO numbers)
-- 📅 Calendar with flipping pages (NO text)
-
-CONVERSION EXAMPLES:
-❌ "EXIT sign" → ✅ "signpost with arrow icon"
-❌ "book titled Science" → ✅ "open book with beaker icon"
-❌ "clock showing 3pm" → ✅ "clock icon with hands pointing"
-❌ "calendar showing date" → ✅ "calendar icon with pages flipping"
+etc...
 
 ## PROCESS
 1. Read ALL segments first
 2. List recurring: characters, locations, themes
 3. Generate queries using CONSISTENT descriptors for each element
-4. Verify: same person = same words, same place = same words`;
+4. Verify queries against the Style's specific rules.
+5. **FINAL CHECK**: Remove ANY text, labels, numbers, or titles. Ensure every prompt is 100% visual/abstract.
+
+## ABSOLUTE TEXT BAN (FAILURES TO AVOID)
+You must NOT generate prompts that result in text.
+❌ labeling a character "The Overthinker"
+❌ clock showing "4:45" (Or any specific time)
+❌ weight showing "50KG"
+❌ sign with title "Explaining"
+
+✅ CORRECT: "character scratching head", "clock icon with hands only", "simple weight shape", "blank signpost"
+
+REMEMBER: "No text whatsoever". Everything must be abstract or symbolic.`;
 }
 
 /**

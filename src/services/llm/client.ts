@@ -86,8 +86,8 @@ async function callLLM(
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
         ],
-        temperature: 0.4,
-        max_tokens: 8000,
+        temperature: DEFAULT_LLM_SETTINGS.temperature,
+        max_tokens: DEFAULT_LLM_SETTINGS.maxTokens,
     };
 
     logger.log("LLM", `Calling ${AI_PROVIDER}: ${AI_MODEL}`);

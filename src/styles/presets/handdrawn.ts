@@ -1,7 +1,7 @@
 /**
  * Hand-Drawn Explainer style configuration
- * Whiteboard-style doodle illustrations with clean lines
- * Uses visual symbols only - strictly no text in generated images
+ * Doodle illustrations with clean lines on pale pastel yellow background
+ * Uses visual symbols only - ABSOLUTELY NO TEXT in generated images
  * Consistent stick-figure character design throughout
  */
 
@@ -11,7 +11,7 @@ import type { VideoStyle } from "../types.ts";
  * Hand-Drawn style - Clean explainer video aesthetic
  * 
  * Features:
- * - Pure white background with thin black outlines
+ * - Very pale pastel yellow background (unique, not cliche white)
  * - Simple stick-figure characters with consistent design
  * - Visual symbols and icons instead of text
  * - Flat colors for emphasis only (optional)
@@ -20,11 +20,11 @@ import type { VideoStyle } from "../types.ts";
 export const handdrawnStyle: VideoStyle = {
     id: "handdrawn",
     name: "Hand-Drawn",
-    description: "Clean whiteboard-style explainer doodles with simple stick figures",
+    description: "Clean explainer doodles on pale yellow background with simple stick figures",
 
     // === Image Generation ===
-    imageStyle: "hand-drawn explainer doodle illustration, pure white background, thin uniform black outline line art, simple stick-figure cartoon character, rounded head thin limbs simple proportions, dot eyes small curved mouth, flat clean educational explainer style, minimal vector-like doodle, no shading no gradients no 3D",
-    negativePrompt: "photorealistic, 3D, Pixar, Disney, anime, manga, comic book, watercolor, oil paint, digital painting, infographic, sketchbook, rough pencil, gradients, lighting effects, depth, texture, detailed, complex, realistic faces, text, words, letters, writing, labels, captions",
+    imageStyle: "hand-drawn explainer doodle illustration, very pale pastel yellow background, thin uniform black outline line art, simple stick-figure cartoon character, rounded head thin limbs simple proportions, dot eyes small curved mouth, flat clean educational explainer style, minimal vector-like doodle, no shading no gradients no 3D, absolutely no text no words no letters no writing",
+    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, photorealistic, 3D, Pixar, Disney, anime, manga, comic book, watercolor, oil paint, digital painting, infographic, sketchbook, rough pencil, gradients, lighting effects, depth, texture, detailed, complex, realistic faces, white background",
 
     // === Segmentation ===
     segmentationType: "sentence",
@@ -73,47 +73,71 @@ export const handdrawnStyle: VideoStyle = {
     // === LLM Context ===
     llmContext: `You are generating image prompts for hand-drawn explainer doodle illustrations.
 
-=== STYLE LOCK — DO NOT DEVIATE (CRITICAL) ===
+=== ABSOLUTE TEXT BAN (CRITICAL - READ THIS FIRST) ===
+🚫 ABSOLUTELY NO TEXT IN ANY IMAGE PROMPT 🚫
+
+DO NOT include ANY of the following in your prompts:
+- Words, letters, alphabets, numbers
+- Signs with readable text
+- Labels, titles, captions
+- Book covers with titles
+- Screens with text
+- Clocks with numbers (use clock hands only)
+- Calendars with text (use calendar icon with page-flip motion only)
+- Any readable writing whatsoever
+
+WHY: AI image generators CANNOT render text properly. It always comes out:
+- Misspelled
+- Distorted
+- Illegible
+- Unprofessional
+
+INSTEAD, use ONLY visual symbols:
+- ❓ Question mark icon (floating, not on sign)
+- ❗ Exclamation mark icon
+- 💡 Lightbulb icon (for ideas)
+- ❤️ Heart symbol
+- 💲 Dollar sign symbol
+- ➡️ Arrow icons
+- 💭 Empty thought bubbles
+- 💬 Empty speech bubbles
+- ✓ Check mark, ✗ X mark
+- ⭐ Star symbols
+- 🕐 Clock icon with hands only (NO numbers)
+- 📅 Calendar icon with flipping pages (NO text)
+
+CONVERSION EXAMPLES:
+❌ "sign saying EXIT" → ✅ "signpost with arrow icon pointing right"
+❌ "book titled Science" → ✅ "open book with beaker icon on cover"
+❌ "clock showing 3pm" → ✅ "clock icon with hour hand pointing"
+❌ "calendar showing deadline" → ✅ "calendar icon with pages flipping animation style"
+❌ "screen with message" → ✅ "screen shape with checkmark icon"
+❌ "watching a clock where the hour hand moves" → ✅ "looking at hourglass icon with sand flowing"
+
+=== BACKGROUND COLOR (UNIQUE STYLE) ===
+All images must have: VERY PALE PASTEL YELLOW background
+- Not white (too common/cliche)
+- Not bright yellow (too intense)
+- Soft, warm, pale cream-yellow tone
+- Consistent across ALL images
+
+=== STYLE LOCK — DO NOT DEVIATE ===
 All prompts must produce images in this EXACT style:
 - Hand-drawn explainer doodle illustration
-- Pure white background (never color the background)
+- Very pale pastel yellow background
 - Thin, uniform black outline line art
 - Simple stick-figure / minimal cartoon characters
 - Rounded heads, thin limbs, simple proportions
 - Facial features: dot eyes, small curved smile or neutral mouth
 - Flat, clean, educational explainer video style
 
-EXPLICITLY FORBIDDEN (never include):
+EXPLICITLY FORBIDDEN:
 - Photorealistic, 3D, Pixar, Disney
 - Anime, manga, comic book, graphic novel
 - Watercolor, oil paint, digital painting
 - Sketchbook, rough pencil texture, shading
 - Gradients, lighting effects, depth
-- Infographic UI style, corporate illustration
-
-=== TEXT RULES (VERY IMPORTANT) ===
-NEVER include readable text in image prompts because:
-- AI image generators struggle with text rendering
-- Text comes out distorted, misspelled, or illegible
-- It looks unprofessional and distracting
-
-INSTEAD, use VISUAL SYMBOLS:
-- Question mark icon (?) for questions
-- Exclamation mark (!) for emphasis  
-- Lightbulb icon for ideas
-- Heart symbol for love/passion
-- Dollar sign ($) for money
-- Arrow icons for direction
-- Thought bubbles (empty or with icons)
-- Speech bubbles (empty or with simple icons)
-- Check marks and X marks
-- Star symbols for emphasis
-
-If the script mentions specific text (titles, names, labels):
-- SKIP the text entirely OR
-- Replace with an iconic representation
-- Example: "sign saying EXIT" → "signpost with arrow icon"
-- Example: "book titled Science" → "open book with beaker icon"
+- ANY TEXT, WORDS, LETTERS, NUMBERS
 
 === CHARACTER CONSISTENCY (MANDATORY) ===
 Use ONE main recurring character with these EXACT features:
@@ -129,47 +153,44 @@ If additional characters are needed:
 - Keep same base anatomy
 
 === COLOR RULES ===
+- Very pale pastel yellow background (mandatory)
 - Black outlines only (mandatory)
-- Colors are optional and minimal
-- Use flat colors ONLY for emphasis:
+- Flat colors ONLY for emphasis:
   - Clothing (red shirt, blue pants)
   - Icons (yellow lightbulb, red heart)
-  - Symbolic objects
-- NEVER color the background
 - NEVER use gradients or multiple tones
 - Use SAME color choices consistently
 
 === COMPOSITION RULES ===
 - One clear concept per image
-- Centered subject with lots of white space
-- Use symbols and metaphors (phones, money bags, question marks)
+- Centered subject with ample space
+- Use symbols and metaphors (icons, not text)
 - Very minimal environment (usually none)
 - Simple geometric props if needed
 
-=== PROMPT STRUCTURE (MUST FOLLOW) ===
-[Character description] + [Expression] + [Action/Pose] + [Visual symbols] + [Simple setting] + [Style keywords]
-
-=== STYLE KEYWORDS (ALWAYS END WITH) ===
-"hand-drawn explainer doodle, pure white background, thin black outlines, stick-figure character with dot eyes and curved mouth, flat clean minimal style, no text, no shading"
+=== STYLE KEYWORDS (ALWAYS END EVERY PROMPT WITH) ===
+"hand-drawn explainer doodle, very pale pastel yellow background, thin black outlines, stick-figure character with dot eyes, flat clean minimal style, absolutely no text no words no letters, no shading"
 
 === OUTPUT FORMAT ===
 Each prompt should follow this pattern:
 
 Image 1:
-A clean hand-drawn explainer doodle illustration on a pure white background, featuring a stick-figure character with thin black outlines, [specific details for this scene]...
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
 
 Image 2:
-A clean hand-drawn explainer doodle illustration on a pure white background, featuring the same stick-figure character with thin black outlines, [specific details for this scene]...
-
-(Continue for all segments, maintaining character consistency)
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, [specific details], absolutely no text no words no letters, no shading
 
 === EXAMPLE PROMPTS ===
 
-- "A clean hand-drawn explainer doodle illustration on a pure white background, featuring a stick-figure character with thin black outlines, round head with dot eyes and excited smile, arms raised in celebration, confetti symbols around, simple podium shape, flat clean minimal style, no text, no shading"
+Image 1:
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring a stick-figure character with thin black outlines, round head with dot eyes and excited smile, arms raised in celebration, confetti symbols around, simple podium shape, flat clean minimal style, absolutely no text no words no letters, no shading
 
-- "A clean hand-drawn explainer doodle illustration on a pure white background, featuring the same stick-figure character with thin black outlines, round head with dot eyes and confused expression scratching head, large question mark icon floating above, lightbulb icon nearby, flat clean minimal style, no text, no shading"
+Image 2:
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes and confused expression scratching head, large question mark icon floating above, lightbulb icon nearby, flat clean minimal style, absolutely no text no words no letters, no shading
 
-- "A clean hand-drawn explainer doodle illustration on a pure white background, featuring the same stick-figure character with thin black outlines, round head with dot eyes and happy smile, holding smartphone shape with checkmark icon on screen, dollar sign symbols floating, flat clean minimal style, no text, no shading"
+Image 3:
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring the same stick-figure character with thin black outlines, round head with dot eyes looking sad, sitting slumped, hourglass icon with sand flowing beside character, calendar icon with pages flipping, flat clean minimal style, absolutely no text no words no letters, no shading
 
-- "A clean hand-drawn explainer doodle illustration on a pure white background, featuring two stick-figure characters with thin black outlines, both with round heads and dot eyes, one pointing at whiteboard with chart icon, other nodding with smile, simple desk shape, flat clean minimal style, no text, no shading"`,
+Image 4:
+A clean hand-drawn explainer doodle illustration on a very pale pastel yellow background, featuring two stick-figure characters with thin black outlines, both with round heads and dot eyes, one pointing at whiteboard with chart line icon, other nodding with smile, simple desk shape, flat clean minimal style, absolutely no text no words no letters, no shading`,
 };

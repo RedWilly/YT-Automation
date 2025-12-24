@@ -54,9 +54,10 @@ export function getTelegramBot(): Telegraf {
             }
 
             if (!authorized) {
+                const username = ctx.from?.username ? `@${ctx.from.username}` : ctx.from?.first_name ?? "unknown";
                 logger.warn(
                     "Telegram",
-                    `Blocked update from user ${String(userId ?? "unknown")} in chat ${String(chatId ?? "unknown")}`
+                    `Blocked update from ${username} (user ${String(userId ?? "unknown")}) in chat ${String(chatId ?? "unknown")}`
                 );
                 return; // Drop silently
             }

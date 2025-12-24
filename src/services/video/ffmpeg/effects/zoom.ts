@@ -1,70 +1,50 @@
 /**
- * Zoom effect - center-based zoom in/out
+ * Zoom Effect Module (Verified Camera Implementation)
  * 
- * Zoom In:  scale 1.0 → 1.1 (image grows, edges get cropped)
- * Zoom Out: scale 1.1 → 1.0 (starts cropped, reveals full image)
+ * Architecture: "Super-Sampled Native Zoompan"
  * 
- * Uses scale with eval=frame + trim for precise frame control.
- * No headroom needed - uses native 16:9 (or 9:16) images.
+ * Why this vs Scale+Crop?
+ * - Scale+Crop suffers from quantization noise (shaking) due to integer rounding
+ * - Zoompan uses internal float precision and supersampling for smooth sub-pixel motion
+ * 
+ * Fixes for previous issues:
+ * 1. Duration Explosion -> Uses `select='eq(n,0)'` to feed single frame
+ * 2. Shaking/Jerky -> 
+ *    - Uses Cosine Ease-In-Out for natural acceleration
+ *    - Uses 4x SUPER-SAMPLING (Lanczos) to eliminate sub-pixel aliasing/shimmering
+ * 3. Drift -> Uses mathematically perfect centering `iw/2-(iw/zoom/2)`
+ * 4. Infinite Zoom -> Uses `on/(d-1)` to ensure animation finishes exactly at end value
  */
 
 import type { VideoOrientation } from "../../../../styles/types.ts";
 import { getVideoDimensions } from "../dimensions.ts";
 
-/** Minimum duration (seconds) for zoom effect - shorter scenes use static */
 const MIN_ZOOM_DURATION = 2;
+const ZOOM_LEVEL = 1.15; // Moderate 15% zoom
+const ZOOM_FPS = 30;
 
-/** Zoom intensity (10% scale change) */
-const ZOOM_SCALE = 0.10;
-
-/**
- * Zoom effect parameters
- */
 export interface ZoomParams {
     enabled: boolean;
-    zoomIn: boolean;      // true = zoom in (1.0→1.1), false = zoom out (1.1→1.0)
-    startScale: number;
-    endScale: number;
+    zoomIn: boolean;
+    startZoom: number;
+    endZoom: number;
 }
 
-/**
- * Calculate zoom parameters
- * 
- * @param duration - Scene duration in seconds
- * @returns Zoom parameters with direction and scale values
- */
 export function calculateZoomParams(duration: number): ZoomParams {
     if (duration < MIN_ZOOM_DURATION) {
-        return { enabled: false, zoomIn: true, startScale: 1.0, endScale: 1.0 };
+        return { enabled: false, zoomIn: true, startZoom: 1.0, endZoom: 1.0 };
     }
 
-    // Random direction
     const zoomIn = Math.random() > 0.5;
 
     return {
         enabled: true,
         zoomIn,
-        startScale: zoomIn ? 1.0 : 1.0 + ZOOM_SCALE,
-        endScale: zoomIn ? 1.0 + ZOOM_SCALE : 1.0,
+        startZoom: zoomIn ? 1.0 : ZOOM_LEVEL,
+        endZoom: zoomIn ? ZOOM_LEVEL : 1.0,
     };
 }
 
-/**
- * Create FFmpeg filter for zoom effect
- * 
- * Uses scale with eval=frame to animate zoom per-frame,
- * then crops center to maintain output size.
- * 
- * @param inputLabel - FFmpeg input label (e.g., "0:v")
- * @param outputLabel - FFmpeg output label (e.g., "v0")
- * @param duration - Scene duration in seconds
- * @param orientation - Video orientation
- * @returns FFmpeg filter string and zoom info
- * 
- * @example
- * // Zoom in effect:
- * // "[0:v]fps=30,trim=end_frame=120,scale=w='...':h='...':eval=frame,crop=...,setsar=1,format=yuv420p[v0]"
- */
 export function createZoomFilter(
     inputLabel: string,
     outputLabel: string,
@@ -75,29 +55,38 @@ export function createZoomFilter(
     const params = calculateZoomParams(duration);
 
     if (!params.enabled) {
-        // Fall back to static
         return {
-            filter: `[${inputLabel}]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT},setsar=1,fps=30,format=yuv420p[${outputLabel}]`,
+            filter: `[${inputLabel}]scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:flags=lanczos,setsar=1,fps=${ZOOM_FPS},format=yuv420p[${outputLabel}]`,
             enabled: false,
         };
     }
 
-    const fps = 30;
-    const totalFrames = Math.round(duration * fps);
+    const totalFrames = Math.round(duration * ZOOM_FPS);
 
-    // Scale expression: linear interpolation based on frame number
-    const scaleExpr = `${params.startScale}+(${params.endScale}-${params.startScale})*n/${totalFrames}`;
+    // Easing Logic (Cosine Ease-In-Out)
+    const progress = `on/(${totalFrames}-1)`;
+    const eased = `(1-cos(PI*${progress}))/2`;
 
-    // Width/height expressions (must be even for video encoding)
-    const wExpr = `trunc(${VIDEO_WIDTH}*(${scaleExpr})/2)*2`;
-    const hExpr = `trunc(${VIDEO_HEIGHT}*(${scaleExpr})/2)*2`;
+    const zoomDelta = params.endZoom - params.startZoom;
+    const zoomExpr = `${params.startZoom}+${zoomDelta}*${eased}`;
 
-    // Crop center
-    const cropX = `(iw-${VIDEO_WIDTH})/2`;
-    const cropY = `(ih-${VIDEO_HEIGHT})/2`;
+    // Centering Logic
+    const xExpr = `iw/2-(iw/zoom/2)`;
+    const yExpr = `ih/2-(ih/zoom/2)`;
 
-    // Filter chain: fps → trim → scale (animated) → crop (center)
-    const filter = `[${inputLabel}]fps=${fps},trim=end_frame=${totalFrames},scale=w='${wExpr}':h='${hExpr}':eval=frame,crop=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:'${cropX}':'${cropY}',setsar=1,format=yuv420p[${outputLabel}]`;
+    // SUPER-SAMPLING RESOLUTION (4x)
+    // We work at huge resolution to eliminate aliasing "shake"
+    const SS_WIDTH = VIDEO_WIDTH * 4;
+    const SS_HEIGHT = VIDEO_HEIGHT * 4;
+
+    // Filter Chain:
+    // 1. select='eq(n,0)'   -> Extract single frame
+    // 2. scale=4x           -> Upscale huge (Lanczos) to prevent aliasing
+    // 3. zoompan            -> Apply zoom on huge image (smooth float math)
+    // 4. scale=1x           -> Downscale (Lanczos) to smooth out any remaining artifacts
+    // 5. setsar/format      -> Finalize
+
+    const filter = `[${inputLabel}]select='eq(n\\,0)',scale=${SS_WIDTH}:${SS_HEIGHT}:flags=lanczos,zoompan=z='${zoomExpr}':x='${xExpr}':y='${yExpr}':d=${totalFrames}:s=${SS_WIDTH}x${SS_HEIGHT}:fps=${ZOOM_FPS},scale=${VIDEO_WIDTH}:${VIDEO_HEIGHT}:flags=lanczos,setsar=1,format=yuv420p[${outputLabel}]`;
 
     return {
         filter,

@@ -4,10 +4,11 @@
 
 import type { VideoStyle, StyleOptions, ResolvedStyle } from "./types.ts";
 import { HIGHLIGHT_COLORS } from "./types.ts";
-import { historyStyle } from "./history.ts";
-import { ww2Style } from "./ww2.ts";
-import { stickfigureStyle } from "./stickfigure.ts";
-import { explainerStyle } from "./explainer.ts";
+import { historyStyle } from "./presets/history.ts";
+import { ww2Style } from "./presets/ww2.ts";
+import { stickStyle } from "./presets/stick.ts";
+import { explainerStyle } from "./presets/explainer.ts";
+import { handdrawnStyle } from "./presets/handdrawn.ts";
 
 // Re-export types
 export * from "./types.ts";
@@ -18,8 +19,9 @@ export * from "./types.ts";
 export const STYLES: Record<string, VideoStyle> = {
   history: historyStyle,
   ww2: ww2Style,
-  stickfigure: stickfigureStyle,
+  stick: stickStyle,
   explainer: explainerStyle,
+  handdrawn: handdrawnStyle,
 };
 
 /**

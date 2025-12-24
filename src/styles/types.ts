@@ -2,6 +2,11 @@
  * Type definitions for the video style system
  */
 
+import {
+  DEFAULT_CAPTION_STYLE as CONFIG_CAPTION_STYLE,
+  DEFAULT_HIGHLIGHT_STYLE as CONFIG_HIGHLIGHT_STYLE,
+} from "../config/defaults.ts";
+
 /**
  * Segmentation type - how to split transcript into segments
  */
@@ -13,26 +18,67 @@ export type SegmentationType = "sentence" | "wordCount";
 export type VideoOrientation = "horizontal" | "vertical";
 
 /**
- * Caption style configuration - colors, fonts, and visual settings
+ * ASS Subtitle Alignment Values
+ * 
+ * Position grid:
+ *   7 8 9   ← Top
+ *   4 5 6   ← Middle
+ *   1 2 3   ← Bottom
+ */
+export type CaptionAlignment = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+/**
+ * Caption style configuration - colors, fonts, position, and visual settings
  * ASS format uses BGR color order: &HAABBGGRR
  */
 export interface CaptionStyleConfig {
+  // === Font Settings ===
   /** Font name */
   fontName: string;
   /** Font size in pixels */
   fontSize: number;
-  /** Primary text color in ASS BGR format (e.g., "&H00FFFFFF" for white) */
+
+  // === Color Settings (ASS BGR format) ===
+  /** Primary text color (e.g., "&H00FFFFFF" for white) */
   primaryColor: string;
-  /** Outline color in ASS BGR format */
+  /** Outline color */
   outlineColor: string;
-  /** Background/box color in ASS BGR format */
+  /** Background/box color */
   backgroundColor: string;
+
+  // === Border Settings ===
   /** Outline thickness in pixels */
   outlineWidth: number;
   /** Shadow depth in pixels (0 = no shadow) */
   shadowDepth: number;
   /** Whether to use a background box (BorderStyle=3) or outline (BorderStyle=1) */
   useBox: boolean;
+
+  // === Position & Layout ===
+  /** Caption alignment (1-9, see grid in CaptionAlignment type) */
+  alignment: CaptionAlignment;
+  /** Vertical margin from edge (pixels) - for horizontal videos */
+  marginV: number;
+  /** Vertical margin for vertical videos (pixels) */
+  marginVVertical: number;
+  /** Left margin (pixels) */
+  marginL: number;
+  /** Right margin (pixels) */
+  marginR: number;
+
+  // === Text Transform ===
+  /** Horizontal scale (100 = normal) */
+  scaleX: number;
+  /** Vertical scale (100 = normal) */
+  scaleY: number;
+  /** Letter spacing (0 = normal) */
+  letterSpacing: number;
+  /** Bold text */
+  bold: boolean;
+  /** Italic text */
+  italic: boolean;
+  /** Force uppercase text */
+  uppercase: boolean;
 }
 
 /**
@@ -45,6 +91,8 @@ export interface HighlightStyleConfig {
   color: string;
   /** Whether to use a box for highlight (BorderStyle=3) */
   useBox: boolean;
+  /** Outline width when using box highlight */
+  outlineWidth: number;
 }
 
 /**
@@ -85,6 +133,10 @@ export interface VideoStyle {
   // === Video Effects ===
   /** Whether pan effect is enabled by default */
   panEffect: boolean;
+
+  // === Natural Editing ===
+  /** Enable natural editing mode (time-based splitting, b-roll types). Default: false */
+  naturalEdit?: boolean;
 
   // === LLM Context ===
   /** Additional context for LLM prompts (style-specific guidance) */
@@ -135,25 +187,38 @@ export const HIGHLIGHT_COLORS: Record<string, string> = {
 };
 
 /**
- * Default caption style (white text with black outline)
+ * Default caption style (uses config/defaults.ts values)
  */
 export const DEFAULT_CAPTION_STYLE: CaptionStyleConfig = {
-  fontName: "Resolve-Bold",
-  fontSize: 72,
-  primaryColor: "&H00FFFFFF",  // White
-  outlineColor: "&H00000000",  // Black
-  backgroundColor: "&H80000000",  // Semi-transparent black
-  outlineWidth: 1,
-  shadowDepth: 2,
-  useBox: false,
+  fontName: CONFIG_CAPTION_STYLE.fontName,
+  fontSize: CONFIG_CAPTION_STYLE.fontSize,
+  primaryColor: CONFIG_CAPTION_STYLE.primaryColor,
+  outlineColor: CONFIG_CAPTION_STYLE.outlineColor,
+  backgroundColor: CONFIG_CAPTION_STYLE.backgroundColor,
+  outlineWidth: CONFIG_CAPTION_STYLE.outlineWidth,
+  shadowDepth: CONFIG_CAPTION_STYLE.shadowDepth,
+  useBox: CONFIG_CAPTION_STYLE.useBox,
+  alignment: CONFIG_CAPTION_STYLE.alignment,
+  marginV: CONFIG_CAPTION_STYLE.marginV,
+  marginVVertical: CONFIG_CAPTION_STYLE.marginVVertical,
+  marginL: CONFIG_CAPTION_STYLE.marginL,
+  marginR: CONFIG_CAPTION_STYLE.marginR,
+  scaleX: CONFIG_CAPTION_STYLE.scaleX,
+  scaleY: CONFIG_CAPTION_STYLE.scaleY,
+  letterSpacing: CONFIG_CAPTION_STYLE.letterSpacing,
+  bold: CONFIG_CAPTION_STYLE.bold,
+  italic: CONFIG_CAPTION_STYLE.italic,
+  uppercase: CONFIG_CAPTION_STYLE.uppercase,
 };
 
 /**
- * Default highlight style (purple box)
+ * Default highlight style (uses config/defaults.ts values)
  */
 export const DEFAULT_HIGHLIGHT_STYLE: HighlightStyleConfig = {
-  enabled: true,
-  color: "&H00FF008B",  // Purple
-  useBox: true,
+  enabled: CONFIG_HIGHLIGHT_STYLE.enabled,
+  color: CONFIG_HIGHLIGHT_STYLE.color,
+  useBox: CONFIG_HIGHLIGHT_STYLE.useBox,
+  outlineWidth: CONFIG_HIGHLIGHT_STYLE.outlineWidth,
 };
+
 

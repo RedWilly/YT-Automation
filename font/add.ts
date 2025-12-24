@@ -13,7 +13,7 @@ import { existsSync, copyFileSync, mkdirSync } from "fs";
 import { join, resolve } from "path";
 import { execSync } from "child_process";
 import { homedir, platform } from "os";
-import * as logger from "../src/logger.ts";
+import * as logger from "../src/utils/logger.ts";
 
 // Font file path (relative to project root since script is in font/ directory)
 const FONT_FILE = "font/Resolve-Bold.otf";
@@ -58,7 +58,7 @@ function installWindows(): void {
     if (error instanceof Error) {
       throw new Error(
         `Failed to install font on Windows: ${error.message}\n` +
-          `Try running this script as Administrator.`
+        `Try running this script as Administrator.`
       );
     }
     throw error;

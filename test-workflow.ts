@@ -8,13 +8,14 @@
  *   bun test-workflow.ts  (uses first file in tmp/audio/)
  */
 
-import { transcribeAudio } from "./src/services/assemblyai.ts";
-import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
-import { generateImageQueries, validateImageQueries } from "./src/services/llm.ts";
-import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/images.ts";
-import { generateVideo, validateVideoInputs } from "./src/services/video.ts";
-import { uploadVideoToMinIO } from "./src/services/minio.ts";
-import { TMP_AUDIO_DIR, MINIO_ENABLED } from "./src/constants.ts";
+import { transcribeAudio } from "./src/services/transcription/index.ts";
+import { processTranscript, validateTranscriptData } from "./src/services/transcription/index.ts";
+import { generateImageQueries, validateImageQueries } from "./src/services/llm/index.ts";
+import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/image/index.ts";
+import { generateVideo, validateVideoInputs } from "./src/services/video/index.ts";
+import { uploadVideoToMinIO } from "./src/services/storage/index.ts";
+import { DEFAULT_PATHS } from "./src/config/defaults.ts";
+import { MINIO } from "./src/config/environment.ts";
 import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import {
   hashAudioFile,
@@ -25,9 +26,12 @@ import {
   getCachedImageQueries,
   getCachedImages,
   initDatabase,
-} from "./src/services/cache.ts";
-import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "./src/types.ts";
-import * as logger from "./src/logger.ts";
+} from "./src/services/storage/index.ts";
+import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "./src/types/index.ts";
+import * as logger from "./src/utils/logger.ts";
+
+const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
+const MINIO_ENABLED = MINIO.enabled;
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
@@ -154,8 +158,8 @@ async function runTestWorkflow(): Promise<void> {
     let segments: TranscriptSegment[];
     let formattedTranscript: string;
 
-    // Segments are shared across orientations
-    const cachedSegments = getCachedSegments(audioHash, style.id);
+    const naturalEdit = style.naturalEdit ?? false;
+    const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", naturalEdit);
 
     if (cachedSegments) {
       logger.log("Test", "📦 Using cached segments (same style)");
@@ -169,7 +173,7 @@ async function runTestWorkflow(): Promise<void> {
       formattedTranscript = result.formattedTranscript;
 
       // Save to style-specific cache (shared across orientations)
-      updateStyleCache(audioHash, style.id, "horizontal", {
+      updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
         segments: JSON.stringify(segments),
         formatted_transcript: formattedTranscript,
       });
@@ -185,7 +189,7 @@ async function runTestWorkflow(): Promise<void> {
     let imageQueries: ImageSearchQuery[];
 
     // Image queries are shared across orientations
-    const cachedQueries = getCachedImageQueries(audioHash, style.id);
+    const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", naturalEdit);
 
     if (cachedQueries) {
       logger.log("Test", "📦 Using cached image queries (no LLM call)");
@@ -197,7 +201,7 @@ async function runTestWorkflow(): Promise<void> {
       validateImageQueries(imageQueries);
 
       // Save to style-specific cache (shared across orientations)
-      updateStyleCache(audioHash, style.id, "horizontal", {
+      updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
         image_queries: JSON.stringify(imageQueries),
       });
 
@@ -218,7 +222,7 @@ async function runTestWorkflow(): Promise<void> {
 
     let downloadedImages: DownloadedImage[];
 
-    const cachedImages = getCachedImages(audioHash, style.id, style.orientation);
+    const cachedImages = getCachedImages(audioHash, style.id, style.orientation, naturalEdit);
 
     if (cachedImages && cachedImages.length === imageQueries.length) {
       logger.log("Test", "📦 Using cached images (all files verified)");
@@ -230,7 +234,7 @@ async function runTestWorkflow(): Promise<void> {
       validateDownloadedImages(downloadedImages);
 
       // Save to style-specific cache
-      updateStyleCache(audioHash, style.id, style.orientation, {
+      updateStyleCache(audioHash, style.id, style.orientation, naturalEdit, {
         downloaded_images: JSON.stringify(downloadedImages),
       });
 

@@ -1,5 +1,5 @@
-import { parseImageQueries } from "../v2v/src/services/llm.ts";
-import * as logger from "./src/logger.ts";
+import { parseImageQueries } from "./src/services/llm/parser.ts";
+import * as logger from "./src/utils/logger.ts";
 
 interface ImageSearchQuery {
     start: number;

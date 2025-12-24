@@ -2,8 +2,8 @@
  * v2v - Main Entry Point
  */
 
-import { startBot } from "./src/bot.ts";
-import * as logger from "./src/logger.ts";
+import { startBot } from "./src/bot/index.ts";
+import * as logger from "./src/utils/logger.ts";
 
 // Load environment variables
 import { config } from "dotenv";

@@ -38,17 +38,20 @@
 const TRANSCRIPT_ID: string = "05841374-893b-4b1d-bad0-783690c46f9b";
 const UPLOAD_URL: string = "";
 
-import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/assemblyai.ts";
-import { processTranscript, validateTranscriptData } from "./src/services/transcript.ts";
-import { generateVideo } from "./src/services/video.ts";
-import { TMP_AUDIO_DIR, TMP_IMAGES_DIR } from "./src/constants.ts";
+import { requestTranscription, pollForCompletion, uploadAudio, getTranscript } from "./src/services/transcription/index.ts";
+import { processTranscript, validateTranscriptData } from "./src/services/transcription/index.ts";
+import { generateVideo } from "./src/services/video/index.ts";
+import { DEFAULT_PATHS } from "./src/config/defaults.ts";
 import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
-import type { DownloadedImage } from "./src/types.ts";
-import * as logger from "./src/logger.ts";
+import type { DownloadedImage } from "./src/types/index.ts";
+import * as logger from "./src/utils/logger.ts";
 import { readdir, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import path from "node:path";
+
+const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
+const TMP_IMAGES_DIR = DEFAULT_PATHS.images;
 
 /**
  * Get audio file path from command line argument or find first file in tmp/audio/

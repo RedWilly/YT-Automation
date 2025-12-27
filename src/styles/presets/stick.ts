@@ -23,8 +23,8 @@ export const stickStyle: VideoStyle = {
     description: "White line stick figures on black background, consistent round-head characters with expressive faces",
 
     // === Image Generation ===
-    imageStyle: "cartoon stick figure, round circle head with dot eyes and curved mouth, white lines on pure black background, consistent line weight, simple expressive faces, focus on expression and pose, 2D flat, high contrast, NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS",
-    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, 3d render, realistic, color, shading, texture, watermark, detailed hands, fingers, realistic faces",
+    imageStyle: "stick figure, white lines on black background, round head, dot eyes, 2D flat, high contrast, minimal",
+    negativePrompt: "text, words, letters, numbers, labels, 3d, realistic, color, shading, watermark",
 
     // === Segmentation ===
     segmentationType: "sentence",

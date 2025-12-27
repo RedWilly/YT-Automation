@@ -23,8 +23,8 @@ export const handdrawnStyle: VideoStyle = {
     description: "Clean explainer doodles on pale yellow background with simple stick figures",
 
     // === Image Generation ===
-    imageStyle: "hand-drawn doodle illustration, very pale pastel yellow background, thin uniform black outline line art, simple stick-figure cartoon character, rounded head thin limbs simple proportions, dot eyes small curved mouth, flat clean minimal style, vector-like doodle, no shading no gradients no 3D, NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS",
-    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, EXPLAINER, TITLE, photorealistic, 3D, Pixar, Disney, anime, manga, comic book, watercolor, oil paint, digital painting, infographic, sketchbook, rough pencil, gradients, lighting effects, depth, texture, detailed, complex, realistic faces, white background",
+    imageStyle: "hand-drawn doodle, pale yellow background, thin black outlines, stick-figure, flat minimal style, no shading",
+    negativePrompt: "text, words, letters, numbers, labels, photorealistic, 3D, anime, gradients, shading, white background",
 
     // === Segmentation ===
     segmentationType: "sentence",

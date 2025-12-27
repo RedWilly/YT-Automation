@@ -23,9 +23,8 @@ export const explainerStyle: VideoStyle = {
     description: "Clean modern animation style for adult education videos",
 
     // === Image Generation ===
-    imageStyle: "Clean modern animation style with smooth shapes, soft shading and simple lines. Characters and objects are slightly stylized for a friendly look, but still suitable for adults. Colors stay muted and professional, using blues, grays and warm neutrals. Surfaces stay neat with no heavy textures or harsh outlines. NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS.",
-    //not needed because we use google imagefx (negative prompt not needed) but other imagegen require it
-    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, EXPLAINER, TITLE, 3D, realistic, photograph, cartoon, anime, childish, harsh outlines, heavy textures, watermark, deformed, cluttered, neon colors, sketch, overly detailed",
+    imageStyle: "modern animation, smooth shapes, soft shading, muted professional colors, clean minimal, friendly stylized",
+    negativePrompt: "text, words, letters, numbers, labels, 3D, photograph, cartoon, anime, harsh outlines, watermark, deformed",
 
     // === Segmentation ===
     segmentationType: "sentence",

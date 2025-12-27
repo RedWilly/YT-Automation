@@ -22,8 +22,8 @@ export const historyStyle: VideoStyle = {
   description: "Classic documentary style with gouache illustration aesthetic and karaoke captions",
 
   // === Image Generation ===
-  imageStyle: "A high-quality gouache and watercolor illustration. The image features soft blended colors and painterly textures but creates a fully finished scene. The background is a detailed landscape that fills the entire frame with no empty space. Atmospheric lighting, matte painting style, rich soft colors, delicate and artistic finish. NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS.",
-  negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, photograph, 3d, vector, oil painting, acrylic, impasto, thick paint, strong outlines, neon colors, watermark, deformed, ugly, disfigured, white border, white edges, frame, paper edge, margin, vignette, faded edges, blank space, empty corners, white corners, light edges, unfinished edges",
+  imageStyle: "gouache watercolor illustration, soft blended colors, painterly textures, atmospheric lighting, matte painting, rich soft colors, detailed background",
+  negativePrompt: "text, words, letters, numbers, labels, captions, titles, typography, photograph, 3d, vector, oil painting, neon colors, watermark, deformed",
 
   // === Segmentation ===
   segmentationType: "sentence",

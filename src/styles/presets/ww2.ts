@@ -21,9 +21,8 @@ export const ww2Style: VideoStyle = {
   description: "Realistic black-and-white documentary with archival photography aesthetic",
 
   // === Image Generation ===
-  imageStyle: "black-and-white WWII documentary style, historical photojournalism, archival war footage look, dramatic high contrast, period-accurate 1940s military equipment and uniforms, authentic atmospheric lighting, professional composition, subtle film grain, realistic details, clear and sharp focus. NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS.",
-  // negativePrompt: "color, modern, futuristic, anachronistic, illustration, cgi, makeup, watermark, text, deformed, bad anatomy, mutated, disfigured, amputation, malformed",
-  negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, color, vibrant, modern, contemporary, digital, cartoon, anime, painting, illustration, low quality, blurry, watermark, signature, bad anatomy, deformed, unrealistic, fantasy, sci-fi, futuristic",
+  imageStyle: "black-and-white, WWII documentary, archival photography, high contrast, 1940s military, film grain, photojournalism",
+  negativePrompt: "text, words, letters, numbers, labels, captions, color, modern, cartoon, anime, illustration, watermark, deformed",
 
   // === Segmentation ===
   segmentationType: "wordCount",

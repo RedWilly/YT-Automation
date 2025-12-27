@@ -40,6 +40,29 @@ const COMMON_ABBREVIATIONS = [
   "J.P."
 ];
 
+// =============================================================================
+// UNIFIED SEGMENT THRESHOLDS
+// Segments are balanced based on BOTH word count AND duration
+// =============================================================================
+
+/** Minimum words - merge if below */
+const MIN_SEGMENT_WORDS = 6;
+
+/** Maximum words - split if above */
+const MAX_SEGMENT_WORDS = 100;
+
+/** Minimum duration (ms) - merge if below */
+const MIN_SEGMENT_DURATION_MS = 8000;  // 8s
+
+/** Maximum duration (ms) - split if above */
+const MAX_SEGMENT_DURATION_MS = 18000;  // 18s
+
+/** Maximum combined words when merging */
+const MAX_MERGED_WORDS = 50;
+
+/** Maximum splits per segment */
+const MAX_SPLITS_PER_SEGMENT = 3;
+
 /**
  * Represents a detected sentence with its word indices
  */
@@ -135,34 +158,109 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
 
   logger.debug("Segmentation", `Detected ${sentences.length} raw sentences`);
 
-  // Merge very short consecutive sentences
-  const mergedSentences = mergeShortSentences(sentences);
+  // Balance segments by both word count AND duration (merge short, split long)
+  const balancedSegments = balanceSegments(sentences, words);
 
-  logger.success("Segmentation", `Created ${mergedSentences.length} final segments after merging`);
+  logger.success("Segmentation", `Created ${balancedSegments.length} final segments after balancing`);
 
-  return mergedSentences;
+  return balancedSegments;
 }
 
 /**
- * Merge short sentences for natural flow
- *
+ * Balance segments by both word count and duration
+ * 
+ * This unified function handles both merging short segments and splitting long ones.
+ * It considers BOTH word count AND duration to avoid conflicts.
+ * 
  * Rules:
- * 1. ≤3 words → MUST merge (with shorter neighbor)
- * 2. ≤6 words → SHOULD merge if combined ≤15 words
- * 3. Bidirectional: prefer merging with the shorter neighbor
- *
+ * - MERGE: if words < MIN_SEGMENT_WORDS OR duration < MIN_SEGMENT_DURATION_MS
+ * - SPLIT: if words > MAX_SEGMENT_WORDS OR duration > MAX_SEGMENT_DURATION_MS
+ * 
  * @param sentences - Array of detected sentences
- * @returns Array of sentences after merging short ones
+ * @param words - Array of words with timing information (for duration calculation)
+ * @returns Array of balanced segments
  */
-function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[] {
-  if (sentences.length <= 1) return sentences;
+function balanceSegments(
+  sentences: SentenceDetection[],
+  words: AssemblyAIWord[]
+): SentenceDetection[] {
+  if (sentences.length === 0) return sentences;
+
+  // Helper to get duration for a sentence
+  const getDuration = (s: SentenceDetection): number => {
+    const startWord = words[s.startWordIndex];
+    const endWord = words[s.endWordIndex];
+    if (!startWord || !endWord) return 0;
+    return endWord.end - startWord.start;
+  };
+
+  // Helper to check if segment needs merging
+  const needsMerge = (s: SentenceDetection): boolean => {
+    const duration = getDuration(s);
+    return s.wordCount < MIN_SEGMENT_WORDS || duration < MIN_SEGMENT_DURATION_MS;
+  };
+
+  // Helper to check if segment needs splitting
+  const needsSplit = (s: SentenceDetection): boolean => {
+    const duration = getDuration(s);
+    return s.wordCount > MAX_SEGMENT_WORDS || duration > MAX_SEGMENT_DURATION_MS;
+  };
+
+  // Helper to merge two sentences
+  const mergeSentences = (a: SentenceDetection, b: SentenceDetection): SentenceDetection => ({
+    text: `${a.text} ${b.text}`.trim(),
+    startWordIndex: a.startWordIndex,
+    endWordIndex: b.endWordIndex,
+    wordCount: a.wordCount + b.wordCount,
+  });
+
+  // Helper to split a sentence into chunks
+  const splitSentence = (s: SentenceDetection): SentenceDetection[] => {
+    const duration = getDuration(s);
+    const idealChunks = Math.max(
+      Math.ceil(s.wordCount / MAX_SEGMENT_WORDS),
+      Math.ceil(duration / MAX_SEGMENT_DURATION_MS)
+    );
+    const chunks = Math.min(idealChunks, MAX_SPLITS_PER_SEGMENT);
+
+    if (chunks <= 1) return [s];
+
+    const wordsPerChunk = Math.ceil(s.wordCount / chunks);
+    const result: SentenceDetection[] = [];
+    const sentenceWords = s.text.split(/\s+/);
+
+    for (let i = 0; i < chunks; i++) {
+      const startWordOffset = i * wordsPerChunk;
+      const endWordOffset = Math.min(startWordOffset + wordsPerChunk - 1, s.wordCount - 1);
+
+      const chunkText = sentenceWords.slice(startWordOffset, endWordOffset + 1).join(" ");
+      const chunkWordCount = endWordOffset - startWordOffset + 1;
+
+      result.push({
+        text: chunkText,
+        startWordIndex: s.startWordIndex + startWordOffset,
+        endWordIndex: Math.min(s.startWordIndex + endWordOffset, s.endWordIndex),
+        wordCount: chunkWordCount,
+      });
+    }
+
+    logger.debug(
+      "Segmentation",
+      `Split segment (${s.wordCount} words, ${Math.round(duration / 1000)}s) into ${chunks} chunks`
+    );
+
+    return result;
+  };
 
   let result = [...sentences];
   let changed = true;
+  let iterations = 0;
+  const MAX_ITERATIONS = 10;
 
-  // Keep iterating until no more merges are possible
-  while (changed) {
+  // Keep iterating until no more changes
+  while (changed && iterations < MAX_ITERATIONS) {
     changed = false;
+    iterations++;
     const newResult: SentenceDetection[] = [];
     let i = 0;
 
@@ -173,65 +271,48 @@ function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[
         continue;
       }
 
-      const prev = newResult[newResult.length - 1];
-      const next = result[i + 1];
+      // STEP 1: Check if current segment needs splitting
+      if (needsSplit(current)) {
+        const splitChunks = splitSentence(current);
+        newResult.push(...splitChunks);
+        changed = true;
+        i++;
+        continue;
+      }
 
-      // Rule 1: ≤3 words MUST merge
-      // Rule 2: ≤6 words SHOULD merge if result ≤15 words
-      const mustMerge = current.wordCount <= 3;
-      const shouldMerge = current.wordCount <= 6;
+      // STEP 2: Check if current segment needs merging
+      if (needsMerge(current)) {
+        const prev = newResult[newResult.length - 1];
+        const next = result[i + 1];
 
-      if (mustMerge || shouldMerge) {
         // Calculate potential merge sizes
         const prevCombined = prev ? prev.wordCount + current.wordCount : Infinity;
         const nextCombined = next ? current.wordCount + next.wordCount : Infinity;
 
-        // Determine best merge direction
-        const canMergePrev = prev && prevCombined <= 15;
-        const canMergeNext = next && nextCombined <= 15;
+        // Check if merge would be valid (not exceeding max)
+        const canMergePrev = prev && prevCombined <= MAX_MERGED_WORDS;
+        const canMergeNext = next && nextCombined <= MAX_MERGED_WORDS;
 
-        if (mustMerge) {
-          // MUST merge - pick the shorter neighbor
-          if (canMergePrev && canMergeNext) {
-            // Both options: merge with shorter
-            if (prev!.wordCount <= next!.wordCount) {
-              // Merge backward
-              const merged = mergeTwoSentences(prev!, current);
-              newResult[newResult.length - 1] = merged;
-              logger.debug("Segmentation", `Merged ≤3 backward: "${current.text.substring(0, 30)}..."`);
-              changed = true;
-              i++;
-              continue;
-            } else {
-              // Merge forward
-              const merged = mergeTwoSentences(current, next!);
-              newResult.push(merged);
-              logger.debug("Segmentation", `Merged ≤3 forward: "${current.text.substring(0, 30)}..."`);
-              changed = true;
-              i += 2;
-              continue;
-            }
-          } else if (canMergePrev) {
-            // Merge backward only
-            const merged = mergeTwoSentences(prev!, current);
-            newResult[newResult.length - 1] = merged;
-            changed = true;
-            i++;
-            continue;
-          } else if (canMergeNext) {
-            // Merge forward only
-            const merged = mergeTwoSentences(current, next!);
-            newResult.push(merged);
-            changed = true;
-            i += 2;
-            continue;
+        if (canMergePrev && canMergeNext) {
+          // Both options: merge with smaller neighbor
+          if (prev!.wordCount <= next!.wordCount) {
+            newResult[newResult.length - 1] = mergeSentences(prev!, current);
+            logger.debug("Segmentation", `Merged backward: "${current.text.substring(0, 30)}..."`);
+          } else {
+            newResult.push(mergeSentences(current, next!));
+            i++; // Skip next
+            logger.debug("Segmentation", `Merged forward: "${current.text.substring(0, 30)}..."`);
           }
-          // Can't merge - keep as is
-        } else if (shouldMerge && canMergeNext && next!.wordCount <= 6) {
-          // SHOULD merge - only if BOTH are short
-          const merged = mergeTwoSentences(current, next!);
-          newResult.push(merged);
-          logger.debug("Segmentation", `Merged both short: "${merged.text.substring(0, 40)}..."`);
+          changed = true;
+          i++;
+          continue;
+        } else if (canMergePrev) {
+          newResult[newResult.length - 1] = mergeSentences(prev!, current);
+          changed = true;
+          i++;
+          continue;
+        } else if (canMergeNext) {
+          newResult.push(mergeSentences(current, next!));
           changed = true;
           i += 2;
           continue;
@@ -246,20 +327,16 @@ function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[
     result = newResult;
   }
 
+  if (result.length !== sentences.length) {
+    logger.log(
+      "Segmentation",
+      `Balanced ${sentences.length} → ${result.length} segments (words: ${MIN_SEGMENT_WORDS}-${MAX_SEGMENT_WORDS}, duration: ${MIN_SEGMENT_DURATION_MS / 1000}s-${MAX_SEGMENT_DURATION_MS / 1000}s)`
+    );
+  }
+
   return result;
 }
 
-/**
- * Helper to merge two sentences
- */
-function mergeTwoSentences(a: SentenceDetection, b: SentenceDetection): SentenceDetection {
-  return {
-    text: `${a.text} ${b.text}`.trim(),
-    startWordIndex: a.startWordIndex,
-    endWordIndex: b.endWordIndex,
-    wordCount: a.wordCount + b.wordCount,
-  };
-}
 
 /**
  * Get timestamp range for a sentence based on word indices

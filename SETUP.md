@@ -196,8 +196,9 @@ Styles control the visual output: image aesthetic, captions, effects.
 | History | `#history` | Watercolor paintings, karaoke captions, dynamic effects |
 | WW2 | `#ww2` | Black-and-white archival photos, bold white captions |
 | Stick Figure | `#stickfigure` | Minimal black lines on white, expressive poses |
+| Hand-drawn | `#handdrawn` | Sketch-style illustrations with pencil textures |
 | Explainer | `#explainer` | Flat 2D Kurzgesagt-style illustrations |
-| Stick | `#stick` | Comic-style stick figures with speech bubbles |
+| Lo-Fi | `#lofi` | 1980s Japanese magazine art, muted tones, nostalgic |
 
 ### Using Styles
 
@@ -241,13 +242,12 @@ Each style has these key settings:
 
 | Setting | Type | Description |
 |---------|------|-------------|
-| `panEffect` | boolean | Global pan effect when `naturalEdit` is off |
-| `naturalEdit` | boolean | LLM assigns shot types per segment |
+| `panEffect` | boolean | Enable pan effect for all segments |
 | `orientation` | `"horizontal"` or `"vertical"` | Video aspect ratio |
 
-### Natural Editing (Shot Types)
+### Shot Types (Sentence Segmentation Only)
 
-When `naturalEdit: true`, the LLM assigns a shot type to each segment:
+When using `segmentationType: "sentence"`, the LLM assigns a shot type to each segment:
 
 | Shot Type | Effect | Image Ratio |
 |-----------|--------|-------------|
@@ -257,13 +257,13 @@ When `naturalEdit: true`, the LLM assigns a shot type to each segment:
 
 This creates visual variety instead of every shot having the same effect.
 
-**How `panEffect` and `naturalEdit` interact:**
+**How `panEffect` and `segmentationType` interact:**
 
-| `naturalEdit` | `panEffect` | What happens |
-|---------------|-------------|--------------|
-| `true` | (ignored) | LLM decides per segment |
-| `false` | `true` | All segments pan |
-| `false` | `false` | All segments static |
+| `segmentationType` | `panEffect` | What happens |
+|-------------------|-------------|--------------|
+| `"sentence"` | (ignored) | LLM decides per segment |
+| `"wordCount"` | `true` | All segments pan |
+| `"wordCount"` | `false` | All segments static |
 
 ### Segmentation
 
@@ -277,16 +277,15 @@ Segmentation controls how the transcript is split into scenes (one image per seg
 
 **When to use each:**
 
-- **`"sentence"`** - Best for narrative content (stories, history, explainers). Creates natural visual pacing that matches speech patterns.
+- **`"sentence"`** - Best for narrative content (stories, history, explainers). Creates natural visual pacing that matches speech patterns. Includes automatic balancing:
+  - Segments < 6 words OR < 8 seconds are merged
+  - Segments > 100 words OR > 18 seconds are split
+  - LLM assigns shot types (pan/zoom/static) for visual variety
 
-- **`"wordCount"`** - Best for content without clear sentence structure (poetry, lyrics, lists). Ensures consistent segment lengths.
-
-**How `naturalEdit` affects segmentation:**
-
-When `naturalEdit: true`, segments longer than ~5 seconds are automatically split into smaller chunks. This prevents any single image from staying on screen too long, creating more dynamic pacing. The LLM also assigns shot types (pan/zoom/static) to each chunk.
+- **`"wordCount"`** - Best for content without clear sentence structure (poetry, lyrics, lists). Ensures consistent segment lengths. No automatic balancing - uses fixed word count.
 
 **Example:**
-A 12-second sentence might become two 6-second segments, each with its own image and effect.
+A 25-second sentence with 80 words would be split into 2 segments (~12.5s each).
 
 ### Captions
 
@@ -360,7 +359,7 @@ export const myStyle: VideoStyle = {
 
   // Video effects
   panEffect: false,
-  naturalEdit: true,  // LLM assigns pan/zoom/static per segment
+  orientation: "horizontal",
 
   // Instructions for the LLM
   llmContext: `Generate image prompts in your style. Focus on...`,
@@ -447,22 +446,22 @@ v2v uses SQLite caching to avoid redundant API calls. The cache has two layers:
 - AssemblyAI upload URL
 - Transcript (words, timestamps, duration)
 
-**Style-level cache** (per audio + style + orientation + naturalEdit):
+**Style-level cache** (per audio + style + orientation + segmentationType):
 - Segmented transcript
 - LLM image queries
 - Downloaded/generated images
 
-**Cache key:** `audio_hash + style_id + orientation + natural_edit`
+**Cache key:** `audio_hash + style_id + orientation + is_sentence_based`
 
 This means:
 - Same audio with `#history` vs `#ww2` = different cache entries
 - Same audio with `--short` (vertical) vs normal (horizontal) = different cache entries
-- Same audio with `naturalEdit: true` vs `naturalEdit: false` = different cache entries
+- Same audio with `sentence` vs `wordCount` segmentation = different cache entries
 - If you change a style's prompts, old cache is still used (delete cache or use `/cleanup`)
 
 **When cache is used:**
 1. Send same audio twice → transcription skipped
-2. Same audio + same style + same orientation + same naturalEdit mode → LLM and images skipped
+2. Same audio + same style + same orientation + same segmentation type → LLM and images skipped
 3. Video rendering always runs fresh (never cached)
 
 **Clearing cache:**
@@ -514,7 +513,7 @@ See [DOCKER.md](DOCKER.md) for Coolify and advanced options.
 - Try reducing `LLM_SEGMENTS_PER_BATCH` to 40
 
 ### Video too long to render
-- Enable `naturalEdit` for shot variety
+- Use `segmentationType: "sentence"` for automatic segment balancing
 - Chunked rendering kicks in automatically for >8 images
 - Check console for memory errors
 

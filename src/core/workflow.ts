@@ -34,7 +34,6 @@ import {
     getCachedImages,
 } from "../services/storage/index.ts";
 import * as logger from "../utils/logger.ts";
-import { splitLongSegments } from "../services/segmentation/natural-split.ts";
 import path from "node:path";
 
 const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
@@ -217,21 +216,9 @@ export class WorkflowService {
                 message: `Segmenting transcript (${style.segmentationType} mode)...`,
             });
 
+            // processTranscript now handles both merge AND split via unified balanceSegments()
             const result = processTranscript(transcriptWords, audioDuration, style);
             segments = result.segments;
-
-            // Only apply natural splitting for sentence-based segmentation
-            // wordCount segmentation already creates appropriately-sized chunks
-            if (style.segmentationType === "sentence") {
-                const originalCount = segments.length;
-                segments = splitLongSegments(segments);
-                if (segments.length > originalCount) {
-                    logger.log(
-                        "Workflow",
-                        `🎬 Natural split: ${originalCount} → ${segments.length} segments`
-                    );
-                }
-            }
 
             // Build formatted transcript for LLM
             formattedTranscript = segments

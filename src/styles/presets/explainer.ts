@@ -58,26 +58,13 @@ export const explainerStyle: VideoStyle = {
     naturalEdit: false,  // Keep single image per segment
 
     // === LLM Context ===
-    llmContext: `You are generating image prompts for a professional adult education video.
-The visual style is clean modern animation with smooth shapes, soft shading, and simple lines.
+    // llmContext: `Modern animation style for adult education. Smooth shapes, soft shading, muted professional colors (blues, grays, warm neutrals). Use visual metaphors and symbols. Characters should be adults aged 40-65 when applicable.`,
+    llmContext: `Modern animation style for professional adult education.
 
-CRITICAL RULES:
-- Adult figures aged 40-65 when showing people (unless otherwise specified)
-- Each image must visually represent its specific segment's content - they must MATCH
-- Use visual metaphors (icons, symbols, scenes) NOT text from the narration
-- ABSOLUTELY NO TEXT, WORDS, LABELS, or NUMBERS. ImageFX cannot render them.
-- Instead of "$500", show a "stack of money with dollar sign icon"
-- Instead of "15 years", show "calendar icon with flipping pages"
-
-- Instead of "15 years", show "calendar icon with flipping pages"
-- NO CONCEPT LABELS (e.g. do not label a character "The Expert")
-
-=== ANTI-PATTERNS (FAILURES) ===
-❌ labeling a chart "Growth"
-❌ sign with "Step 1"
-❌ character with "Manager" nametag
-
-PROMPT STRUCTURE:
-[Visual metaphor/scene] + [Key objects/symbols] + [Emotional context if human] + [Composition]`,
+SUBJECTS: Adults aged 40-65 when showing people (not young/childish). Professional settings, office environments, business contexts.
+COMPOSITION: Clean framing, smooth shapes, balanced layouts. Soft shading, no harsh outlines.
+COLORS: Muted professional palette (blues, grays, warm neutrals). No neon or childish colors.
+VISUAL METAPHORS: Replace concepts with symbols → money stack (wealth), calendar icon (time), upward arrow (growth), handshake (agreement).
+CONSTRAINTS: No text, no labels, no nametags, no chart labels. Everything purely visual.`,
 };
 

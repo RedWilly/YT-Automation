@@ -9,6 +9,7 @@ import { ww2Style } from "./presets/ww2.ts";
 import { stickStyle } from "./presets/stick.ts";
 import { explainerStyle } from "./presets/explainer.ts";
 import { handdrawnStyle } from "./presets/handdrawn.ts";
+import { lofiStyle } from "./presets/lofi.ts";
 
 // Re-export types
 export * from "./types.ts";
@@ -22,6 +23,7 @@ export const STYLES: Record<string, VideoStyle> = {
   stick: stickStyle,
   explainer: explainerStyle,
   handdrawn: handdrawnStyle,
+  lofi: lofiStyle,
 };
 
 /**

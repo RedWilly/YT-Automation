@@ -51,15 +51,12 @@ export const historyStyle: VideoStyle = {
   naturalEdit: true,  // Enable time-based splitting and b-roll types
 
   // === LLM Context ===
-  llmContext: `You are generating image prompts for a historical documentary video.
-The visual style is gouache and watercolor illustration with painterly textures.
-Focus on:
-- Historical accuracy in costumes, settings, and props
-- Fully finished scenes with detailed backgrounds filling the entire frame
-- Atmospheric lighting with rich, soft colors
-- Matte painting style with gentle, balanced compositions
-- Clear subject focus with contextual, detailed environments
-- ABSOLUTELY NO TEXT, LABELS, or CAPTIONS in the image
-- Avoid text-heavy objects (newspapers, signs) or explicitly describe them as "illegible" or "distant"`,
+  // llmContext: `Historical documentary aesthetic. Focus on period-accurate costumes, architecture, and landscapes. Use atmospheric lighting with rich, warm tones. Every scene should feel like a painting come to life.`,
+  llmContext: `Historical documentary with gouache/watercolor illustration aesthetic.
+
+COMPOSITION: Wide establishing shots for landscapes, medium shots for character moments. Fill the entire frame with detailed backgrounds.
+LIGHTING: Atmospheric, golden hour, soft diffused light. Rich warm tones.
+SUBJECTS: Period-accurate costumes, architecture, and props. Every scene should feel like a painting come to life.
+CONSTRAINTS: Avoid text-heavy objects (newspapers, signs). If unavoidable, describe them as "distant" or "illegible".`,
 };
 

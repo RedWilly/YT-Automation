@@ -55,7 +55,7 @@ export const explainerStyle: VideoStyle = {
     panEffect: true,
 
     // === Natural Editing ===
-    naturalEdit: false,  // Keep single image per segment
+
 
     // === LLM Context ===
     // llmContext: `Modern animation style for adult education. Smooth shapes, soft shading, muted professional colors (blues, grays, warm neutrals). Use visual metaphors and symbols. Characters should be adults aged 40-65 when applicable.`,

@@ -123,10 +123,10 @@ async function generateAIImageForQuery(
   const durationSeconds = (end - start) / 1000;
   const MIN_PAN_DURATION = 3; // Same as in ffmpeg.ts
 
-  // Determine aspect ratio based on shot type (when naturalEdit enabled) or fallback to panEffect + duration
+  // Determine aspect ratio based on shot type (natural splitting always enabled)
   let aspectRatio: "4:3" | "16:9" | "9:16";
 
-  if (style.naturalEdit && queryData.type) {
+  if (queryData.type) {
     // Shot type determines aspect ratio:
     // - pan: 4:3 for vertical pan headroom
     // - zoom/static: native resolution (no extra headroom needed)
@@ -150,6 +150,7 @@ async function generateAIImageForQuery(
   let lastError: Error | null = null;
   let rewriteCount = 0;
   const MAX_REWRITES = 25;
+  const originalQuery = queryData.query;  // Store original for context
 
   // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
@@ -184,9 +185,14 @@ async function generateAIImageForQuery(
         rewriteCount++;
         logger.warn("AI-Images", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${MAX_REWRITES}), requesting LLM rewrite...`);
 
-        // IMPORTANT: Rewrite the CURRENT query, not the original
-        // This way each rewrite builds on the previous one
-        const rewrittenQuery = await rewriteUnsafePrompt(queryData.query, style);
+        // Pass original prompt, current prompt, and retry info
+        const rewrittenQuery = await rewriteUnsafePrompt(
+          queryData.query,
+          style,
+          originalQuery,
+          rewriteCount,
+          MAX_REWRITES
+        );
 
         // Update query for next attempt
         queryData.query = rewrittenQuery;

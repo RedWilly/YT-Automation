@@ -36,12 +36,13 @@ export async function generateImageQueries(
         .filter((l) => l.length > 0);
 
     const segmentCount = lines.length;
-    const naturalEdit = style.naturalEdit ?? false;
+    // Shot types only apply to sentence-based segmentation
+    const useShotTypes = style.segmentationType === 'sentence';
 
     logger.step(
         "LLM",
         `Generating image search queries using ${AI_PROVIDER}`,
-        `${segmentCount} segments, style: ${style.name}${naturalEdit ? " (natural edit)" : ""}`
+        `${segmentCount} segments, style: ${style.name}${useShotTypes ? " (with shot types)" : ""}`
     );
 
     // Build system prompt with style-specific context
@@ -60,18 +61,18 @@ export async function generateImageQueries(
         );
     }
 
-    // Log natural edit mode
-    if (naturalEdit) {
+    // Log shot type mode
+    if (useShotTypes) {
         logger.log(
             "LLM",
-            `🎬 Natural editing mode - LLM will assign shot types (static/pan/zoom)`
+            `🎬 Shot type mode - LLM will assign types (static/pan/zoom)`
         );
     }
 
     // If small enough, single request
     const batchSize = LLM_SEGMENTS_PER_BATCH;
     if (segmentCount <= batchSize) {
-        const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, naturalEdit);
+        const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, useShotTypes);
         const queries = await callLLMWithRetry(
             systemPrompt,
             userPrompt,
@@ -102,7 +103,7 @@ export async function generateImageQueries(
             `Segments ${start + 1}-${end}`
         );
 
-        const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE, naturalEdit);
+        const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE, useShotTypes);
         const label = ` (batch ${batchIndex + 1})`;
 
         // Retry logic for batches that don't return the expected number of queries

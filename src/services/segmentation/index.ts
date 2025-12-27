@@ -144,76 +144,121 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
 }
 
 /**
- * Merge very short consecutive sentences for better flow
+ * Merge short sentences for natural flow
  *
  * Rules:
- * 1. If sentence has ≤2 words, ALWAYS merge with next sentence (if exists)
- * 2. If sentence has ≤6 words AND next sentence has ≤6 words, merge them
+ * 1. ≤3 words → MUST merge (with shorter neighbor)
+ * 2. ≤6 words → SHOULD merge if combined ≤15 words
+ * 3. Bidirectional: prefer merging with the shorter neighbor
  *
  * @param sentences - Array of detected sentences
  * @returns Array of sentences after merging short ones
  */
 function mergeShortSentences(sentences: SentenceDetection[]): SentenceDetection[] {
-  if (sentences.length === 0) return [];
+  if (sentences.length <= 1) return sentences;
 
-  const merged: SentenceDetection[] = [];
-  let i = 0;
+  let result = [...sentences];
+  let changed = true;
 
-  while (i < sentences.length) {
-    const current = sentences[i];
-    if (!current) {
+  // Keep iterating until no more merges are possible
+  while (changed) {
+    changed = false;
+    const newResult: SentenceDetection[] = [];
+    let i = 0;
+
+    while (i < result.length) {
+      const current = result[i];
+      if (!current) {
+        i++;
+        continue;
+      }
+
+      const prev = newResult[newResult.length - 1];
+      const next = result[i + 1];
+
+      // Rule 1: ≤3 words MUST merge
+      // Rule 2: ≤6 words SHOULD merge if result ≤15 words
+      const mustMerge = current.wordCount <= 3;
+      const shouldMerge = current.wordCount <= 6;
+
+      if (mustMerge || shouldMerge) {
+        // Calculate potential merge sizes
+        const prevCombined = prev ? prev.wordCount + current.wordCount : Infinity;
+        const nextCombined = next ? current.wordCount + next.wordCount : Infinity;
+
+        // Determine best merge direction
+        const canMergePrev = prev && prevCombined <= 15;
+        const canMergeNext = next && nextCombined <= 15;
+
+        if (mustMerge) {
+          // MUST merge - pick the shorter neighbor
+          if (canMergePrev && canMergeNext) {
+            // Both options: merge with shorter
+            if (prev!.wordCount <= next!.wordCount) {
+              // Merge backward
+              const merged = mergeTwoSentences(prev!, current);
+              newResult[newResult.length - 1] = merged;
+              logger.debug("Segmentation", `Merged ≤3 backward: "${current.text.substring(0, 30)}..."`);
+              changed = true;
+              i++;
+              continue;
+            } else {
+              // Merge forward
+              const merged = mergeTwoSentences(current, next!);
+              newResult.push(merged);
+              logger.debug("Segmentation", `Merged ≤3 forward: "${current.text.substring(0, 30)}..."`);
+              changed = true;
+              i += 2;
+              continue;
+            }
+          } else if (canMergePrev) {
+            // Merge backward only
+            const merged = mergeTwoSentences(prev!, current);
+            newResult[newResult.length - 1] = merged;
+            changed = true;
+            i++;
+            continue;
+          } else if (canMergeNext) {
+            // Merge forward only
+            const merged = mergeTwoSentences(current, next!);
+            newResult.push(merged);
+            changed = true;
+            i += 2;
+            continue;
+          }
+          // Can't merge - keep as is
+        } else if (shouldMerge && canMergeNext && next!.wordCount <= 6) {
+          // SHOULD merge - only if BOTH are short
+          const merged = mergeTwoSentences(current, next!);
+          newResult.push(merged);
+          logger.debug("Segmentation", `Merged both short: "${merged.text.substring(0, 40)}..."`);
+          changed = true;
+          i += 2;
+          continue;
+        }
+      }
+
+      // No merge - keep current
+      newResult.push(current);
       i++;
-      continue;
     }
 
-    const next = sentences[i + 1];
-
-    // Rule 1: Very short sentences (≤2 words) ALWAYS merge with next
-    // This handles cases like "But." or "However." appearing alone
-    if (next && current.wordCount <= 2) {
-      const mergedText = `${current.text} ${next.text}`.trim();
-      const mergedWordCount = current.wordCount + next.wordCount;
-
-      merged.push({
-        text: mergedText,
-        startWordIndex: current.startWordIndex,
-        endWordIndex: next.endWordIndex,
-        wordCount: mergedWordCount,
-      });
-
-      logger.debug(
-        "Segmentation",
-        `Merged very short sentence (≤2 words): "${current.text}" + "${next.text}" → "${mergedText}"`
-      );
-
-      i += 2;
-    }
-    // Rule 2: Both sentences are short (≤6 words), merge them
-    else if (next && current.wordCount <= 6 && next.wordCount <= 6) {
-      const mergedText = `${current.text} ${next.text}`.trim();
-      const mergedWordCount = current.wordCount + next.wordCount;
-
-      merged.push({
-        text: mergedText,
-        startWordIndex: current.startWordIndex,
-        endWordIndex: next.endWordIndex,
-        wordCount: mergedWordCount,
-      });
-
-      logger.debug(
-        "Segmentation",
-        `Merged short sentences (both ≤5 words): "${current.text}" + "${next.text}" → "${mergedText}"`
-      );
-
-      i += 2;
-    } else {
-      // Keep current sentence as-is
-      merged.push(current);
-      i++;
-    }
+    result = newResult;
   }
 
-  return merged;
+  return result;
+}
+
+/**
+ * Helper to merge two sentences
+ */
+function mergeTwoSentences(a: SentenceDetection, b: SentenceDetection): SentenceDetection {
+  return {
+    text: `${a.text} ${b.text}`.trim(),
+    startWordIndex: a.startWordIndex,
+    endWordIndex: b.endWordIndex,
+    wordCount: a.wordCount + b.wordCount,
+  };
 }
 
 /**

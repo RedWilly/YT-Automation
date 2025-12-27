@@ -203,9 +203,9 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        // Segments are shared across orientations but depend on naturalEdit mode
-        const naturalEdit = style.naturalEdit ?? false;
-        const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", naturalEdit);
+        // Cache key uses sentence vs wordCount to differentiate
+        const useSentenceSegmentation = style.segmentationType === "sentence";
+        const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", useSentenceSegmentation);
 
         if (cachedSegments) {
             logger.log("Workflow", "📦 Using cached segments (same style)");
@@ -220,14 +220,15 @@ export class WorkflowService {
             const result = processTranscript(transcriptWords, audioDuration, style);
             segments = result.segments;
 
-            // Natural edit mode: split long segments into smaller chunks for more dynamic pacing
-            if (naturalEdit) {
+            // Only apply natural splitting for sentence-based segmentation
+            // wordCount segmentation already creates appropriately-sized chunks
+            if (style.segmentationType === "sentence") {
                 const originalCount = segments.length;
                 segments = splitLongSegments(segments);
                 if (segments.length > originalCount) {
                     logger.log(
                         "Workflow",
-                        `🎬 Natural edit: ${originalCount} → ${segments.length} segments (time-based splitting)`
+                        `🎬 Natural split: ${originalCount} → ${segments.length} segments`
                     );
                 }
             }
@@ -238,7 +239,7 @@ export class WorkflowService {
                 .join("\n");
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
+            updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
                 segments: JSON.stringify(segments),
                 formatted_transcript: formattedTranscript,
             });
@@ -251,8 +252,8 @@ export class WorkflowService {
         // =============================================================
         let imageQueries: ImageSearchQuery[];
 
-        // Image queries depend on naturalEdit mode setting
-        const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", naturalEdit);
+        // Image queries are style-specific (segmentationType)
+        const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useSentenceSegmentation);
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -267,7 +268,7 @@ export class WorkflowService {
             validateImageQueries(imageQueries);
 
             // Save to style-specific cache (shared across orientations)
-            updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
+            updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
             });
 
@@ -303,7 +304,7 @@ export class WorkflowService {
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
-        const cachedImages = getCachedImages(audioHash, style.id, style.orientation, naturalEdit);
+        const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useSentenceSegmentation);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
@@ -319,9 +320,8 @@ export class WorkflowService {
             downloadedImages = await downloadImagesForQueries(imageQueries, style);
             validateDownloadedImages(downloadedImages);
 
-            // Save to style-specific cache
             // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
-            updateStyleCache(audioHash, style.id, style.orientation, naturalEdit, {
+            updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),
             });

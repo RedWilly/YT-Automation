@@ -37,6 +37,8 @@ export async function generateVideo(
 ): Promise<VideoGenerationResult> {
   const panEffect = style.panEffect;
   const captionsEnabled = style.captionsEnabled;
+  // Shot types (pan/zoom/static) only apply to sentence-based segmentation
+  const useShotTypes = style.segmentationType === "sentence";
 
   logger.step("Video", `Generating video from ${images.length} images`);
   logger.debug("Video", `Audio file: ${audioFilePath}`);
@@ -74,7 +76,7 @@ export async function generateVideo(
     await renderVideoInChunks(sortedImages, audioFilePath, outputPath, words, segments, style);
   } else {
     logger.step("Video", `Using single-pass rendering (${sortedImages.length} images)`);
-    const { filterComplex } = createFilterComplex(sortedImages, panEffect, style.orientation, style.naturalEdit ?? false);
+    const { filterComplex } = createFilterComplex(sortedImages, panEffect, style.orientation, useShotTypes);
     let assFilePath: string | undefined;
     if (captionsEnabled) {
       const captionResult = await generateCaptions(segments, words, style);
@@ -250,6 +252,8 @@ async function renderVideoInChunks(
 ): Promise<void> {
   const panEffect = style.panEffect;
   const captionsEnabled = style.captionsEnabled;
+  // Shot types (pan/zoom/static) only apply to sentence-based segmentation
+  const useShotTypes = style.segmentationType === "sentence";
 
   // Split images into chunks
   const chunks: DownloadedImage[][] = [];
@@ -279,7 +283,7 @@ async function renderVideoInChunks(
     chunkPaths.push(chunkPath);
 
     // Create filter complex for this chunk
-    const { filterComplex } = createFilterComplex(chunk, panEffect, style.orientation, style.naturalEdit ?? false);
+    const { filterComplex } = createFilterComplex(chunk, panEffect, style.orientation, useShotTypes);
 
     let chunkAssPath: string | undefined;
     if (captionsEnabled) {

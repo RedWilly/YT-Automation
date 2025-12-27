@@ -67,9 +67,6 @@ export const stickStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: false,  // Static images work better for stick figures
 
-    // === Natural Editing ===
-    naturalEdit: true,  // Enable time-based splitting and b-roll types
-
     // === LLM Context ===
     // llmContext: `White stick figures on pure black background. Round circle heads with dot eyes and curved mouths for expressions. Use visual symbols (icons, arrows, thought bubbles) instead of text. Focus on expressive poses and clear body language.`,
     llmContext: `Minimalist stick figure animation on pure black background.

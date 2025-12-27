@@ -47,9 +47,6 @@ export const historyStyle: VideoStyle = {
   // === Video Effects ===
   panEffect: false,
 
-  // === Natural Editing ===
-  naturalEdit: true,  // Enable time-based splitting and b-roll types
-
   // === LLM Context ===
   // llmContext: `Historical documentary aesthetic. Focus on period-accurate costumes, architecture, and landscapes. Use atmospheric lighting with rich, warm tones. Every scene should feel like a painting come to life.`,
   llmContext: `Historical documentary with gouache/watercolor illustration aesthetic.

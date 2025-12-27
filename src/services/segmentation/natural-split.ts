@@ -1,25 +1,25 @@
 /**
  * Natural Segment Splitting
- * Splits long segments into smaller chunks for more natural video pacing
+ * Splits long segments into smaller chunks for natural video pacing
  * 
- * When naturalEdit is enabled, segments longer than 5 seconds get split
- * into 6-8 second chunks to create more dynamic visual transitions.
+ * Since pan/zoom/static effects add visual movement, segments can be longer.
+ * Only very long segments (>15s) get split to maintain calm, natural flow.
  */
 
 import type { TranscriptSegment } from "../../types/index.ts";
 import * as logger from "../../utils/logger.ts";
 
-/** Minimum duration (ms) to trigger splitting */
-const SPLIT_THRESHOLD_MS = 5000;  // 5 seconds
+/** Minimum duration (ms) to trigger splitting - only split very long segments */
+const SPLIT_THRESHOLD_MS = 15000;
 
 /** Target duration for split chunks (ms) */
-const TARGET_CHUNK_MS = 7000;  // 7 seconds
+const TARGET_CHUNK_MS = 18000;
 
-/** Minimum chunk duration (ms) - don't create tiny segments */
-const MIN_CHUNK_MS = 4000;  // 4 seconds
+/** Minimum chunk duration (ms) - don't create short segments */
+const MIN_CHUNK_MS = 8000;
 
 /** Maximum number of splits per segment */
-const MAX_SPLITS_PER_SEGMENT = 4;
+const MAX_SPLITS_PER_SEGMENT = 3;
 
 /**
  * Split long segments into smaller time-based chunks

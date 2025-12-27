@@ -34,11 +34,14 @@ Example: "gouache watercolor illustration of a king standing in throne room. sof
    // --- FORMAT (output specification) ---
    const wordCount = useAiImage ? '40-70' : '8-15';
 
-   const outputSchema = style.naturalEdit
+   // Shot types only for sentence-based segmentation (not wordCount)
+   const useShotTypes = style.segmentationType === 'sentence';
+
+   const outputSchema = useShotTypes
       ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
       : `{"start": number, "end": number, "query": "string"}`;
 
-   const shotTypeInstructions = style.naturalEdit
+   const shotTypeInstructions = useShotTypes
       ? `
 ASSIGN shot type for visual rhythm:
 - "pan" → establishing shots, wide scenes, new locations

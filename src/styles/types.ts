@@ -134,10 +134,6 @@ export interface VideoStyle {
   /** Whether pan effect is enabled by default */
   panEffect: boolean;
 
-  // === Natural Editing ===
-  /** Enable natural editing mode (time-based splitting, b-roll types). Default: false */
-  naturalEdit?: boolean;
-
   // === LLM Context ===
   /** Additional context for LLM prompts (style-specific guidance) */
   llmContext: string;

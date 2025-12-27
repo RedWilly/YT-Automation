@@ -52,9 +52,6 @@ export const lofiStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: true,
 
-    // === Natural Editing ===
-    naturalEdit: true,
-
     // === LLM Context ===
     llmContext: `Lo-fi 1980s Japanese magazine illustration aesthetic.
 

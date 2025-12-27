@@ -67,8 +67,6 @@ export const handdrawnStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: false,  // Static works best for explainer style
 
-    // === Natural Editing ===
-    naturalEdit: true,  // Enable shot type variety
 
     // === LLM Context ===
     // llmContext: `Hand-drawn doodle style on pale pastel yellow background. Simple stick-figure characters with rounded heads and dot eyes. Use visual icons and symbols instead of text. Flat, clean minimal style with thin black outlines and no shading.`,

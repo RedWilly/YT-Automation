@@ -26,7 +26,7 @@ export const ww2Style: VideoStyle = {
 
   // === Segmentation ===
   segmentationType: "wordCount",
-  wordsPerSegment: 100,
+  wordsPerSegment: 30,
 
   // === Captions ===
   captionsEnabled: true,
@@ -66,7 +66,7 @@ export const ww2Style: VideoStyle = {
   panEffect: false,
 
   // === Natural Editing ===
-  naturalEdit: false,  // Uses word-count segmentation
+
 
   // === LLM Context ===
   // llmContext: `World War 2 documentary aesthetic. Black-and-white archival photography look. High contrast, dramatic lighting, film grain. Period-accurate 1940s military equipment, uniforms, and vehicles. Capture the raw authenticity of war photojournalism.`,

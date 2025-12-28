@@ -21,7 +21,7 @@ export const lofiStyle: VideoStyle = {
     description: '1980s Japanese magazine art style with muted tones and nostalgic aesthetic',
 
     // === Image Generation ===
-    imageStyle: 'hand drawn panel, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, full bleed, edge to edge composition',
+    imageStyle: 'hand drawn panel, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, full page illustration',
     negativePrompt: 'text, words, letters, numbers, labels, 3D, photorealistic, modern, neon, harsh colors, digital, watermark, border, frame, white border, margin, edges, vignette, caption',
 
     // === Segmentation ===

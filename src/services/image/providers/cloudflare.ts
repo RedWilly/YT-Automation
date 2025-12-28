@@ -58,21 +58,20 @@ class CloudflareProvider implements ImageProvider {
      * @returns Generated image data
      */
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
-        const { prompt, negativePrompt, aspectRatio = "4:3" } = options;
+        const { prompt, negativePrompt, aspectRatio = '16:9' } = options;
 
         // Calculate dimensions based on aspect ratio
-        const defaultDimensions = { width: 1440, height: 1104 };
+        // FFmpeg's pan.ts handles upscaling for pan shots
         const dimensionsMap: Record<string, { width: number; height: number }> = {
-            "4:3": { width: 1440, height: 1104 },   // Original 4:3 for panning
-            "16:9": { width: 1920, height: 1080 },  // Native horizontal
-            "9:16": { width: 1080, height: 1920 },  // Native vertical/shorts
+            '16:9': { width: 1920, height: 1080 },  // Native horizontal
+            '9:16': { width: 1080, height: 1920 },  // Native vertical/shorts
         };
-        const { width, height } = dimensionsMap[aspectRatio] ?? defaultDimensions;
+        const { width, height } = dimensionsMap[aspectRatio] ?? { width: 1920, height: 1080 };
 
         // Apply rate limiting before starting
         await this.waitForRateLimit();
 
-        logger.debug("Cloudflare", `Generating image for: "${prompt.substring(0, 60)}..." (${aspectRatio}: ${width}x${height})`);
+        logger.debug('Cloudflare', `Generating image for: "${prompt.substring(0, 60)}..." (${aspectRatio}: ${width}x${height})`);
 
         const requestStartTime = Date.now();
 

@@ -20,7 +20,7 @@ import type { VideoOrientation } from "../../../../styles/types.ts";
 import { getVideoDimensions } from "../dimensions.ts";
 
 const MIN_ZOOM_DURATION = 2;
-const ZOOM_LEVEL = 1.08; // Moderate 15% zoom
+const ZOOM_LEVEL = 1.08; // Moderate 8% zoom
 const ZOOM_FPS = 30;
 
 export interface ZoomParams {

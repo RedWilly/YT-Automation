@@ -74,23 +74,23 @@ class ImageFXProvider implements ImageProvider {
      * @returns Generated image data
      */
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
-        const { prompt: promptText, aspectRatio = "4:3" } = options;
+        const { prompt: promptText, aspectRatio = '16:9' } = options;
 
         // Apply rate limiting before starting
         await this.waitForRateLimit();
 
-        logger.debug("ImageFX", `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio})`);
+        logger.debug('ImageFX', `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio})`);
 
         const client = this.getClient();
         const requestStartTime = Date.now();
 
         // Map our aspect ratio to ImageFX API values
-        // 4:3 = 1472x1104 (panning), 16:9 = 1920x1080 (horizontal), 9:16 = 1080x1920 (vertical)
-        let imageFxAspectRatio: AspectRatio = "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE";
-        if (aspectRatio === "16:9") {
-            imageFxAspectRatio = "IMAGE_ASPECT_RATIO_LANDSCAPE";
-        } else if (aspectRatio === "9:16") {
-            imageFxAspectRatio = "IMAGE_ASPECT_RATIO_PORTRAIT";
+        // FFmpeg's pan.ts handles upscaling for pan shots
+        let imageFxAspectRatio: AspectRatio;
+        if (aspectRatio === '16:9') {
+            imageFxAspectRatio = 'IMAGE_ASPECT_RATIO_LANDSCAPE';
+        } else {
+            imageFxAspectRatio = 'IMAGE_ASPECT_RATIO_PORTRAIT';
         }
 
         // Create prompt with optimal settings for video generation
@@ -99,7 +99,7 @@ class ImageFXProvider implements ImageProvider {
             numberOfImages: 1,
             prompt: promptText,
             aspectRatio: imageFxAspectRatio,
-            generationModel: "IMAGEN_3_5",
+            generationModel: 'IMAGEN_3_5',
         });
 
         try {

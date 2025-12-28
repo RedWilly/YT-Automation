@@ -49,19 +49,19 @@ const COMMON_ABBREVIATIONS = [
 const MIN_SEGMENT_WORDS = 6;
 
 /** Maximum words - split if above */
-const MAX_SEGMENT_WORDS = 100;
+const MAX_SEGMENT_WORDS = 20;
 
 /** Minimum duration (ms) - merge if below */
-const MIN_SEGMENT_DURATION_MS = 8000;  // 8s
+const MIN_SEGMENT_DURATION_MS = 3000;  // 3s
 
 /** Maximum duration (ms) - split if above */
-const MAX_SEGMENT_DURATION_MS = 18000;  // 18s
+const MAX_SEGMENT_DURATION_MS = 10000;  // 10s
 
 /** Maximum combined words when merging */
-const MAX_MERGED_WORDS = 50;
+const MAX_MERGED_WORDS = 30;
 
 /** Maximum splits per segment */
-const MAX_SPLITS_PER_SEGMENT = 3;
+const MAX_SPLITS_PER_SEGMENT = 2;
 
 /**
  * Represents a detected sentence with its word indices

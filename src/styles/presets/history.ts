@@ -23,7 +23,7 @@ export const historyStyle: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "gouache watercolor illustration, soft blended colors, painterly textures, atmospheric lighting, matte painting, rich soft colors, detailed background",
-  negativePrompt: "text, words, letters, numbers, labels, captions, titles, typography, photograph, 3d, vector, oil painting, neon colors, watermark, deformed",
+  negativePrompt: "text, words, letters, numbers, labels, captions, titles, typography, photograph, 3d, vector, oil painting, neon colors, watermark, deformed, border, frame, white border, margin, edges, vignette",
 
   // === Segmentation ===
   segmentationType: "sentence",

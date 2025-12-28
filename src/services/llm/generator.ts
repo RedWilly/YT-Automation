@@ -69,18 +69,18 @@ export async function generateImageQueries(
         );
     }
 
-    // If small enough, single request
+    // If batchSize = 0 or segment count is small enough, use single request (no batching)
     const batchSize = LLM_SEGMENTS_PER_BATCH;
-    if (segmentCount <= batchSize) {
+    if (batchSize === 0 || segmentCount <= batchSize) {
         const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, useShotTypes);
         const queries = await callLLMWithRetry(
             systemPrompt,
             userPrompt,
-            "",
+            '',
             LLM_MAX_RETRIES
         );
         logger.success(
-            "LLM",
+            'LLM',
             `Generated ${queries.length} image search queries`
         );
         return queries;

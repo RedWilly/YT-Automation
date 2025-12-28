@@ -18,7 +18,7 @@ import {
 /**
  * Supported AI providers for text generation
  */
-export type AIProvider = "kimi" | "deepseek";
+export type AIProvider = 'kimi' | 'deepseek' | 'gemini';
 
 /**
  * Supported AI providers for image generation
@@ -32,11 +32,13 @@ export interface ProviderConfig {
     model: string;
     baseUrl: string;
     apiKey: string;
+    /** Segments per batch - 0 means entire transcript at once */
     segmentsPerBatch: number;
-    maxTokens: number;
+    maxTokens?: number;
     temperature: number;
     maxRetries: number;
 }
+
 
 // =============================================================
 // HELPER FUNCTIONS
@@ -87,6 +89,15 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         apiKey: envString('KIMI_API_KEY'),
         segmentsPerBatch: 60,
         maxTokens: 8000,
+        temperature: 0.4,
+        maxRetries: 3,
+    },
+    gemini: {
+        model: 'gemini-2.5-flash',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+        apiKey: envString('GEMINI_API_KEY'),
+        segmentsPerBatch: 0, // 0 = entire transcript at once
+        maxTokens: 64000,
         temperature: 0.4,
         maxRetries: 3,
     },

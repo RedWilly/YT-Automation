@@ -8,3 +8,4 @@ export * from "./ww2.ts";
 export * from "./stick.ts";
 export * from "./explainer.ts";
 export * from "./handdrawn.ts";
+export * from "./lofi.ts";

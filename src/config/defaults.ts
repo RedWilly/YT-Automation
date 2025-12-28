@@ -118,44 +118,6 @@ export const DEFAULT_HIGHLIGHT_STYLE = {
 } as const;
 
 // =============================================================
-// SEGMENTATION SETTINGS
-// =============================================================
-
-/**
- * Default segmentation settings
- */
-export const DEFAULT_SEGMENTATION = {
-    /** Segmentation type: "sentence" or "wordCount" */
-    type: "sentence" as const,
-    /** Words per segment (for wordCount mode) */
-    wordsPerSegment: 15,
-    /** Minimum words per caption group */
-    minWordsPerCaption: 3,
-    /** Maximum words per caption group */
-    maxWordsPerCaption: 6,
-    /** Timing tolerance for word-to-segment matching (ms) */
-    timingToleranceMs: 100,
-} as const;
-
-// =============================================================
-// LLM SETTINGS
-// =============================================================
-
-/**
- * Default LLM (Language Model) settings
- */
-export const DEFAULT_LLM_SETTINGS = {
-    /** Temperature for response randomness (0-1) */
-    temperature: 0.4,
-    /** Maximum tokens in response */
-    maxTokens: 8000,
-    /** Number of segments to process per LLM batch */
-    segmentsPerBatch: 60,
-    /** Maximum retry attempts */
-    maxRetries: 3,
-} as const;
-
-// =============================================================
 // IMAGE SETTINGS
 // =============================================================
 

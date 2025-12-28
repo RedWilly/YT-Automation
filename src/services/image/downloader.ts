@@ -23,14 +23,7 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 /**
  * Domains that typically serve watermarked stock photos
  */
-const WATERMARKED_DOMAINS = [
-  "dreamstime.com",
-  "alamy.com",
-  "freepik.com",
-  "gettyimages.com",
-  "vectorstock.com",
-  "vecteezy.com"
-];
+const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
 /**
  * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
@@ -106,7 +99,6 @@ export async function downloadImagesForQueries(
  * Generate a single AI image for a query using the configured provider with retry logic
  * Uses modular provider system with automatic fallback and exponential backoff
  * Determines aspect ratio based on scene duration and orientation:
- * - Scenes ≥3s (with pan effect): 4:3 for pan headroom
  * - Scenes <3s (static): Native resolution (16:9 or 9:16 based on orientation)
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
@@ -119,37 +111,15 @@ async function generateAIImageForQuery(
   const { start, end } = queryData;
   const provider = getProvider();
 
-  // Calculate scene duration
-  const durationSeconds = (end - start) / 1000;
-  const MIN_PAN_DURATION = 3; // Same as in ffmpeg.ts
+  // Determine aspect ratio - always use native ratio
+  const aspectRatio: '16:9' | '9:16' = style.orientation === 'vertical' ? '9:16' : '16:9';
 
-  // Determine aspect ratio based on shot type (when naturalEdit enabled) or fallback to panEffect + duration
-  let aspectRatio: "4:3" | "16:9" | "9:16";
-
-  if (style.naturalEdit && queryData.type) {
-    // Shot type determines aspect ratio:
-    // - pan: 4:3 for vertical pan headroom
-    // - zoom/static: native resolution (no extra headroom needed)
-    if (queryData.type === "pan") {
-      aspectRatio = "4:3";
-    } else {
-      aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
-    }
-    logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${queryData.type} → ${aspectRatio}`);
-  } else {
-    // Fallback: use panEffect + duration logic (original behavior)
-    const isPanning = style.panEffect && durationSeconds >= MIN_PAN_DURATION;
-    if (isPanning) {
-      aspectRatio = "4:3";
-    } else {
-      aspectRatio = style.orientation === "vertical" ? "9:16" : "16:9";
-    }
-    logger.debug("AI-Images", `Scene ${durationSeconds.toFixed(1)}s → ${isPanning ? "panning" : "static"} → ${aspectRatio}`);
-  }
+  logger.debug('AI-Images', `Scene → ${queryData.type ?? 'default'} → ${aspectRatio}`);
 
   let lastError: Error | null = null;
   let rewriteCount = 0;
   const MAX_REWRITES = 25;
+  const originalQuery = queryData.query;  // Store original for context
 
   // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
@@ -184,9 +154,14 @@ async function generateAIImageForQuery(
         rewriteCount++;
         logger.warn("AI-Images", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${MAX_REWRITES}), requesting LLM rewrite...`);
 
-        // IMPORTANT: Rewrite the CURRENT query, not the original
-        // This way each rewrite builds on the previous one
-        const rewrittenQuery = await rewriteUnsafePrompt(queryData.query, style);
+        // Pass original prompt, current prompt, and retry info
+        const rewrittenQuery = await rewriteUnsafePrompt(
+          queryData.query,
+          style,
+          originalQuery,
+          rewriteCount,
+          MAX_REWRITES
+        );
 
         // Update query for next attempt
         queryData.query = rewrittenQuery;

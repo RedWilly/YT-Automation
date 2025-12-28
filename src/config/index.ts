@@ -10,12 +10,10 @@ export {
     DEFAULT_VIDEO_SETTINGS,
     DEFAULT_CAPTION_STYLE,
     DEFAULT_HIGHLIGHT_STYLE,
-    DEFAULT_SEGMENTATION,
-    DEFAULT_LLM_SETTINGS,
     DEFAULT_IMAGE_SETTINGS,
     DEFAULT_TRANSCRIPTION,
     DEFAULT_PATHS,
-} from "./defaults.ts";
+} from './defaults.ts';
 
 export {
     type AIProvider,

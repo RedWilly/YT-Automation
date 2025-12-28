@@ -21,13 +21,12 @@ export const ww2Style: VideoStyle = {
   description: "Realistic black-and-white documentary with archival photography aesthetic",
 
   // === Image Generation ===
-  imageStyle: "black-and-white WWII documentary style, historical photojournalism, archival war footage look, dramatic high contrast, period-accurate 1940s military equipment and uniforms, authentic atmospheric lighting, professional composition, subtle film grain, realistic details, clear and sharp focus. NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS.",
-  // negativePrompt: "color, modern, futuristic, anachronistic, illustration, cgi, makeup, watermark, text, deformed, bad anatomy, mutated, disfigured, amputation, malformed",
-  negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, color, vibrant, modern, contemporary, digital, cartoon, anime, painting, illustration, low quality, blurry, watermark, signature, bad anatomy, deformed, unrealistic, fantasy, sci-fi, futuristic",
+  imageStyle: "black-and-white, WWII documentary, archival photography, high contrast, 1940s military, film grain, photojournalism",
+  negativePrompt: "text, words, letters, numbers, labels, captions, color, modern, cartoon, anime, illustration, watermark, deformed, border, frame, white border, margin, edges, vignette",
 
   // === Segmentation ===
   segmentationType: "wordCount",
-  wordsPerSegment: 100,
+  wordsPerSegment: 30,
 
   // === Captions ===
   captionsEnabled: true,
@@ -67,31 +66,15 @@ export const ww2Style: VideoStyle = {
   panEffect: false,
 
   // === Natural Editing ===
-  naturalEdit: false,  // Uses word-count segmentation
+
 
   // === LLM Context ===
-  llmContext: `You are generating image prompts for a World War 2 documentary video.
-The visual style matches archival black-and-white photography from the 1940s.
+  // llmContext: `World War 2 documentary aesthetic. Black-and-white archival photography look. High contrast, dramatic lighting, film grain. Period-accurate 1940s military equipment, uniforms, and vehicles. Capture the raw authenticity of war photojournalism.`,
+  llmContext: `World War 2 documentary with archival black-and-white photography aesthetic.
 
-CRITICAL REQUIREMENTS:
-- Describe subjects clearly: soldiers, vehicles, machinery, buildings, landscapes
-- Include actions, movements, and interactions happening in the scene
-- Specify environmental details: weather, time of day, terrain, background elements
-- Maintain historical accuracy with period-correct uniforms, vehicles, weapons, and architecture
-- Keep focus grounded, immersive, and visually cohesive with archival footage style
-- ABSOLUTELY NO TEXT, LABELS, COUNTDOWNS, or DATES in the image
-- Avoid showing maps, documents, or newspapers unless described as "blurred" or "illegible"
-
-VISUAL STYLE:
-- Black-and-white documentary aesthetic
-- High contrast, dramatic lighting
-- Film grain texture
-- Professional war photographer composition
-- Authentic 1940s military equipment
-
-EXAMPLE PROMPTS:
-- "American soldiers advancing through bombed French village streets, debris and smoke in background, overcast sky, 1944 Normandy"
-- "B-17 bomber crew preparing aircraft on English airfield, ground crew loading ammunition, early morning fog, 1943"
-- "German Panzer tank column moving through Eastern European forest road, soldiers riding on hulls, dust clouds, summer 1941"`,
+COMPOSITION: Cinematic war photographer framing. Wide shots for battlefields, medium shots for soldiers, close-ups for equipment details.
+LIGHTING: High contrast, dramatic shadows, film grain texture. Authentic 1940s look.
+SUBJECTS: Period-accurate uniforms, vehicles, weapons. Soldiers, civilians, military equipment in action.
+CONSTRAINTS: No modern objects, no color, no fantasy elements. Avoid maps/documents unless described as "blurred" or "background".`,
 };
 

@@ -23,8 +23,8 @@ export const stickStyle: VideoStyle = {
     description: "White line stick figures on black background, consistent round-head characters with expressive faces",
 
     // === Image Generation ===
-    imageStyle: "cartoon stick figure, round circle head with dot eyes and curved mouth, white lines on pure black background, consistent line weight, simple expressive faces, focus on expression and pose, 2D flat, high contrast, NEVER INCLUDE ANY TEXT OR WORDS OR LETTERS OR NUMBERS",
-    negativePrompt: "text, words, letters, writing, labels, captions, titles, numbers, alphabet, typography, font, TITLE, 3d render, realistic, color, shading, texture, watermark, detailed hands, fingers, realistic faces",
+    imageStyle: "stick figure, white lines on black background, round head, dot eyes, 2D flat, high contrast, minimal",
+    negativePrompt: "text, words, letters, numbers, labels, 3d, realistic, color, shading, watermark, border, frame, white border, margin, edges, vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",
@@ -67,84 +67,13 @@ export const stickStyle: VideoStyle = {
     // === Video Effects ===
     panEffect: false,  // Static images work better for stick figures
 
-    // === Natural Editing ===
-    naturalEdit: true,  // Enable time-based splitting and b-roll types
-
     // === LLM Context ===
-    llmContext: `You are generating image prompts for cartoon stick figure illustrations with CONSISTENT character design.
+    // llmContext: `White stick figures on pure black background. Round circle heads with dot eyes and curved mouths for expressions. Use visual symbols (icons, arrows, thought bubbles) instead of text. Focus on expressive poses and clear body language.`,
+    llmContext: `Minimalist stick figure animation on pure black background.
 
-=== CHARACTER ANATOMY (MUST BE CONSISTENT IN EVERY PROMPT) ===
-Every stick figure MUST have these exact features:
-- ROUND CIRCLE HEAD (perfect circle, not oval)
-- DOT EYES (two small filled black dots)
-- CURVED LINE MOUTH (simple curve: smile ⌣, frown ⌢, or wavy ~ for confusion)
-- THIN WHITE LINE BODY (single stroke torso)
-- STICK LIMBS (simple lines for arms and legs)
-- ROUND ENDPOINTS for hands (small circles, no fingers)
-- Optional: simple hair lines (spiky, ponytail, etc.)
-
-=== FACIAL EXPRESSIONS (USE THESE EXACT DESCRIPTIONS) ===
-- HAPPY: "round head with dot eyes and curved smile mouth"
-- SAD: "round head with dot eyes and downturned frown mouth"
-- EXCITED: "round head with wide dot eyes and big open smile"
-- CONFUSED: "round head with dot eyes and wavy squiggle mouth"
-- ANGRY: "round head with angled dot eyes and downturned mouth"
-- SURPRISED: "round head with wide dot eyes and small O mouth"
-- WORRIED: "round head with dot eyes and small frown, raised eyebrow lines"
-
-=== CRITICAL RULES ===
-1. NO TEXT in images - never include words, labels, letters, NUMBERS, or writing
-2. Use VISUAL SYMBOLS instead of text:
-   - Speech bubbles with icons (!, ?, ❤, 💡, ⚡) 
-   - Signs with arrows or simple icons
-   - Thought bubbles with symbol images
-3. EVERY character must match the anatomy template above
-4. Use consistent line weight throughout
-
-=== PROMPT STRUCTURE (MUST FOLLOW) ===
-[Character with anatomy] + [Facial expression] + [Body pose] + [Visual symbols] + [Setting] + [Style keywords]
-
-=== BODY POSES ===
-- Standing: "stick figure standing straight"
-- Pointing: "arm extended pointing with round hand endpoint"
-- Jumping: "arms raised, legs bent in jump pose"
-- Sitting: "bent at waist, stick legs forward"
-- Walking: "legs in stride, arms swinging"
-- Scratching head: "one arm bent with round hand touching head"
-
-=== VISUAL SYMBOLS (USE INSTEAD OF TEXT) ===
-- Signpost with arrow icon pointing direction
-- Speech bubble with exclamation mark (!)
-- Speech bubble with question mark (?)
-- Thought bubble with lightbulb icon
-- Heart symbols floating
-- Star symbols for emphasis
-- Sweat drops for nervousness
-- Motion lines for movement
-
-=== SETTING ===
-- Pure black background
-- Minimal white line props only
-- Simple geometric shapes for environment
-
-=== ANTI-PATTERNS (FAILURES) ===
-❌ labeling a character "The Overthinker"
-❌ sign with "Start"
-❌ clock showing "12:00"
-❌ weight showing "100lbs"
-❌ speech bubble with "Hello"
-
-=== STYLE KEYWORDS (ALWAYS END WITH) ===
-"cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"
-
-=== EXAMPLE PROMPTS ===
-- "cartoon stick figure with round circle head dot eyes and big curved smile mouth, spiky hair lines, arms raised triumphantly in jump pose with round hand endpoints, signpost with arrow icon nearby, pure black background, cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"
-
-- "cartoon stick figure with round head dot eyes and wavy confused mouth scratching head with round hand endpoint, looking at signpost with arrow icon, second stick figure with round head dot eyes and curved smile pointing with extended arm, pure black background, cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"
-
-- "cartoon stick figure with round head dot eyes and downturned sad frown mouth, slumped shoulders drooping posture, rain cloud icon with droplets above head, pure black background, cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"
-
-- "cartoon stick figure with round head wide dot eyes and excited open smile, ponytail hair lines, leaning forward eagerly with round hand endpoints clasped together, heart symbols floating nearby, pure black background, cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"
-
-- "two cartoon stick figures with round heads and dot eyes, first one with curved smile pointing at whiteboard with chart icon, second one with small O surprised mouth taking notes, simple desk shapes, pure black background, cartoon stick figure, round head with dot eyes, white lines on pure black background, consistent line weight, simple expressive face, no text, icons only, 2D flat, high contrast"`,
+CHARACTER: Round circle head, dot eyes, curved line mouth (smile/frown/neutral). Thin white line body, stick limbs. Consistent anatomy in every image.
+EXPRESSIONS: Happy = curved smile, Sad = downturned mouth, Confused = wavy mouth, Surprised = O mouth.
+VISUAL SYMBOLS: Use icons instead of text → lightbulb (ideas), question mark (confusion), exclamation (emphasis), arrows (direction), heart (love), thought bubbles (thinking).
+COMPOSITION: Centered subject, pure black background, minimal white line props.
+CONSTRAINTS: No text, no labels, no numbers. Replace text with icons always.`,
 };

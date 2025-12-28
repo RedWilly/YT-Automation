@@ -1,133 +1,94 @@
 /**
- * LLM Prompt templates and generation logic
- * Supports natural editing mode with shot type effects
+ * LLM Prompt templates using the 4-Pillar approach:
+ * Persona, Task, Context, Format
+ * 
+ * Enhanced with Runway Gen-4 keyword categories and Gemini command language
  */
 
-import type { ResolvedStyle } from "../../styles/types.ts";
+import type { ResolvedStyle } from '../../styles/types.ts';
 
 /**
  * Build system prompt for the LLM with style-specific context
- * @param useAiImage - Whether AI image generation is enabled
- * @param style - Resolved style configuration with LLM context
- * @returns System prompt string
+ * Applies Gemini prompting guide: Persona + Task + Context + Format
  */
 export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): string {
-   // Word count based on image source
-   const wordCount = useAiImage
-      ? "35-60 words (detailed for AI generation)"
-      : "8-15 words (concise for web search)";
+   // --- PERSONA (who is the AI?) ---
+   const persona = `You are a senior visual storyboard artist and cinematographer. You specialize in translating spoken narratives into cinematic image descriptions optimized for AI generation.`;
 
-   // Style guidance based on image source
-   const styleGuidance = useAiImage
-      ? `IMAGE STYLE KEYWORDS: "${style.imageStyle}"
+   // --- TASK (what must be done?) ---
+   const task = `ANALYZE the transcript segment-by-segment. GENERATE one vivid image description per segment. ENSURE visual narrative continuity across all images.`;
 
-FORBIDDEN ELEMENTS (NEVER include these in your prompts):
-${style.negativePrompt}
+   // --- CONTEXT (background + constraints) ---
+   const styleDirection = useAiImage
+      ? `BLEND style keywords naturally into every query: "${style.imageStyle}"
+Pattern: [Style prefix] of [subject doing action in setting]. [Style modifiers].
+Example: "gouache watercolor illustration of a king standing in throne room. soft blended colors, atmospheric lighting, painterly textures."`
+      : `OPTIMIZE for web image search. Use concrete, searchable noun phrases.`;
 
-IMPORTANT: You MUST include the style keywords at the END of each query.
-Your job: Describe the SCENE (who, doing what, where, with what details) + ADD style keywords at the end.
-The style keywords ensure visual consistency across all generated images.
-NEVER describe anything from the FORBIDDEN ELEMENTS list.`
-      : `IMAGE SOURCE: Web search (DuckDuckGo)
-Use concrete, searchable terms. Avoid abstract or artistic language.`;
+   const forbidden = useAiImage && style.negativePrompt
+      ? `REJECT these elements (never include): ${style.negativePrompt}`
+      : '';
 
-   // Add style-specific LLM context if available
-   const styleContext = style.llmContext
-      ? `\n## STYLE-SPECIFIC GUIDANCE\n${style.llmContext}\n`
-      : "";
+   const llmContext = style.llmContext || '';
 
-   // Natural editing shot type instructions
-   const naturalEditInstructions = style.naturalEdit
+   // --- FORMAT (output specification) ---
+   const wordCount = useAiImage ? '40-70' : '8-15';
+
+   // Shot types only for sentence-based segmentation (not wordCount)
+   const useShotTypes = style.segmentationType === 'sentence';
+
+   const outputSchema = useShotTypes
+      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
+      : `{"start": number, "end": number, "query": "string"}`;
+
+   const shotTypeInstructions = useShotTypes
       ? `
-## SHOT TYPES (Natural Editing Mode)
-For each segment, assign a shot type to create visual variety:
+ASSIGN shot type for visual rhythm:
+- "pan" → establishing shots, wide scenes, new locations
+- "zoom" → close-ups, details, emphasis, specific facts
+- "static" → main action, dialogue, primary subject
+VARY types: never repeat the same type 3+ times consecutively.`
+      : '';
 
-- **"pan"** - For establishing shots, wide scenes, or when panning movement would enhance the visual
-- **"zoom"** - For close-ups, details, specific facts, or moments needing focus
-- **"static"** - For primary actions, dialogue, or when the subject should be clearly visible without movement
+   return `# PERSONA
+${persona}
 
-Your output MUST include: {"start": N, "end": N, "query": "...", "type": "pan|zoom|static"}
+# TASK
+${task}
 
-SHOT TYPE GUIDELINES:
-1. Opening segments: use "pan" to establish the scene
-2. Specific details, numbers, close-ups: use "zoom"
-3. Main action or primary subject: use "static"
-4. Vary types for rhythm - don't use the same type 3+ times in a row
-5. Scene transitions: consider "pan" for new locations
-`
-      : "";
+# CONTEXT
+## Style Keywords
+${styleDirection}
+${forbidden}
 
-   const outputFormat = style.naturalEdit
-      ? `Each object: {"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
-      : `Each object: {"start": number, "end": number, "query": "string"}`;
+## Creative Brief
+${llmContext}
 
-   return `You are a visual query generator for video content.
+## Query Structure (Runway Gen-4 Categories)
+INCLUDE these elements in every query:
+- SUBJECT: Who/what is the focus? Be specific (e.g., "weathered fisherman" not "man")
+- ACTION: What is happening? Use active verbs
+- SETTING: Where is this? Include environment details
+- LIGHTING: Describe the light quality (e.g., "golden hour", "dramatic shadows")
+- COMPOSITION: Frame the shot (e.g., "medium shot", "centered", "rule of thirds")
+${shotTypeInstructions}
 
-${styleGuidance}
-${styleContext}${naturalEditInstructions}
-## YOUR OUTPUT FORMAT
-Return ONLY a valid JSON array. No text before or after.
-Copy "start" and "end" exactly from the transcript segments; do not modify them.
-${outputFormat}
+Word count: ${wordCount} words per query.
 
-## QUERY REQUIREMENTS
-Every query MUST follow this structure:
-[WHO] + [ACTION] + [WHERE/CONTEXT] + [DETAILS]
+## Critical Rules
+1. PRESERVE timestamps exactly (copy start/end values unchanged)
+2. NEVER include text, words, letters, numbers, or labels in visual descriptions
+3. MAINTAIN consistency: same character = identical description phrase, same location = identical phrase
+4. REPLACE text concepts with visual symbols (e.g., "$500" → "stack of money with dollar symbol icon")
+5. ENSURE visual continuity: consecutive segments in same scene should flow naturally
 
-Word count: ${wordCount}
-
-✅ CORRECT: "Japanese pilot standing on aircraft carrier deck observing incoming fighter planes in the Pacific ocean during World War 2"
-✅ CORRECT: "Dr. Sarah Chen presenting climate research at conference podium in Geneva showing data charts to audience"
-✅ CORRECT: "scientist in white lab coat examining water samples under microscope in modern research laboratory"
-
-❌ WRONG: "aircraft carrier deck" (missing WHO and ACTION)
-❌ WRONG: "conference podium" (missing WHO and ACTION)
-❌ WRONG: "laboratory equipment" (missing WHO and ACTION)
-
-## CONSISTENCY RULES (CRITICAL)
-Before generating, identify these elements and REUSE them consistently:
-
-1. **CHARACTERS**: If "Dr. Smith" appears in segments 1, 4, 7 → use "Dr. Smith" in ALL those queries
-   - Do NOT switch between "scientist", "researcher", "doctor" for the same person
-
-2. **LOCATIONS**: If segments 2-5 happen in "research laboratory" → use same location phrase
-   - Do NOT switch between "lab", "laboratory", "research facility" randomly
-
-3. **CONTEXT**: If the transcript is about WW2 aviation → maintain that context throughout
-   - Do NOT randomly change time periods or themes
-
-4. **FLOW**: Consecutive segments in same scene should have visual continuity
-   - Only change settings when the transcript explicitly indicates a scene change
-4.1. Verify: same person = same words, same place = same words
-
-
-etc...
-
-## PROCESS
-1. Read ALL segments first
-2. List recurring: characters, locations, themes
-3. Generate queries using CONSISTENT descriptors for each element
-4. Verify queries against the Style's specific rules.
-5. **FINAL CHECK**: Remove ANY text, labels, numbers, or titles. Ensure every prompt is 100% visual/abstract.
-
-## ABSOLUTE TEXT BAN (FAILURES TO AVOID)
-You must NOT generate prompts that result in text.
-❌ labeling a character "The Overthinker"
-❌ clock showing "4:45" (Or any specific time)
-❌ weight showing "50KG"
-❌ sign with title "Explaining"
-
-✅ CORRECT: "character scratching head", "clock icon with hands only", "simple weight shape", "blank signpost"
-
-REMEMBER: "No text whatsoever". Everything must be abstract or symbolic.`;
+# FORMAT
+RETURN only a valid JSON array. No markdown, no preamble, no explanations.
+Schema: ${outputSchema}`;
 }
 
 /**
- * User prompt for image query generation
- * @param formattedTranscript - Formatted transcript with timestamps
- * @param segmentCount - Number of segments
- * @param useAiImage - Whether AI image generation is enabled
- * @param naturalEdit - Whether natural editing mode is active
+ * Build user prompt with the transcript
  */
 export function buildUserPrompt(
    formattedTranscript: string,
@@ -135,45 +96,27 @@ export function buildUserPrompt(
    useAiImage: boolean,
    naturalEdit: boolean = false
 ): string {
-   const wordCount = useAiImage ? "35-60" : "8-15";
+   const wordCount = useAiImage ? '40-70' : '8-15';
 
-   const shotTypeReminder = naturalEdit
-      ? `
-## SHOT TYPES REMINDER
-Each query MUST include a "type" field: "pan", "zoom", or "static"
-- "pan" → establishing shots, wide scenes, panning moments
-- "zoom" → close-ups, details, focus moments
-- "static" → main action, clear subjects, dialogue
-`
-      : "";
+   const typeField = naturalEdit
+      ? `- INCLUDE "type" field: "pan", "zoom", or "static"`
+      : '';
 
    const outputExample = naturalEdit
       ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan"}, ...]`
       : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
-   return `## TRANSCRIPT (${segmentCount} segments)
+   return `# TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}
-${shotTypeReminder}
-## STEP 1: IDENTIFY RECURRING ELEMENTS
-Before generating queries, list in your mind:
-- Characters: Who appears? (names, titles, roles)
-- Locations: Where does it happen? (places, settings)
-- Theme: What is the overall topic?
 
-## STEP 2: GENERATE ${segmentCount} QUERIES
-For each segment, create one query following this format:
-[WHO] + [ACTION] + [WHERE] + [DETAILS]
+# EXECUTE
+1. IDENTIFY recurring characters, locations, and themes
+2. GENERATE exactly ${segmentCount} queries
+3. USE ${wordCount} words per query
+4. COPY exact timestamps from segments
+${typeField}
 
-Requirements:
-- Word count: ${wordCount} words per query
-- Use EXACT timestamps from segments
-- Same person = same descriptor throughout
-- Same location = same descriptor throughout
-${naturalEdit ? "- Include \"type\" field for each query (vertical/zoom/static)" : ""}
-
-## OUTPUT
-Return ONLY a JSON array with ${segmentCount} objects:
-${outputExample}
-
-No text before or after the JSON. No markdown. No explanations.`;
+# OUTPUT
+JSON array only:
+${outputExample}`;
 }

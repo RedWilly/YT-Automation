@@ -4,20 +4,20 @@
  * Supports natural editing mode with b-roll shot types
  */
 
-import { AI_TEXT } from "../../config/environment.ts";
-import type { ImageSearchQuery } from "../../types/index.ts";
-import type { ResolvedStyle } from "../../styles/types.ts";
-import * as logger from "../../utils/logger.ts";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts.ts";
-import { callLLMWithRetry } from "./client.ts";
-import { validateImageQueries } from "./parser.ts";
+import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
+import type { ImageSearchQuery } from '../../types/index.ts';
+import type { ResolvedStyle } from '../../styles/types.ts';
+import * as logger from '../../utils/logger.ts';
+import { buildSystemPrompt, buildUserPrompt } from './prompts.ts';
+import { callLLMWithRetry } from './client.ts';
+import { validateImageQueries } from './parser.ts';
 
+// Get AI configuration
+const aiConfig = getAIConfig();
 const AI_PROVIDER = AI_TEXT.provider;
-const LLM_SEGMENTS_PER_BATCH = AI_TEXT.segmentsPerBatch;
+const LLM_SEGMENTS_PER_BATCH = aiConfig.segmentsPerBatch;
+const LLM_MAX_RETRIES = aiConfig.maxRetries;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
-
-/** Maximum number of retry attempts for LLM requests per batch */
-const LLM_MAX_RETRIES = 2;
 
 /**
  * Generate image search queries from formatted transcript
@@ -36,12 +36,13 @@ export async function generateImageQueries(
         .filter((l) => l.length > 0);
 
     const segmentCount = lines.length;
-    const naturalEdit = style.naturalEdit ?? false;
+    // Shot types only apply to sentence-based segmentation
+    const useShotTypes = style.segmentationType === 'sentence';
 
     logger.step(
         "LLM",
         `Generating image search queries using ${AI_PROVIDER}`,
-        `${segmentCount} segments, style: ${style.name}${naturalEdit ? " (natural edit)" : ""}`
+        `${segmentCount} segments, style: ${style.name}${useShotTypes ? " (with shot types)" : ""}`
     );
 
     // Build system prompt with style-specific context
@@ -60,26 +61,26 @@ export async function generateImageQueries(
         );
     }
 
-    // Log natural edit mode
-    if (naturalEdit) {
+    // Log shot type mode
+    if (useShotTypes) {
         logger.log(
             "LLM",
-            `🎬 Natural editing mode - LLM will assign shot types (static/pan/zoom)`
+            `🎬 Shot type mode - LLM will assign types (static/pan/zoom)`
         );
     }
 
-    // If small enough, single request
+    // If batchSize = 0 or segment count is small enough, use single request (no batching)
     const batchSize = LLM_SEGMENTS_PER_BATCH;
-    if (segmentCount <= batchSize) {
-        const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, naturalEdit);
+    if (batchSize === 0 || segmentCount <= batchSize) {
+        const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, useShotTypes);
         const queries = await callLLMWithRetry(
             systemPrompt,
             userPrompt,
-            "",
+            '',
             LLM_MAX_RETRIES
         );
         logger.success(
-            "LLM",
+            'LLM',
             `Generated ${queries.length} image search queries`
         );
         return queries;
@@ -102,7 +103,7 @@ export async function generateImageQueries(
             `Segments ${start + 1}-${end}`
         );
 
-        const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE, naturalEdit);
+        const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE, useShotTypes);
         const label = ` (batch ${batchIndex + 1})`;
 
         // Retry logic for batches that don't return the expected number of queries

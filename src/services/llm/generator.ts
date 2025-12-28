@@ -4,20 +4,20 @@
  * Supports natural editing mode with b-roll shot types
  */
 
-import { AI_TEXT } from "../../config/environment.ts";
-import type { ImageSearchQuery } from "../../types/index.ts";
-import type { ResolvedStyle } from "../../styles/types.ts";
-import * as logger from "../../utils/logger.ts";
-import { buildSystemPrompt, buildUserPrompt } from "./prompts.ts";
-import { callLLMWithRetry } from "./client.ts";
-import { validateImageQueries } from "./parser.ts";
+import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
+import type { ImageSearchQuery } from '../../types/index.ts';
+import type { ResolvedStyle } from '../../styles/types.ts';
+import * as logger from '../../utils/logger.ts';
+import { buildSystemPrompt, buildUserPrompt } from './prompts.ts';
+import { callLLMWithRetry } from './client.ts';
+import { validateImageQueries } from './parser.ts';
 
+// Get AI configuration
+const aiConfig = getAIConfig();
 const AI_PROVIDER = AI_TEXT.provider;
-const LLM_SEGMENTS_PER_BATCH = AI_TEXT.segmentsPerBatch;
+const LLM_SEGMENTS_PER_BATCH = aiConfig.segmentsPerBatch;
+const LLM_MAX_RETRIES = aiConfig.maxRetries;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
-
-/** Maximum number of retry attempts for LLM requests per batch */
-const LLM_MAX_RETRIES = 2;
 
 /**
  * Generate image search queries from formatted transcript

@@ -3,8 +3,7 @@
  * Handles API communication with LLM providers (DeepSeek, Kimi, etc.)
  */
 
-import { AI_TEXT, getAIConfig } from "../../config/environment.ts";
-import { DEFAULT_LLM_SETTINGS } from "../../config/defaults.ts";
+import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
 import type {
     LLMRequest,
     LLMResponse,
@@ -83,11 +82,11 @@ async function callLLM(
     const request: LLMRequest = {
         model: AI_MODEL,
         messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
         ],
-        temperature: DEFAULT_LLM_SETTINGS.temperature,
-        max_tokens: DEFAULT_LLM_SETTINGS.maxTokens,
+        temperature: aiConfig.temperature,
+        max_tokens: aiConfig.maxTokens,
     };
 
     logger.log("LLM", `Calling ${AI_PROVIDER}: ${AI_MODEL}`);

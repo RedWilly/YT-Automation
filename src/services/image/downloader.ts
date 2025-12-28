@@ -23,14 +23,7 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 /**
  * Domains that typically serve watermarked stock photos
  */
-const WATERMARKED_DOMAINS = [
-  "dreamstime.com",
-  "alamy.com",
-  "freepik.com",
-  "gettyimages.com",
-  "vectorstock.com",
-  "vecteezy.com"
-];
+const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
 /**
  * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)

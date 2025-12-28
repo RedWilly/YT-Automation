@@ -7,10 +7,9 @@ import * as logger from "../utils/logger.ts";
 import { envBool, envNumber, envString } from "../utils/env.ts";
 import {
     DEFAULT_PATHS,
-    DEFAULT_LLM_SETTINGS,
     DEFAULT_TRANSCRIPTION,
     DEFAULT_IMAGE_SETTINGS,
-} from "./defaults.ts";
+} from './defaults.ts';
 
 // =============================================================
 // TYPE DEFINITIONS
@@ -33,6 +32,10 @@ export interface ProviderConfig {
     model: string;
     baseUrl: string;
     apiKey: string;
+    segmentsPerBatch: number;
+    maxTokens: number;
+    temperature: number;
+    maxRetries: number;
 }
 
 // =============================================================
@@ -47,7 +50,7 @@ export interface ProviderConfig {
 export function parseIdList(envValue?: string): number[] {
     if (!envValue) return [];
 
-    const items = envValue.split(",");
+    const items = envValue.split(',');
     const values: number[] = [];
     for (const item of items) {
         const raw = item.trim();
@@ -66,17 +69,26 @@ export function parseIdList(envValue?: string): number[] {
 
 /**
  * AI provider configurations for text generation
+ * Each provider has its own optimal settings
  */
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
-    kimi: {
-        model: "kimi-k2-0905-preview",
-        baseUrl: "https://api.moonshot.ai/v1",
-        apiKey: envString("KIMI_API_KEY"),
-    },
     deepseek: {
-        model: "deepseek-chat",
-        baseUrl: "https://api.deepseek.com/v1",
-        apiKey: envString("DEEPSEEK_API_KEY"),
+        model: 'deepseek-chat',
+        baseUrl: 'https://api.deepseek.com/v1',
+        apiKey: envString('DEEPSEEK_API_KEY'),
+        segmentsPerBatch: 60,
+        maxTokens: 8000,
+        temperature: 0.4,
+        maxRetries: 3,
+    },
+    kimi: {
+        model: 'kimi-k2-0905-preview',
+        baseUrl: 'https://api.moonshot.ai/v1',
+        apiKey: envString('KIMI_API_KEY'),
+        segmentsPerBatch: 60,
+        maxTokens: 8000,
+        temperature: 0.4,
+        maxRetries: 3,
     },
 };
 
@@ -106,9 +118,8 @@ export const TRANSCRIPTION = {
  * AI text generation configuration
  */
 export const AI_TEXT = {
-    provider: envString("AI_PROVIDER") as AIProvider,
-    segmentsPerBatch: envNumber("LLM_SEGMENTS_PER_BATCH", DEFAULT_LLM_SETTINGS.segmentsPerBatch),
-    useAiImage: envBool("USE_AI_IMAGE"),
+    provider: envString('AI_PROVIDER') as AIProvider,
+    useAiImage: envBool('USE_AI_IMAGE'),
 } as const;
 
 /**

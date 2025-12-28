@@ -158,8 +158,8 @@ async function runTestWorkflow(): Promise<void> {
     let segments: TranscriptSegment[];
     let formattedTranscript: string;
 
-    const naturalEdit = style.naturalEdit ?? false;
-    const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", naturalEdit);
+    const useShotTypes = style.segmentationType === 'sentence';
+    const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", useShotTypes);
 
     if (cachedSegments) {
       logger.log("Test", "📦 Using cached segments (same style)");
@@ -173,7 +173,7 @@ async function runTestWorkflow(): Promise<void> {
       formattedTranscript = result.formattedTranscript;
 
       // Save to style-specific cache (shared across orientations)
-      updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
+      updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
         segments: JSON.stringify(segments),
         formatted_transcript: formattedTranscript,
       });
@@ -189,7 +189,7 @@ async function runTestWorkflow(): Promise<void> {
     let imageQueries: ImageSearchQuery[];
 
     // Image queries are shared across orientations
-    const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", naturalEdit);
+    const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useShotTypes);
 
     if (cachedQueries) {
       logger.log("Test", "📦 Using cached image queries (no LLM call)");
@@ -201,7 +201,7 @@ async function runTestWorkflow(): Promise<void> {
       validateImageQueries(imageQueries);
 
       // Save to style-specific cache (shared across orientations)
-      updateStyleCache(audioHash, style.id, "horizontal", naturalEdit, {
+      updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
         image_queries: JSON.stringify(imageQueries),
       });
 
@@ -222,7 +222,7 @@ async function runTestWorkflow(): Promise<void> {
 
     let downloadedImages: DownloadedImage[];
 
-    const cachedImages = getCachedImages(audioHash, style.id, style.orientation, naturalEdit);
+    const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useShotTypes);
 
     if (cachedImages && cachedImages.length === imageQueries.length) {
       logger.log("Test", "📦 Using cached images (all files verified)");
@@ -234,7 +234,7 @@ async function runTestWorkflow(): Promise<void> {
       validateDownloadedImages(downloadedImages);
 
       // Save to style-specific cache
-      updateStyleCache(audioHash, style.id, style.orientation, naturalEdit, {
+      updateStyleCache(audioHash, style.id, style.orientation, useShotTypes, {
         downloaded_images: JSON.stringify(downloadedImages),
       });
 

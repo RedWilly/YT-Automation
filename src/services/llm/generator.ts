@@ -29,14 +29,12 @@ export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle
 ): Promise<ImageSearchQuery[]> {
-    // Split transcript into segment lines
     const lines = formattedTranscript
         .split(/\r?\n/)
         .map((l) => l.trim())
         .filter((l) => l.length > 0);
 
     const segmentCount = lines.length;
-    // Shot types only apply to sentence-based segmentation
     const useShotTypes = style.segmentationType === 'sentence';
 
     logger.step(
@@ -45,10 +43,8 @@ export async function generateImageQueries(
         `${segmentCount} segments, style: ${style.name}${useShotTypes ? " (with shot types)" : ""}`
     );
 
-    // Build system prompt with style-specific context
     const systemPrompt = buildSystemPrompt(USE_AI_IMAGE, style);
 
-    // Log image source
     if (USE_AI_IMAGE) {
         logger.log(
             "LLM",
@@ -61,7 +57,6 @@ export async function generateImageQueries(
         );
     }
 
-    // Log shot type mode
     if (useShotTypes) {
         logger.log(
             "LLM",
@@ -69,7 +64,6 @@ export async function generateImageQueries(
         );
     }
 
-    // If batchSize = 0 or segment count is small enough, use single request (no batching)
     const batchSize = LLM_SEGMENTS_PER_BATCH;
     if (batchSize === 0 || segmentCount <= batchSize) {
         const userPrompt = buildUserPrompt(formattedTranscript, segmentCount, USE_AI_IMAGE, useShotTypes);
@@ -86,7 +80,6 @@ export async function generateImageQueries(
         return queries;
     }
 
-    // Batching path for large transcripts
     const batches: ImageSearchQuery[] = [];
     const totalBatches = Math.ceil(segmentCount / batchSize);
 
@@ -106,7 +99,6 @@ export async function generateImageQueries(
         const userPrompt = buildUserPrompt(batchFormatted, expectedCount, USE_AI_IMAGE, useShotTypes);
         const label = ` (batch ${batchIndex + 1})`;
 
-        // Retry logic for batches that don't return the expected number of queries
         let queries: ImageSearchQuery[] = [];
         let retryAttempt = 0;
         const maxBatchRetries = LLM_MAX_RETRIES;
@@ -116,15 +108,12 @@ export async function generateImageQueries(
                 systemPrompt,
                 userPrompt,
                 label,
-                1 // Reduced retry limit for batch retries
+                1
             );
 
-            // Check if we got the expected number of queries
             if (queries.length === expectedCount) {
-                break; // Success!
+                break;
             }
-
-            // If not the expected count and we have retries left
             if (retryAttempt < maxBatchRetries) {
                 logger.warn(
                     "LLM",
@@ -132,7 +121,6 @@ export async function generateImageQueries(
                 );
                 retryAttempt++;
             } else {
-                // Final attempt failed
                 logger.warn(
                     "LLM",
                     `Expected ${expectedCount} queries in batch ${batchIndex + 1}, got ${queries.length} after ${maxBatchRetries + 1} attempts. Proceeding with partial results.`

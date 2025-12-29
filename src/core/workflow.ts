@@ -58,12 +58,10 @@ export class WorkflowService {
         // Use default style if not provided
         const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
 
-        // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
         await progress.start(`🎙️ Audio received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
-            // Step 1: Download audio file from Telegram
             await progress.update({
                 step: "Downloading Audio",
                 message: "Downloading audio file from Telegram...",
@@ -71,7 +69,6 @@ export class WorkflowService {
             const audioFilePath = await downloadTelegramFile(fileId, filename, TMP_AUDIO_DIR);
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
-            // Run the core processing logic
             const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
             await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
@@ -96,15 +93,12 @@ export class WorkflowService {
         url: string,
         style?: ResolvedStyle
     ): Promise<WorkflowResult> {
-        // Use default style if not provided
         const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
 
-        // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
         await progress.start(`📎 URL received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
-            // Step 1: Download audio file from URL
             await progress.update({
                 step: "Downloading Audio",
                 message: "Downloading audio file from URL...",
@@ -112,7 +106,6 @@ export class WorkflowService {
             const audioFilePath = await downloadAudioFromUrl(url, TMP_AUDIO_DIR);
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
-            // Run the core processing logic
             const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
             await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
@@ -193,7 +186,6 @@ export class WorkflowService {
             logger.step("Workflow", "Transcription completed and cached");
         }
 
-        // Validate transcript data
         validateTranscriptData(transcriptWords);
 
         // =============================================================
@@ -202,7 +194,6 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        // Cache key uses sentence vs wordCount to differentiate
         const useSentenceSegmentation = style.segmentationType === "sentence";
         const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", useSentenceSegmentation);
 
@@ -216,11 +207,9 @@ export class WorkflowService {
                 message: `Segmenting transcript (${style.segmentationType} mode)...`,
             });
 
-            // processTranscript now handles both merge AND split via unified balanceSegments()
             const result = processTranscript(transcriptWords, audioDuration, style);
             segments = result.segments;
 
-            // Build formatted transcript for LLM
             formattedTranscript = segments
                 .map(seg => `[${seg.start}–${seg.end}ms]: ${seg.text}`)
                 .join("\n");
@@ -307,7 +296,6 @@ export class WorkflowService {
             downloadedImages = await downloadImagesForQueries(imageQueries, style);
             validateDownloadedImages(downloadedImages);
 
-            // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
             updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),

@@ -82,17 +82,14 @@ export interface SentenceDetection {
 export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[] {
   logger.step("Segmentation", `Segmenting ${words.length} words into sentences`);
 
-  // Build full text from words
   const fullText = words.map(w => w.text).join(" ");
 
-  // Protect abbreviations by temporarily replacing them
   let protectedText = fullText;
   const abbreviationMap = new Map<string, string>();
 
   COMMON_ABBREVIATIONS.forEach((abbr, index) => {
     const placeholder = `__ABBR${index}__`;
     abbreviationMap.set(placeholder, abbr);
-    // Use regex to replace all occurrences, case-insensitive
     const regex = new RegExp(abbr.replace(/\./g, "\\."), "gi");
     protectedText = protectedText.replace(regex, placeholder);
   });
@@ -111,11 +108,9 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
     return restored.trim();
   });
 
-  // Handle any remaining text that doesn't end with punctuation
   const lastSentenceEnd = rawSentences.join("").length;
   if (lastSentenceEnd < protectedText.length) {
     let remaining = protectedText.substring(lastSentenceEnd).trim();
-    // Restore abbreviations in remaining text
     abbreviationMap.forEach((abbr, placeholder) => {
       remaining = remaining.replace(new RegExp(placeholder, "g"), abbr);
     });

@@ -10,12 +10,10 @@ import * as logger from "../../../utils/logger.ts";
 
 const TOGETHER_API_KEY = AI_IMAGE.togetherApiKey;
 
-// Provider-specific configuration
 const TOGETHER_API_URL = "https://api.together.xyz/v1/images/generations";
-// Available models: black-forest-labs/FLUX.1-schnell-Free (free), black-forest-labs/FLUX.2-dev (paid)
-const TOGETHER_MODEL = "black-forest-labs/FLUX.1-schnell-Free";
-const TOGETHER_RATE_LIMIT_PER_MIN = 6; // Free tier limit but if am uing the paid model i can raise it 50 or more
-const TOGETHER_MIN_DELAY_MS = 60000 / TOGETHER_RATE_LIMIT_PER_MIN; // ~10000ms between requests
+const TOGETHER_MODEL = "black-forest-labs/FLUX.2-dev";
+const TOGETHER_RATE_LIMIT_PER_MIN = 50;
+const TOGETHER_MIN_DELAY_MS = 60000 / TOGETHER_RATE_LIMIT_PER_MIN;
 
 /**
  * Together AI response type for image generation
@@ -95,7 +93,6 @@ class TogetherAIProvider implements ImageProvider {
             }),
         });
 
-        // Update last request time after response received
         this.lastRequestTime = Date.now();
         const requestDuration = this.lastRequestTime - requestStartTime;
         logger.debug("TogetherAI", `Request took ${Math.ceil(requestDuration / 1000)}s`);
@@ -107,22 +104,18 @@ class TogetherAIProvider implements ImageProvider {
             throw new Error(`Together AI API failed: ${response.status} ${response.statusText}`);
         }
 
-        // Parse JSON response
         const result = await response.json() as TogetherAIImageResponse;
 
-        // Extract image URL from response
         const imageUrl = result.data?.[0]?.url;
         if (!imageUrl) {
             throw new Error("No image URL in Together AI response");
         }
 
-        // Log inference time if available
         const inferenceTime = result.data?.[0]?.timings?.inference;
         if (inferenceTime) {
             logger.debug("TogetherAI", `Inference time: ${inferenceTime.toFixed(2)}s`);
         }
 
-        // Download the image from the URL
         logger.debug("TogetherAI", "Downloading generated image...");
         const imageResponse = await fetch(imageUrl);
         if (!imageResponse.ok) {

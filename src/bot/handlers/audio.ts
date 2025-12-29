@@ -40,7 +40,6 @@ export async function handleVoiceMessage(ctx: Context): Promise<void> {
             { parse_mode: "Markdown" }
         );
     }
-    // If position is 1, it will start immediately and the workflow will notify
 }
 
 /**
@@ -76,7 +75,6 @@ export async function handleAudioMessage(ctx: Context): Promise<void> {
             { parse_mode: "Markdown" }
         );
     }
-    // If position is 1, it will start immediately and the workflow will notify
 }
 
 /**
@@ -126,5 +124,4 @@ export async function handleDocumentMessage(ctx: Context): Promise<void> {
             { parse_mode: "Markdown" }
         );
     }
-    // If position is 1, it will start immediately and the workflow will notify
 }

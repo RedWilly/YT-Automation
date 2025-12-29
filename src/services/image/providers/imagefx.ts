@@ -76,7 +76,6 @@ class ImageFXProvider implements ImageProvider {
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
         const { prompt: promptText, aspectRatio = '16:9' } = options;
 
-        // Apply rate limiting before starting
         await this.waitForRateLimit();
 
         logger.debug('ImageFX', `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio})`);
@@ -84,8 +83,6 @@ class ImageFXProvider implements ImageProvider {
         const client = this.getClient();
         const requestStartTime = Date.now();
 
-        // Map our aspect ratio to ImageFX API values
-        // FFmpeg's pan.ts handles upscaling for pan shots
         let imageFxAspectRatio: AspectRatio;
         if (aspectRatio === '16:9') {
             imageFxAspectRatio = 'IMAGE_ASPECT_RATIO_LANDSCAPE';
@@ -93,9 +90,8 @@ class ImageFXProvider implements ImageProvider {
             imageFxAspectRatio = 'IMAGE_ASPECT_RATIO_PORTRAIT';
         }
 
-        // Create prompt with optimal settings for video generation
         const prompt = new Prompt({
-            seed: 0, // Random seed for variety
+            seed: 0, // Random seed for variety for now all my image are set to 0
             numberOfImages: 1,
             prompt: promptText,
             aspectRatio: imageFxAspectRatio,
@@ -105,7 +101,6 @@ class ImageFXProvider implements ImageProvider {
         try {
             const generatedImages = await client.generateImage(prompt);
 
-            // Update last request time after completion
             this.lastRequestEndTime = Date.now();
             const requestDuration = this.lastRequestEndTime - requestStartTime;
             logger.debug("ImageFX", `Request took ${Math.ceil(requestDuration / 1000)}s`);
@@ -114,38 +109,32 @@ class ImageFXProvider implements ImageProvider {
                 throw new Error("No images returned from ImageFX");
             }
 
-            // Save to temp directory and read the file
             const image = generatedImages[0];
             if (!image) {
                 throw new Error("Generated image is undefined");
             }
 
-            // Save image to temp dir
             const savedPath = image.save(TMP_IMAGES_DIR);
             logger.debug("ImageFX", `Temporarily saved to: ${savedPath}`);
 
-            // Read the file into ArrayBuffer
             const fileData = await readFile(savedPath);
             const data = fileData.buffer.slice(
                 fileData.byteOffset,
                 fileData.byteOffset + fileData.byteLength
             ) as ArrayBuffer;
 
-            // Clean up the temp file (we'll save with our own naming)
             await rm(savedPath, { force: true });
 
             logger.debug("ImageFX", `Successfully generated image (${Math.round(data.byteLength / 1024)}KB)`);
 
             return {
                 data,
-                format: "png", // ImageFX generates PNG
+                format: "png",
             };
         } catch (error) {
-            // Update last request time even on failure
             this.lastRequestEndTime = Date.now();
             const errorMsg = error instanceof Error ? error.message : String(error);
 
-            // Check for unsafe content error from ImageFX
             if (errorMsg.includes("PUBLIC_ERROR_UNSAFE_GENERATION") ||
                 errorMsg.includes("PUBLIC_ERROR_PROMINENT_PEOPLE_FILTER_FAILED")) {
                 logger.warn("ImageFX", `Prompt flagged as unsafe: ${promptText.substring(0, 50)}...`);

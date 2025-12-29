@@ -58,11 +58,9 @@ export function generateCaptionGroups(
   const groups: CaptionGroup[] = [];
   let wordIndex = 0;
 
-  // Process each sentence segment
   for (const segment of segments) {
     const segmentWords: CaptionWord[] = [];
 
-    // Collect words that belong to this segment based on timing
     while (wordIndex < words.length) {
       const word = words[wordIndex];
       if (!word) {
@@ -79,10 +77,8 @@ export function generateCaptionGroups(
         });
         wordIndex++;
       } else if (word.start > segment.end + 100) {
-        // Word is beyond this segment, move to next segment
         break;
       } else {
-        // Word is before this segment, skip it
         wordIndex++;
       }
     }

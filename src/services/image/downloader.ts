@@ -113,7 +113,6 @@ async function generateAIImageForQuery(
   const { start, end } = queryData;
   const provider = getProvider();
 
-  // Determine aspect ratio - always use native ratio
   const aspectRatio: '16:9' | '9:16' = style.orientation === 'vertical' ? '9:16' : '16:9';
 
   logger.debug('AI-Images', `Scene → ${queryData.type ?? 'default'} → ${aspectRatio}`);
@@ -121,9 +120,8 @@ async function generateAIImageForQuery(
   let lastError: Error | null = null;
   let rewriteCount = 0;
   const MAX_REWRITES = 25;
-  const originalQuery = queryData.query;  // Store original for context
+  const originalQuery = queryData.query;
 
-  // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
     try {
       logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
@@ -169,13 +167,11 @@ async function generateAIImageForQuery(
         queryData.query = rewrittenQuery;
         logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
 
-        // Don't count this as a failed attempt - reset and try with new prompt
         attempt = 0;
         continue;
       }
 
       if (attempt < IMAGE_RETRY_ATTEMPTS) {
-        // Exponential backoff: 1s, 2s, 4s, 8s... capped at 10min
         const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
         logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
         await sleep(delay);
@@ -183,7 +179,6 @@ async function generateAIImageForQuery(
     }
   }
 
-  // Primary provider failed - try fallback with exponential backoff
   const fallback = getFallbackProvider(provider.id);
   if (fallback) {
     logger.step("AI-Images", `Switching to fallback provider: ${fallback.name}`);
@@ -222,7 +217,6 @@ async function generateAIImageForQuery(
     throw new Error(`Both providers failed after retries. Last error: ${lastError?.message}`);
   }
 
-  // No fallback available
   throw new Error(
     `Failed to generate AI image for "${queryData.query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
@@ -282,7 +276,6 @@ async function downloadImageForQuery(
 
       logger.debug("Images", `Fetched ${searchResults.length} results, filtering watermarked images...`);
 
-      // Separate non-watermarked and watermarked images
       const nonWatermarkedUrls: string[] = [];
       const watermarkedUrls: string[] = [];
 
@@ -291,7 +284,6 @@ async function downloadImageForQuery(
 
         const imageUrl = result.image;
 
-        // Check if this image is watermarked
         if (isWatermarkedImage(imageUrl)) {
           const domain = extractDomain(imageUrl);
           logger.debug("Images", `Skipped watermarked image from ${domain}`);
@@ -303,14 +295,12 @@ async function downloadImageForQuery(
 
       logger.debug("Images", `Found ${nonWatermarkedUrls.length} non-watermarked and ${watermarkedUrls.length} watermarked images`);
 
-      // Try all non-watermarked images first, then watermarked as fallback
       const imagesToTry = [...nonWatermarkedUrls, ...watermarkedUrls];
 
       if (imagesToTry.length === 0) {
         throw new Error(`No valid images found for query: "${query}"`);
       }
 
-      // Try downloading each image until one succeeds
       let downloadSucceeded = false;
       let filePath: string | null = null;
 
@@ -333,23 +323,18 @@ async function downloadImageForQuery(
             logger.debug("Images", `Successfully downloaded non-watermarked image from ${domain}`);
           }
 
-          break; // Success! Exit the loop
+          break;
         } catch (downloadError) {
-          // Log the failure and try the next image
           const errorMsg = downloadError instanceof Error ? downloadError.message : String(downloadError);
           logger.debug("Images", `Failed to download from ${domain}: ${errorMsg}`);
 
-          // If this is the last image, throw the error
           if (i === imagesToTry.length - 1) {
             throw new Error(`All ${imagesToTry.length} images failed to download. Last error: ${errorMsg}`);
           }
-
-          // Otherwise, continue to the next image
           continue;
         }
       }
 
-      // If download succeeded, return the result
       if (downloadSucceeded && filePath) {
         if (attempt > 1) {
           logger.success("Images", `Successfully downloaded after ${attempt} attempts`);
@@ -378,7 +363,6 @@ async function downloadImageForQuery(
     }
   }
 
-  // All attempts failed
   throw new Error(
     `Failed to download image for query "${query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Last error: ${lastError?.message}`
   );
@@ -425,13 +409,11 @@ async function downloadImage(imageUrl: string, style: ResolvedStyle, index: numb
  * @returns File extension with dot (e.g., ".jpg")
  */
 function getImageExtension(url: string, contentType: string | null): string {
-  // Try to get extension from URL
   const urlExtension = extname(url).toLowerCase();
   if (urlExtension && [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(urlExtension)) {
     return urlExtension;
   }
 
-  // Try to get extension from content type
   if (contentType) {
     if (contentType.includes("jpeg")) return ".jpg";
     if (contentType.includes("png")) return ".png";
@@ -439,7 +421,6 @@ function getImageExtension(url: string, contentType: string | null): string {
     if (contentType.includes("gif")) return ".gif";
   }
 
-  // Default to .jpg
   return ".jpg";
 }
 
@@ -449,7 +430,6 @@ function getImageExtension(url: string, contentType: string | null): string {
  * @returns Sanitized filename
  */
 function sanitizeFilename(filename: string): string {
-  // Replace invalid Windows filename characters with underscore
   return filename
     .replace(/[<>:"/\\|?*]/g, "_")
     .replace(/\s+/g, "_")

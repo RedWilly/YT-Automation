@@ -10,6 +10,7 @@ import { stickStyle } from "./presets/stick.ts";
 import { explainerStyle } from "./presets/explainer.ts";
 import { handdrawnStyle } from "./presets/handdrawn.ts";
 import { lofiStyle } from "./presets/lofi.ts";
+import { pixelStyle } from "./presets/pixel.ts";
 
 // Re-export types
 export * from "./types.ts";
@@ -24,6 +25,7 @@ export const STYLES: Record<string, VideoStyle> = {
   explainer: explainerStyle,
   handdrawn: handdrawnStyle,
   lofi: lofiStyle,
+  pixel: pixelStyle,
 };
 
 /**

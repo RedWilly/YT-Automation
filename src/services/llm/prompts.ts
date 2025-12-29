@@ -44,12 +44,23 @@ Example: "gouache watercolor illustration of a king standing in throne room. sof
    const shotTypeInstructions = useShotTypes
       ? `
 CAMERA MOVEMENT (in the "type" field ONLY, never in query text):
-- "pan" → camera moves across the scene. Direction auto-selected based on video format: horizontal (16:9) pans up/down, vertical (9:16 shorts) pans left/right. Great for: establishing shots, wide landscapes, environments, revealing new locations, sweeping vistas.
-- "zoom" → camera moves into or out of scene (direction auto-selected: in or out). Great for: emphasizing details, dramatic reveals, focusing on specific elements, emotional beats.
-- "static" → still image, no camera movement. Equally powerful as motion types. Great for: dialogue, main action, intimate moments, letting the viewer absorb the scene.
+- "pan" → camera glides across the scene. Use for: wide landscapes, establishing new locations, sweeping battlefields, environmental reveals, scenic vistas.
+- "zoom" → camera moves in or out. Use for: dramatic emphasis, revealing key details, emotional close-ups, tension building, important objects.
+- "static" → no camera movement. Use for: action sequences, character focus, dialogue moments, letting viewers absorb the scene.
 
-All three types work together to create visual rhythm. Choose based on what the content needs - the system handles the rest.
-IMPORTANT: The type value goes ONLY in the "type" JSON field. Do NOT include "pan", "zoom", or "static" anywhere in the query text.`
+VIDEO RETENTION (CRITICAL):
+- FIRST 2 SEGMENTS: Must use "pan" or "zoom" - movement hooks viewers immediately!
+- NEVER start the video with "static" - viewers will scroll away!
+- AVOID consecutive static segments (2+ in a row = bad retention)
+- After the first few segments, static is fine but space them out with movement
+
+CONTENT-DRIVEN CHOICE:
+Choose based on what the scene depicts, but respect the retention rules above.
+- Multiple landscape reveals? Use "pan" repeatedly - great for retention!
+- Building tension? "zoom" several times works well!
+- Action sequence later in video? Static is fine when spaced out.
+
+IMPORTANT: The type value goes ONLY in the "type" JSON field. Never put "pan", "zoom", or "static" in the query text.`
       : '';
 
    return `# PERSONA
@@ -63,16 +74,17 @@ ${task}
 ${styleDirection}
 ${forbidden}
 
-## Creative Brief
+## Creative Brief (Style-specific instructions - follow these if provided)
 ${llmContext}
 
-## Query Structure (Runway Gen-4 Categories)
-INCLUDE these elements in every query:
-- SUBJECT: Who/what is the focus? Be specific (e.g., "weathered fisherman" not "man")
-- ACTION: What is happening? Use active verbs
-- SETTING: Where is this? Include environment details
-- LIGHTING: Describe the light quality (e.g., "golden hour", "dramatic shadows")
-- COMPOSITION: Compose the shot (e.g., "medium shot", "centered", "rule of thirds")
+## Query Format (Default - use unless Creative Brief specifies otherwise)
+Structure queries naturally, weaving in these elements:
+- WHO/WHAT: Be specific about the subject (e.g., "a determined young woman with dark braided hair" not just "woman")
+- ACTION: What is happening in the scene
+- SETTING: Where is this, environment details
+- ATMOSPHERE: Lighting, mood, time of day
+
+Keep it flowing as natural prose, not labeled sections.
 ${shotTypeInstructions}
 
 Word count: ${wordCount} words per query.

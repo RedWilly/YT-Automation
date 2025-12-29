@@ -51,7 +51,7 @@ export const historyStyle: VideoStyle = {
   // llmContext: `Historical documentary aesthetic. Focus on period-accurate costumes, architecture, and landscapes. Use atmospheric lighting with rich, warm tones. Every scene should feel like a painting come to life.`,
   llmContext: `Historical documentary with gouache/watercolor illustration aesthetic.
 
-COMPOSITION: Wide establishing shots for landscapes, medium shots for character moments. Fill the entire frame with detailed backgrounds.
+COMPOSITION: Wide establishing shots for landscapes, medium shots for character moments. Fill the entire canvas edge-to-edge with detailed backgrounds.
 LIGHTING: Atmospheric, golden hour, soft diffused light. Rich warm tones.
 SUBJECTS: Period-accurate costumes, architecture, and props. Every scene should feel like a painting come to life.
 CONSTRAINTS: Avoid text-heavy objects (newspapers, signs). If unavoidable, describe them as "distant" or "illegible".`,

@@ -38,16 +38,18 @@ Example: "gouache watercolor illustration of a king standing in throne room. sof
    const useShotTypes = style.segmentationType === 'sentence';
 
    const outputSchema = useShotTypes
-      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
+      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static", "linkedTo": number|null}`
       : `{"start": number, "end": number, "query": "string"}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
-ASSIGN shot type for visual rhythm:
-- "pan" → establishing shots, wide scenes, new locations
-- "zoom" → close-ups, details, emphasis, specific facts
-- "static" → main action, dialogue, primary subject
-VARY types: never repeat the same type 3+ times consecutively.`
+CAMERA MOVEMENT (in the "type" field ONLY, never in query text):
+- "pan" → camera moves across the scene. Direction auto-selected based on video format: horizontal (16:9) pans up/down, vertical (9:16 shorts) pans left/right. Great for: establishing shots, wide landscapes, environments, revealing new locations, sweeping vistas.
+- "zoom" → camera moves into or out of scene (direction auto-selected: in or out). Great for: emphasizing details, dramatic reveals, focusing on specific elements, emotional beats.
+- "static" → still image, no camera movement. Equally powerful as motion types. Great for: dialogue, main action, intimate moments, letting the viewer absorb the scene.
+
+All three types work together to create visual rhythm. Choose based on what the content needs - the system handles the rest.
+IMPORTANT: The type value goes ONLY in the "type" JSON field. Do NOT include "pan", "zoom", or "static" anywhere in the query text.`
       : '';
 
    return `# PERSONA
@@ -70,17 +72,45 @@ INCLUDE these elements in every query:
 - ACTION: What is happening? Use active verbs
 - SETTING: Where is this? Include environment details
 - LIGHTING: Describe the light quality (e.g., "golden hour", "dramatic shadows")
-- COMPOSITION: Frame the shot (e.g., "medium shot", "centered", "rule of thirds")
+- COMPOSITION: Compose the shot (e.g., "medium shot", "centered", "rule of thirds")
 ${shotTypeInstructions}
 
 Word count: ${wordCount} words per query.
 
+## Continuity Workflow
+BEFORE generating queries:
+1. SCAN all segments to identify recurring characters, locations, and themes
+2. CREATE a mental reference card for each character (e.g., "the determined female sniper with dark braided hair in Soviet uniform")
+3. IDENTIFY scene transitions vs. scene continuations
+
+DURING generation:
+- REUSE the exact same description phrase every time a character reappears
+- For scene continuations: maintain consistent setting, lighting, and environment details
+- For scene transitions: establish the new location clearly before focusing on action
+
+## Scene Linking (linkedTo field)
+The "linkedTo" field connects related segments for visual consistency. Set it to the INDEX (array position, starting from 0) of the MOST RELEVANT previous segment, or null if this is a new/unrelated scene.
+
+LINK when:
+- Same character appears in both segments
+- Scene continues in same location
+- Direct cause-and-effect relationship
+
+DO NOT link when:
+- New location or setting
+- Different characters entirely
+- Time skip in narrative
+
+Constraints:
+- Only reference EARLIER segments (lower indices)
+- Link to ONE segment only (the most relevant)
+- First segment (index 0) must have linkedTo: null
+
 ## Critical Rules
 1. PRESERVE timestamps exactly (copy start/end values unchanged)
 2. NEVER include text, words, letters, numbers, or labels in visual descriptions
-3. MAINTAIN consistency: same character = identical description phrase, same location = identical phrase
-4. REPLACE text concepts with visual symbols (e.g., "$500" → "stack of money with dollar symbol icon")
-5. ENSURE visual continuity: consecutive segments in same scene should flow naturally
+3. REPLACE text concepts with visual symbols (e.g., "$500" → "stack of money with dollar symbol icon")
+4. FULL-SCENE COMPOSITION: Write queries that imply edge-to-edge imagery. Avoid words like "panel", "frame", "border", "margin". Describe scenes that naturally fill the entire view or As a scene.
 
 # FORMAT
 RETURN only a valid JSON array. No markdown, no preamble, no explanations.
@@ -99,11 +129,12 @@ export function buildUserPrompt(
    const wordCount = useAiImage ? '40-70' : '8-15';
 
    const typeField = naturalEdit
-      ? `- INCLUDE "type" field: "pan", "zoom", or "static"`
+      ? `- INCLUDE "type" field: "pan", "zoom", or "static"
+- INCLUDE "linkedTo" field: index of related previous segment, or null`
       : '';
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan"}, ...]`
+      ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan", "linkedTo": null}, {"start": 5001, "end": 10000, "query": "...", "type": "zoom", "linkedTo": 0}, ...]`
       : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
    return `# TRANSCRIPT (${segmentCount} segments)

@@ -26,6 +26,38 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
 /**
+ * Assign seeds to queries based on linkedTo relationships
+ * - Segments with linkedTo inherit the seed of the linked segment
+ * - Segments without linkedTo get a new random seed
+ * @param queries - Array of image queries with linkedTo field
+ * @returns Map of query index to seed value
+ */
+function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
+  const seedMap = new Map<number, number>();
+
+  for (let i = 0; i < queries.length; i++) {
+    const query = queries[i];
+    if (!query) continue;
+
+    const linkedTo = query.linkedTo;
+
+    // If linked to a previous segment, inherit its seed
+    if (linkedTo !== null && linkedTo !== undefined && linkedTo < i && seedMap.has(linkedTo)) {
+      const inheritedSeed = seedMap.get(linkedTo)!;
+      seedMap.set(i, inheritedSeed);
+      logger.debug('Seeds', `Segment ${i} linked to ${linkedTo}, inheriting seed: ${inheritedSeed}`);
+    } else {
+      // Generate new random seed (1 to 2147483647)
+      const newSeed = Math.floor(Math.random() * 2147483646) + 1;
+      seedMap.set(i, newSeed);
+      logger.debug('Seeds', `Segment ${i} is new scene, assigned seed: ${newSeed}`);
+    }
+  }
+
+  return seedMap;
+}
+
+/**
  * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
  * Both AI generation and web search follow the same patterns:
  * - WEB_SEARCH_DELAY_MS delays between each image
@@ -51,6 +83,15 @@ export async function downloadImagesForQueries(
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
   }
 
+  // Assign seeds based on linkedTo relationships (only for AI image generation)
+  const seedMap = USE_AI_IMAGE ? assignSeeds(queries) : new Map<number, number>();
+
+  if (USE_AI_IMAGE && seedMap.size > 0) {
+    // Count unique seeds to show how many "scene groups" we have
+    const uniqueSeeds = new Set(seedMap.values()).size;
+    logger.log("Seeds", `Assigned ${uniqueSeeds} unique seeds across ${queries.length} segments`);
+  }
+
   const processedImages: DownloadedImage[] = [];
   const queriesLength = queries.length;
 
@@ -60,9 +101,11 @@ export async function downloadImagesForQueries(
     if (!queryData) continue;
 
     try {
+      const seed = seedMap.get(i);
+
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData, style, i)
+        ? await generateAIImageForQuery(queryData, style, i, seed)
         : await downloadImageForQuery(queryData, style, i);
 
       processedImages.push(processedImage);
@@ -103,12 +146,14 @@ export async function downloadImagesForQueries(
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
  * @param index - Image index for filename
+ * @param seed - Seed for reproducible generation (linked segments share seeds)
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle,
-  index: number
+  index: number,
+  seed?: number
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
@@ -130,6 +175,7 @@ async function generateAIImageForQuery(
         prompt: queryData.query,
         negativePrompt: style.negativePrompt,
         aspectRatio,
+        seed,
       });
 
       // Save the image with style-based naming: {styleId}_{orientation}_{index}.{format}
@@ -144,7 +190,7 @@ async function generateAIImageForQuery(
         logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
       }
 
-      return { query: queryData.query, start, end, filePath, type: queryData.type };
+      return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -191,6 +237,7 @@ async function generateAIImageForQuery(
           prompt: queryData.query,
           negativePrompt: style.negativePrompt,
           aspectRatio,
+          seed,
         });
 
         const sanitizedQuery = sanitizeFilename(queryData.query);
@@ -200,7 +247,7 @@ async function generateAIImageForQuery(
         await Bun.write(filePath, result.data);
         logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-        return { query: queryData.query, start, end, filePath, type: queryData.type };
+        return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
 
       } catch (fallbackError) {
         lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));

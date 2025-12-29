@@ -58,6 +58,8 @@ export interface ImageSearchQuery {
   query: string;
   /** Shot type for natural editing effects */
   type?: ShotType;
+  /** Index of related previous segment for visual consistency (null = new scene) */
+  linkedTo?: number | null;
 }
 
 export interface LLMMessage {
@@ -100,6 +102,8 @@ export interface DownloadedImage {
   filePath: string;
   /** Shot type for natural editing effects (when naturalEdit is enabled) */
   type?: ShotType;
+  /** Seed for image generation (inherited from linked segments) */
+  seed?: number;
 }
 
 // Video Generation Types

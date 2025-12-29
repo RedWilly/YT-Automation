@@ -74,11 +74,11 @@ class ImageFXProvider implements ImageProvider {
      * @returns Generated image data
      */
     async generate(options: ImageGenerationOptions): Promise<ImageGenerationResult> {
-        const { prompt: promptText, aspectRatio = '16:9' } = options;
+        const { prompt: promptText, aspectRatio = '16:9', seed = 0 } = options;
 
         await this.waitForRateLimit();
 
-        logger.debug('ImageFX', `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio})`);
+        logger.debug('ImageFX', `Generating image for: "${promptText.substring(0, 60)}..." (${aspectRatio}, seed: ${seed || 'random'})`);
 
         const client = this.getClient();
         const requestStartTime = Date.now();
@@ -91,7 +91,7 @@ class ImageFXProvider implements ImageProvider {
         }
 
         const prompt = new Prompt({
-            seed: 0, // Random seed for variety for now all my image are set to 0
+            seed, // Use provided seed (0 = random, linked segments share seeds)
             numberOfImages: 1,
             prompt: promptText,
             aspectRatio: imageFxAspectRatio,

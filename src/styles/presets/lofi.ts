@@ -10,7 +10,7 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from '../types.ts';
  * Lo-Fi style - Nostalgic 1980s Japanese magazine aesthetic
  * 
  * Features:
- * - Hand-drawn panel art style
+ * - Hand-drawn scene art style
  * - Muted tones with pastel color palette
  * - Soft grain texture
  * - Nostalgic, dreamy aesthetic
@@ -18,10 +18,10 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from '../types.ts';
 export const lofiStyle: VideoStyle = {
     id: 'lofi',
     name: 'Lo-Fi',
-    description: '1980s Japanese magazine art style with muted tones and nostalgic aesthetic',
+    description: '1980s Japanese magazine lo-fi style',
 
     // === Image Generation ===
-    imageStyle: 'hand drawn panel, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, full page illustration',
+    imageStyle: 'hand drawn scene, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated',
     negativePrompt: 'text, words, letters, numbers, labels, 3D, photorealistic, modern, neon, harsh colors, digital, watermark, border, frame, white border, margin, edges, vignette, caption',
 
     // === Segmentation ===
@@ -50,15 +50,10 @@ export const lofiStyle: VideoStyle = {
     },
 
     // === Video Effects ===
-    panEffect: true,
+    panEffect: false,
 
     // === LLM Context ===
     llmContext: `Lo-fi 1980s Japanese magazine illustration aesthetic.
 
-COMPOSITION: Hand-drawn panels, vintage manga framing, soft focus backgrounds.
-LIGHTING: Soft diffused light, warm afternoon glow, gentle shadows.
-COLORS: Muted pastels, faded tones, cream and soft pink accents.
-SUBJECTS: Dreamy scenes, everyday moments, quiet contemplation.
-TEXTURE: Soft grain, slightly faded like old print media.
-CONSTRAINTS: No harsh colors, no modern elements, no digital look., No text, no labels, no numbers.`,
+`,
 };

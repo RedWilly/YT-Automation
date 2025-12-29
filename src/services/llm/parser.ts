@@ -136,8 +136,8 @@ export function repairJson(json: string): string {
 export function fallbackExtraction(content: string): ImageSearchQuery[] {
     const results: ImageSearchQuery[] = [];
 
-    // Match object-like pattern containing start, end, query, and optionally type
-    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(pan|zoom|static)\5)?/gi;
+    // Match object-like pattern containing start, end, query, optionally type, and optionally linkedTo
+    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(pan|zoom|static)\5)?(?:[\s\S]*?linkedTo["']?\s*:\s*(null|\d+))?/gi;
 
     let match: RegExpExecArray | null;
 
@@ -149,6 +149,8 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
         const endVal = parseInt(match[2], 10);
         const queryVal = match[4].trim();
         const typeVal = match[6] as "pan" | "zoom" | "static" | undefined;
+        const linkedToRaw = match[7];
+        const linkedToVal = linkedToRaw === 'null' || linkedToRaw === undefined ? null : parseInt(linkedToRaw, 10);
 
         if (!isNaN(startVal) && !isNaN(endVal) && queryVal.length > 0) {
             results.push({
@@ -156,6 +158,7 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
                 end: endVal,
                 query: queryVal,
                 type: typeVal,
+                linkedTo: linkedToVal,
             });
         }
     }
@@ -167,13 +170,22 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
  * Type guard to validate parsed data is an ImageSearchQuery array
  */
 export function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
-    return Array.isArray(data) && data.every(item =>
-        item &&
-        typeof item === "object" &&
-        typeof (item as Record<string, unknown>).start === "number" &&
-        typeof (item as Record<string, unknown>).end === "number" &&
-        typeof (item as Record<string, unknown>).query === "string"
-    );
+    return Array.isArray(data) && data.every(item => {
+        if (!item || typeof item !== "object") return false;
+        const obj = item as Record<string, unknown>;
+
+        // Required fields
+        if (typeof obj.start !== "number") return false;
+        if (typeof obj.end !== "number") return false;
+        if (typeof obj.query !== "string") return false;
+
+        // Optional linkedTo: must be number or null if present
+        if (obj.linkedTo !== undefined && obj.linkedTo !== null && typeof obj.linkedTo !== "number") {
+            return false;
+        }
+
+        return true;
+    });
 }
 
 /**
@@ -202,6 +214,19 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
         }
         if (query.start > query.end) {
             throw new Error(`Invalid query at index ${i}: start (${query.start}) > end (${query.end})`);
+        }
+
+        if (query.linkedTo !== undefined && query.linkedTo !== null) {
+            if (typeof query.linkedTo !== "number") {
+                throw new Error(`Invalid query at index ${i}: linkedTo must be a number or null`);
+            }
+            if (query.linkedTo < 0 || query.linkedTo >= i) {
+                throw new Error(`Invalid query at index ${i}: linkedTo (${query.linkedTo}) must reference an earlier segment (0 to ${i - 1})`);
+            }
+        }
+
+        if (i === 0 && query.linkedTo !== undefined && query.linkedTo !== null) {
+            throw new Error(`Invalid query at index 0: first segment cannot have linkedTo (must be null)`);
         }
     }
 

@@ -36,6 +36,8 @@ export interface ImageGenerationOptions {
     height?: number;
     /** Aspect ratio hint for providers that support it */
     aspectRatio?: ImageAspectRatio;
+    /** Seed for reproducible generation (linked segments share seeds) */
+    seed?: number;
 }
 
 /**

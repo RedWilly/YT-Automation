@@ -62,8 +62,8 @@ export async function downloadImagesForQueries(
     try {
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData, style)
-        : await downloadImageForQuery(queryData);
+        ? await generateAIImageForQuery(queryData, style, i)
+        : await downloadImageForQuery(queryData, style, i);
 
       processedImages.push(processedImage);
       logger.debug(
@@ -102,11 +102,13 @@ export async function downloadImagesForQueries(
  * - Scenes <3s (static): Native resolution (16:9 or 9:16 based on orientation)
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
+ * @param index - Image index for filename
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
-  style: ResolvedStyle
+  style: ResolvedStyle,
+  index: number
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
@@ -132,9 +134,9 @@ async function generateAIImageForQuery(
         aspectRatio,
       });
 
-      // Save the image
-      const sanitizedQuery = sanitizeFilename(queryData.query);
-      const filename = `ai_${sanitizedQuery}.${result.format}`;
+      // Save the image with style-based naming: {styleId}_{orientation}_{index}.{format}
+      const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
+      const filename = `${style.id}${orientationSuffix}_${index}.${result.format}`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
       await Bun.write(filePath, result.data);
@@ -253,10 +255,14 @@ function extractDomain(imageUrl: string): string {
 /**
  * Search and download a single image for a query with watermark filtering and retry logic
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for naming
+ * @param index - Image index for filename
  * @returns Downloaded image information
  */
 async function downloadImageForQuery(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle,
+  index: number
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -318,7 +324,7 @@ async function downloadImageForQuery(
         try {
           logger.debug("Images", `Trying to download image ${i + 1}/${imagesToTry.length} from ${domain}${isWatermarked ? " (watermarked)" : ""}`);
 
-          filePath = await downloadImage(imageUrl, query);
+          filePath = await downloadImage(imageUrl, style, index);
           downloadSucceeded = true;
 
           if (isWatermarked) {
@@ -379,12 +385,13 @@ async function downloadImageForQuery(
 }
 
 /**
- * Download an image from URL and save it with query as filename
+ * Download an image from URL and save it with style-based filename
  * @param imageUrl - URL of the image to download
- * @param query - Search query to use as filename
+ * @param style - Resolved style configuration for naming
+ * @param index - Image index for filename
  * @returns Path to the downloaded image file
  */
-async function downloadImage(imageUrl: string, query: string): Promise<string> {
+async function downloadImage(imageUrl: string, style: ResolvedStyle, index: number): Promise<string> {
   logger.debug("Images", `Downloading image from: ${imageUrl}`);
 
   const response = await fetch(imageUrl);
@@ -398,9 +405,9 @@ async function downloadImage(imageUrl: string, query: string): Promise<string> {
   // Determine file extension from URL or content type
   const extension = getImageExtension(imageUrl, response.headers.get("content-type"));
 
-  // Sanitize query for filename
-  const sanitizedQuery = sanitizeFilename(query);
-  const filename = `${sanitizedQuery}${extension}`;
+  // Generate filename with style-based naming: {styleId}_{orientation}_{index}.{ext}
+  const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
+  const filename = `${style.id}${orientationSuffix}_${index}${extension}`;
   const filePath = join(TMP_IMAGES_DIR, filename);
 
   // Save the image

@@ -24,7 +24,7 @@ export const explainerStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "modern animation, smooth shapes, soft shading, muted professional colors, clean minimal, friendly stylized",
-    negativePrompt: "text, words, letters, numbers, labels, 3D, photograph, cartoon, anime, harsh outlines, watermark, deformed, border, frame, white border, margin, edges, vignette",
+    negativePrompt: "no text, no words, no letters, no numbers, no labels, no 3D, no photograph, no cartoon, no anime, no harsh outlines, no watermark, no deformed, no border, no frame, no white border, no margin, no edges, no vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",

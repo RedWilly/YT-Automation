@@ -171,8 +171,11 @@ async function generateAIImageForQuery(
     try {
       logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
 
+      // Combine style prefix with scene description
+      const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
+
       const result = await provider.generate({
-        prompt: queryData.query,
+        prompt: styledPrompt,
         negativePrompt: style.negativePrompt,
         aspectRatio,
         seed,
@@ -233,8 +236,11 @@ async function generateAIImageForQuery(
       try {
         logger.debug("AI-Images", `[${fallback.name}] Fallback attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS}`);
 
+        // Combine style prefix with scene description
+        const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
+
         const result = await fallback.generate({
-          prompt: queryData.query,
+          prompt: styledPrompt,
           negativePrompt: style.negativePrompt,
           aspectRatio,
           seed,

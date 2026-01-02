@@ -22,7 +22,7 @@ export const lofiStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: 'hand drawn scene, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated',
-    negativePrompt: 'text, words, letters, numbers, labels, 3D, photorealistic, modern, neon, harsh colors, digital, watermark, border, frame, white border, margin, edges, vignette, caption',
+    negativePrompt: 'no text, no words, no letters, no numbers, no labels, no 3D, no photorealistic, no modern, no neon, no harsh colors, no digital, no watermark, no border, no frame, no white border, no margin, no edges, no vignette, no caption',
 
     // === Segmentation ===
     segmentationType: 'sentence',
@@ -54,12 +54,5 @@ export const lofiStyle: VideoStyle = {
 
     // === LLM Context ===
     llmContext: `Lo-fi 1980s Japanese magazine illustration aesthetic.
-
-QUERY FORMAT:
-Structure every query like this:
-"a hand drawn scene from an old japanese anime about [subject doing action in setting/ Scene]. Lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated."
-
-EXAMPLE:
-"a hand drawn scene from an old japanese anime about a woman reading a book in a spaceship. Lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated."
-"a hand drawn scene from an old japanese anime about two friends walking through a neon-lit city at night. Lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated."`,
+`,
 };

@@ -24,7 +24,7 @@ export const stickStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "stick figure, white lines on black background, round head, dot eyes, 2D flat, high contrast, minimal",
-    negativePrompt: "text, words, letters, numbers, labels, 3d, realistic, color, shading, watermark, border, frame, white border, margin, edges, vignette",
+    negativePrompt: "no text, no words, no letters, no numbers, no labels, no 3d, no realistic, no color, no shading, no watermark, no border, no frame, no white border, no margin, no edges, no vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",

@@ -22,7 +22,7 @@ export const ww2Style: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "black-and-white, WWII documentary, archival photography, high contrast, 1940s military, film grain, photojournalism",
-  negativePrompt: "text, words, letters, numbers, labels, captions, color, modern, cartoon, anime, illustration, watermark, deformed, border, frame, white border, margin, edges, vignette",
+  negativePrompt: "no text, no words, no letters, no numbers, no labels, no captions, no color, modern, cartoon, anime, illustration, watermark, deformed, border, frame, white border, margin, edges, vignette",
 
   // === Segmentation ===
   segmentationType: "wordCount",

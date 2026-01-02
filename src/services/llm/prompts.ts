@@ -20,19 +20,17 @@ export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): st
 
    // --- CONTEXT (background + constraints) ---
    const styleDirection = useAiImage
-      ? `BLEND style keywords naturally into every query: "${style.imageStyle}"
-Pattern: [Style prefix] of [subject doing action in setting]. [Style modifiers].
-Example: "gouache watercolor illustration of a king standing in throne room. soft blended colors, atmospheric lighting, painterly textures."`
+      ? `DESCRIBE only the scene content (subject, action, setting, atmosphere). Do NOT include any style keywords - the visual style will be applied separately.
+Pattern: [subject doing action in setting]. [atmosphere/lighting details].
+Example: "a king standing in throne room, golden light streaming through stained glass windows, regal atmosphere."`
       : `OPTIMIZE for web image search. Use concrete, searchable noun phrases.`;
 
-   const forbidden = useAiImage && style.negativePrompt
-      ? `REJECT these elements (never include): ${style.negativePrompt}`
-      : '';
+
 
    const llmContext = style.llmContext || '';
 
    // --- FORMAT (output specification) ---
-   const wordCount = useAiImage ? '40-70' : '8-15';
+   const wordCount = useAiImage ? '20-50' : '8-15';
 
    // Shot types only for sentence-based segmentation (not wordCount)
    const useShotTypes = style.segmentationType === 'sentence';
@@ -72,7 +70,6 @@ ${task}
 # CONTEXT
 ## Style Keywords
 ${styleDirection}
-${forbidden}
 
 ## Creative Brief (Style-specific instructions - follow these if provided)
 ${llmContext}
@@ -91,14 +88,22 @@ Word count: ${wordCount} words per query.
 
 ## Continuity Workflow
 BEFORE generating queries:
-1. SCAN all segments to identify recurring characters, locations, and themes
-2. CREATE a mental reference card for each character (e.g., "the determined female sniper with dark braided hair in Soviet uniform")
-3. IDENTIFY scene transitions vs. scene continuations
+1. READ THE ENTIRE TRANSCRIPT FIRST to understand the overall topic, era, and theme
+2. IDENTIFY the historical period, setting, or context (e.g., "This is about Vikings in 1066", "This is WWII in Europe", "This is ancient Rome")
+3. SCAN all segments to identify recurring characters, locations, and themes
+4. CREATE a mental reference card for each character (e.g., "the determined female sniper with dark braided hair in Soviet uniform")
+5. IDENTIFY scene transitions vs. scene continuations
 
 DURING generation:
+- STAY CONTEXTUALLY ACCURATE: Only include objects, weapons, clothing, technology, and settings that authentically belong to the identified era, topic, or setting
+- NEVER mix elements from different time periods or contexts (e.g., no modern items in historical scenes, no anachronistic technology)
+- MAINTAIN VISUAL CONSISTENCY: All scenes should feel like they belong to the same video
+  - Use a consistent color palette and lighting mood throughout (e.g., if the video starts with warm golden tones, maintain that warmth)
+  - Keep the same visual tone and atmosphere across all segments
+  - Describe environments with similar levels of detail and complexity
 - REUSE the exact same description phrase every time a character reappears
 - For scene continuations: maintain consistent setting, lighting, and environment details
-- For scene transitions: establish the new location clearly before focusing on action
+- For scene transitions: establish the new location clearly but maintain the overall visual style
 
 ## Scene Linking (linkedTo field)
 The "linkedTo" field connects related segments for visual consistency. Set it to the INDEX (array position, starting from 0) of the MOST RELEVANT previous segment, or null if this is a new/unrelated scene.
@@ -138,7 +143,7 @@ export function buildUserPrompt(
    useAiImage: boolean,
    naturalEdit: boolean = false
 ): string {
-   const wordCount = useAiImage ? '40-70' : '8-15';
+   const wordCount = useAiImage ? '20-50' : '8-15';
 
    const typeField = naturalEdit
       ? `- INCLUDE "type" field: "pan", "zoom", or "static"

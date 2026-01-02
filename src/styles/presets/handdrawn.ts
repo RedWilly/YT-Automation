@@ -24,7 +24,7 @@ export const handdrawnStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "hand-drawn doodle, pale yellow background, thin black outlines, stick-figure, flat minimal style, no shading",
-    negativePrompt: "text, words, letters, numbers, labels, photorealistic, 3D, anime, gradients, shading, white background, border, frame, white border, margin, edges, vignette",
+    negativePrompt: "no text, no words, no letters, no numbers, no labels, no photorealistic, no 3D, no anime, no gradients, no shading, no white background, no border, no frame, no white border, no margin, no edges, no vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",

@@ -55,13 +55,5 @@ export const pixelStyle: VideoStyle = {
     // === LLM Context ===
     llmContext: `Pixel art style for nostalgic video game aesthetic.
 
-QUERY FORMAT (IMPORTANT - override default pattern):
-Structure every query EXACTLY like this:
-"pixel art of [subject doing action in setting]. pixelated scene reminiscent of a nostalgic video game."
-
-EXAMPLE:
-"pixel art of a determined young woman in a Soviet uniform holding a sniper rifle, standing in a snowy, war-torn landscape. pixelated scene reminiscent of a nostalgic video game."
-"pixel art of two people resting near a campfire at night in vast ruins. pixelated scene reminiscent of a nostalgic video game."
-
 Keep queries simple and focused. Do not add extra keywords or modifiers.`,
 };

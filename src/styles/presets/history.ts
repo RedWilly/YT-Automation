@@ -23,7 +23,7 @@ export const historyStyle: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "gouache watercolor illustration of a historical scene, soft blended colors, painterly textures, atmospheric lighting, matte painting, rich soft colors",
-  negativePrompt: "text, words, letters, numbers, labels, captions, titles, typography, photograph, 3d, vector, oil painting, neon colors, watermark, deformed, border, frame, white border, margin, edges, vignette",
+  negativePrompt: "no text, no words, no letters, no numbers, no labels, no captions, no titles, no typography, no photograph, no 3d, no vector, no oil painting, no neon colors, no watermark, no deformed, no border, no frame, no white border, no margin, no edges, no vignette",
 
   // === Segmentation ===
   segmentationType: "sentence",

@@ -52,7 +52,16 @@ CAMERA MOVEMENT (in "type" field ONLY):
 
 VIDEO RETENTION:
 - FIRST 2 SEGMENTS: Must use "pan" or "zoom"
-- AVOID consecutive static segments`
+- AVOID consecutive static segments
+
+SCENE LINKING (linkedTo field - CRITICAL):
+- linkedTo connects related segments for visual consistency
+- Set to the INDEX of the MOST RELEVANT previous segment, or null for new scenes
+- CONSTRAINTS:
+  * Only reference EARLIER segments (linkedTo must be < current index)
+  * First segment (index 0) MUST have linkedTo: null
+  * Cannot reference itself or future segments
+- Example: segment at index 5 can only use linkedTo: 0, 1, 2, 3, or 4 (or null)`
       : '';
 
    // --- CRITICAL RULES ---

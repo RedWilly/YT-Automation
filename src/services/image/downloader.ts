@@ -65,22 +65,43 @@ function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
  * - Same error handling and logging approach
  * - Track progress the same way (current/total)
  * - Continue processing even if individual images fail
+ * - Supports resumption from partial cache (skips already-downloaded images)
+ * - Saves incrementally via callback to persist progress
  *
  * @param queries - Array of image search queries with timestamps
  * @param style - Resolved style configuration for AI image generation
+ * @param existingImages - Optional array of already-downloaded images (for resumption)
+ * @param onImageDownloaded - Optional callback called after each successful download (for incremental caching)
  * @returns Array of downloaded/generated image information
  */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
-  style: ResolvedStyle
+  style: ResolvedStyle,
+  existingImages?: DownloadedImage[],
+  onImageDownloaded?: (images: DownloadedImage[]) => void
 ): Promise<DownloadedImage[]> {
+  const queriesLength = queries.length;
+  const startIndex = existingImages?.length ?? 0;
+  const processedImages: DownloadedImage[] = existingImages ? [...existingImages] : [];
+
+  // Check if resuming from partial cache
+  if (startIndex > 0) {
+    logger.log("Images", `📦 Resuming from cached images: ${startIndex}/${queriesLength} already downloaded`);
+  }
+
+  // If all images already exist, return immediately
+  if (startIndex >= queriesLength) {
+    logger.log("Images", `✓ All ${queriesLength} images already cached`);
+    return processedImages;
+  }
+
   // Log which mode we're using
   if (USE_AI_IMAGE) {
     const provider = getProvider();
-    logger.step("Images", `🎨 AI Image Generation Mode: Using ${provider.name} to generate ${queries.length} images`);
+    logger.step("Images", `🎨 AI Image Generation Mode: Using ${provider.name} to generate ${queriesLength - startIndex} images`);
     logger.debug("Images", `Image style: "${style.imageStyle.substring(0, 60)}..."`);
   } else {
-    logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
+    logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queriesLength - startIndex} queries`);
   }
 
   // Assign seeds based on linkedTo relationships (only for AI image generation)
@@ -89,14 +110,11 @@ export async function downloadImagesForQueries(
   if (USE_AI_IMAGE && seedMap.size > 0) {
     // Count unique seeds to show how many "scene groups" we have
     const uniqueSeeds = new Set(seedMap.values()).size;
-    logger.log("Seeds", `Assigned ${uniqueSeeds} unique seeds across ${queries.length} segments`);
+    logger.log("Seeds", `Assigned ${uniqueSeeds} unique seeds across ${queriesLength} segments`);
   }
 
-  const processedImages: DownloadedImage[] = [];
-  const queriesLength = queries.length;
-
-  // Process each query with the same logic for both AI and web search
-  for (let i = 0; i < queriesLength; i++) {
+  // Process each query starting from where we left off
+  for (let i = startIndex; i < queriesLength; i++) {
     const queryData = queries[i];
     if (!queryData) continue;
 
@@ -113,6 +131,11 @@ export async function downloadImagesForQueries(
         "Images",
         `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
+
+      // Incremental save: persist after each successful download
+      if (onImageDownloaded) {
+        onImageDownloaded(processedImages);
+      }
 
       // Add delay between web search queries to avoid rate limiting (except for last query)
       // Note: AI providers manage their own rate limiting internally

@@ -19,23 +19,20 @@ export function buildContextAwareSystemPrompt(
    storyContext: StoryContext
 ): string {
    // --- PERSONA ---
-   const persona = `You are a senior visual storyboard artist creating a cohesive visual narrative. You have been provided with a detailed entity registry and scene information to ensure perfect consistency.`;
+   const persona = `You are a prompt engineer for AI image generation. You write detailed, self-contained image descriptions that produce consistent, visually striking results.`;
 
    // --- TASK ---
-   const task = `GENERATE one vivid image description per segment using the EXACT entity descriptions provided. Ensure all images feel like they belong to the same video.`;
+   const task = `Write ONE image prompt per transcript segment. Each prompt must be a complete standalone description that an AI image generator can render WITHOUT any context from other prompts.`;
 
    // --- CONTEXT: STORY OVERVIEW ---
-   const storyOverview = `STORY OVERVIEW:
-- Summary: ${storyContext.summary || 'Not specified'}
-- Era/Setting: ${storyContext.era || 'Not specified'} - ${storyContext.primarySetting || 'Various locations'}
+   const storyOverview = `STORY CONTEXT:
+- Setting: ${storyContext.era || 'Not specified'} - ${storyContext.primarySetting || 'Various locations'}
 - Tone: ${storyContext.tone || 'Not specified'}`;
 
    // --- CONTEXT: STYLE ---
    const styleDirection = useAiImage
-      ? `DESCRIBE only the scene content. Do NOT include style keywords - visual style is applied separately.`
+      ? `DESCRIBE the visual scene only. Style/aesthetic is applied separately by the system.`
       : `OPTIMIZE for web image search. Use concrete, searchable noun phrases.`;
-
-   const llmContext = style.llmContext || '';
 
    // --- SHOT TYPES ---
    const useShotTypes = style.segmentationType === 'sentence';
@@ -45,46 +42,63 @@ export function buildContextAwareSystemPrompt(
 
    const shotTypeInstructions = useShotTypes
       ? `
-CAMERA MOVEMENT (in "type" field ONLY):
-- "pan" → wide landscapes, establishing new locations, environmental reveals
-- "zoom" → dramatic emphasis, emotional close-ups, tension building
-- "static" → action sequences, character focus, dialogue moments
+TYPE FIELD (for video editing - completely separate from query):
+- "pan" → use for: landscapes, establishing shots, wide environmental scenes
+- "zoom" → use for: close-ups, dramatic emphasis, detail reveals
+- "static" → use for: action, character moments, dialogue
 
-VIDEO RETENTION:
-- FIRST 2 SEGMENTS: Must use "pan" or "zoom"
+TYPE SELECTION RULES:
+- FIRST 2 SEGMENTS: Must use "pan" or "zoom" for viewer retention
 - AVOID consecutive static segments
 
-SCENE LINKING (linkedTo field - CRITICAL):
-- linkedTo connects related segments for visual consistency
-- Set to the INDEX of the MOST RELEVANT previous segment, or null for new scenes
-- CONSTRAINTS:
-  * Only reference EARLIER segments (linkedTo must be < current index)
-  * First segment (index 0) MUST have linkedTo: null
-  * Cannot reference itself or future segments
-- Example: segment at index 5 can only use linkedTo: 0, 1, 2, 3, or 4 (or null)`
+LINKEDTO FIELD (for visual consistency seeding):
+- Set to INDEX of most visually related previous segment, or null for new scenes
+- MUST be less than current index (can only reference earlier segments)
+- First segment (index 0) MUST have linkedTo: null
+- Example: segment 5 can only use linkedTo: 0, 1, 2, 3, 4, or null`
       : '';
 
    // --- CRITICAL RULES ---
    const criticalRules = `
-ENTITY CONSISTENCY (CRITICAL):
-- Use the EXACT descriptions from the entity registry when referencing entities
-- If a character is defined as "tall warrior with braided red beard", use that exact phrase
-- If a location is defined as "narrow wooden bridge over river", use that exact description
-- NEVER change entity descriptions between segments
+## QUERY CONTENT RULES (CRITICAL)
 
-VISUAL CONSISTENCY:
-- All scenes should feel like they belong to the same video
-- Maintain consistent lighting mood and color palette
-- Keep the same visual tone across all segments
+WHAT TO INCLUDE in the query:
+- Subject: WHO or WHAT is in the frame (use entity descriptions exactly)
+- Action: What is happening in this frozen moment
+- Setting: Where this takes place (location, environment)
+- Atmosphere: Lighting, mood, weather, time of day
+- Composition: Foreground/background elements, framing
 
-CONTEXTUAL ACCURACY:
-- Only include elements that belong to the identified era/setting
-- Never mix elements from different time periods
+WHAT TO NEVER INCLUDE in the query:
+- Camera movement words: "camera pans", "zooms in", "tracking shot", "dolly", etc.
+- Director language: "we see", "the viewer", "cut to", "fade in"
+- Transition words: "then", "next", "afterwards"
+- Meta descriptions: "dramatic shot of", "close-up of", "wide angle of"
+- The word "camera" in any context
 
-FORMAT RULES:
-- PRESERVE timestamps exactly
-- NEVER include text, words, letters, or numbers in visual descriptions
-- Word count: ${useAiImage ? '20-50' : '8-15'} words per query`;
+BAD EXAMPLE: "The camera zooms out to reveal a massive army approaching the bridge"
+GOOD EXAMPLE: "A lone warrior on a narrow wooden bridge, a massive iron-clad army visible on the distant hillside, morning mist rising from the river below"
+
+## VISUAL SELF-CONTAINMENT
+
+Each query must contain ALL visual information needed to render the image:
+- The AI image generator has NO MEMORY of previous images
+- It cannot see your other prompts
+- Describe everything visible in THIS frame completely
+- Repeat key visual details (character appearance, location features) when they appear
+
+## ENTITY CONSISTENCY
+
+When an entity from the registry appears:
+- Use the EXACT description phrase provided
+- Do not paraphrase or shorten entity descriptions
+- This ensures the AI generates consistent visuals across images
+
+## FORMAT
+
+- Word count: ${useAiImage ? '25-45' : '8-15'} words per query
+- PRESERVE timestamps exactly from the transcript
+- NEVER include readable text, letters, numbers, or signs in descriptions`;
 
    return `# PERSONA
 ${persona}
@@ -92,13 +106,11 @@ ${persona}
 # TASK
 ${task}
 
-# STORY CONTEXT
-${storyOverview}
+# ${storyOverview}
 
-# STYLE DIRECTION
+# STYLE
 ${styleDirection}
 
-${llmContext ? `# CREATIVE BRIEF\n${llmContext}\n` : ''}
 ${shotTypeInstructions}
 
 ${criticalRules}
@@ -121,18 +133,18 @@ export function buildContextAwareUserPrompt(
    batchState: BatchState | null,
    currentSegments: [number, number]
 ): string {
-   const wordCount = useAiImage ? '20-50' : '8-15';
+   const wordCount = useAiImage ? '25-45' : '8-15';
 
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
 
    const typeField = naturalEdit
-      ? `- INCLUDE "type" field: "pan", "zoom", or "static"
-- INCLUDE "linkedTo" field: index of related previous segment, or null`
+      ? `- SET "type": "pan", "zoom", or "static" (for video editing, NOT in query text)
+- SET "linkedTo": index of related segment (< current index), or null`
       : '';
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan", "linkedTo": null}, ...]`
+      ? `[{"start": 0, "end": 5000, "query": "a lone Viking warrior...", "type": "pan", "linkedTo": null}, ...]`
       : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
    return `${contextSection}
@@ -140,14 +152,14 @@ export function buildContextAwareUserPrompt(
 # TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}
 
-# EXECUTE
-1. Reference entities using EXACT descriptions from above
-2. GENERATE exactly ${segmentCount} queries
-3. USE ${wordCount} words per query
-4. COPY exact timestamps from segments
+# INSTRUCTIONS
+1. Write ${segmentCount} image prompts (one per segment)
+2. Use EXACT entity descriptions from registry above
+3. Each query: ${wordCount} words, complete visual description
+4. NO camera language in queries (camera movement goes in "type" field only)
 ${typeField}
 
 # OUTPUT
-JSON array only:
+JSON array:
 ${outputExample}`;
 }

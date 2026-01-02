@@ -280,26 +280,46 @@ export class WorkflowService {
         }
 
         // =============================================================
-        // STEP 5: DOWNLOAD/GENERATE IMAGES (Check cache first)
+        // STEP 5: DOWNLOAD/GENERATE IMAGES (with incremental caching)
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
+        // Get any existing cached images (may be partial from failed run)
         const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useSentenceSegmentation);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
+            // Full cache - use as-is
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
             downloadedImages = cachedImages;
         } else {
+            // Partial or no cache - download remaining images with incremental save
+            const existingCount = cachedImages?.length ?? 0;
+            const remainingCount = imageQueries.length - existingCount;
+
             await progress.update({
                 step: "Downloading Images",
-                message: `Searching and downloading ${imageQueries.length} images...`,
-                current: 0,
+                message: existingCount > 0
+                    ? `Resuming download: ${remainingCount} remaining of ${imageQueries.length} images...`
+                    : `Downloading ${imageQueries.length} images...`,
+                current: existingCount,
                 total: imageQueries.length,
             });
 
-            downloadedImages = await downloadImagesForQueries(imageQueries, style);
+            // Pass existing images for resumption, and callback for incremental saves
+            downloadedImages = await downloadImagesForQueries(
+                imageQueries,
+                style,
+                cachedImages ?? undefined,
+                (images) => {
+                    // Save to cache after each successful download
+                    updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
+                        downloaded_images: JSON.stringify(images),
+                    });
+                }
+            );
             validateDownloadedImages(downloadedImages);
 
+            // Final save with image_queries as well
             updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),

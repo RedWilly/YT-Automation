@@ -51,8 +51,4 @@ export const lofiStyle: VideoStyle = {
 
     // === Video Effects ===
     panEffect: false,
-
-    // === LLM Context ===
-    llmContext: `Lo-fi 1980s Japanese magazine illustration aesthetic.
-`,
 };

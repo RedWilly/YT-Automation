@@ -133,10 +133,6 @@ export interface VideoStyle {
   // === Video Effects ===
   /** Whether pan effect is enabled by default */
   panEffect: boolean;
-
-  // === LLM Context ===
-  /** Additional context for LLM prompts (style-specific guidance) */
-  llmContext: string;
 }
 
 /**

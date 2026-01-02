@@ -21,7 +21,6 @@ export const pixelStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: 'pixel art. pixelated scene reminiscent of a nostalgic video game.',
-    // Note: The style suffix "pixelated scene reminiscent of a nostalgic video game" is added via llmContext
     negativePrompt: 'text, words, letters, numbers, labels, 3D, photorealistic, blurry, smooth gradients, watermark, border, frame, white border, margin, edges, vignette',
 
     // === Segmentation ===
@@ -51,9 +50,4 @@ export const pixelStyle: VideoStyle = {
 
     // === Video Effects ===
     panEffect: false,
-
-    // === LLM Context ===
-    llmContext: `Pixel art style for nostalgic video game aesthetic.
-
-Keep queries simple and focused. Do not add extra keywords or modifiers.`,
 };

@@ -53,18 +53,5 @@ export const explainerStyle: VideoStyle = {
 
     // === Video Effects ===
     panEffect: true,
-
-    // === Natural Editing ===
-
-
-    // === LLM Context ===
-    // llmContext: `Modern animation style for adult education. Smooth shapes, soft shading, muted professional colors (blues, grays, warm neutrals). Use visual metaphors and symbols. Characters should be adults aged 40-65 when applicable.`,
-    llmContext: `Modern animation style for professional adult education.
-
-SUBJECTS: Adults aged 40-65 when showing people (not young/childish). Professional settings, office environments, business contexts.
-COMPOSITION: Clean framing, smooth shapes, balanced layouts. Soft shading, no harsh outlines.
-COLORS: Muted professional palette (blues, grays, warm neutrals). No neon or childish colors.
-VISUAL METAPHORS: Replace concepts with symbols → money stack (wealth), calendar icon (time), upward arrow (growth), handshake (agreement).
-CONSTRAINTS: No text, no labels, no nametags, no chart labels. Everything purely visual.`,
 };
 

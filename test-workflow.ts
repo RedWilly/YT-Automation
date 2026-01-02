@@ -220,24 +220,43 @@ async function runTestWorkflow(): Promise<void> {
     }
 
     // =============================================================
-    // Step 5: Download Images (check cache first)
+    // Step 5: Download Images (with incremental caching)
     // =============================================================
     logger.step("Test", "Step 5: Downloading images");
 
     let downloadedImages: DownloadedImage[];
 
+    // Get any existing cached images (may be partial from failed run)
     const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useShotTypes);
 
     if (cachedImages && cachedImages.length === imageQueries.length) {
+      // Full cache - use as-is
       logger.log("Test", "📦 Using cached images (all files verified)");
       downloadedImages = cachedImages;
       logger.success("Test", `Loaded ${downloadedImages.length} images from cache`);
     } else {
-      logger.log("Test", "🔄 Downloading images...");
-      downloadedImages = await downloadImagesForQueries(imageQueries, style);
+      // Partial or no cache - download remaining with incremental save
+      const existingCount = cachedImages?.length ?? 0;
+      if (existingCount > 0) {
+        logger.log("Test", `📦 Resuming from ${existingCount}/${imageQueries.length} cached images`);
+      } else {
+        logger.log("Test", "🔄 Downloading images...");
+      }
+
+      downloadedImages = await downloadImagesForQueries(
+        imageQueries,
+        style,
+        cachedImages ?? undefined,
+        (images) => {
+          // Save to cache after each successful download
+          updateStyleCache(audioHash, style.id, style.orientation, useShotTypes, {
+            downloaded_images: JSON.stringify(images),
+          });
+        }
+      );
       validateDownloadedImages(downloadedImages);
 
-      // Save to style-specific cache
+      // Final save
       updateStyleCache(audioHash, style.id, style.orientation, useShotTypes, {
         downloaded_images: JSON.stringify(downloadedImages),
       });

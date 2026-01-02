@@ -19,11 +19,11 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from "../types.ts";
 export const historyStyle: VideoStyle = {
   id: "history",
   name: "History",
-  description: "Classic documentary style with gouache illustration aesthetic and karaoke captions",
+  description: "Documentary style with painterly aesthetic and karaoke captions",
 
   // === Image Generation ===
-  imageStyle: "gouache watercolor illustration of a historical scene, soft blended colors, painterly textures, atmospheric lighting, matte painting, rich soft colors",
-  negativePrompt: "no text, no words, no letters, no numbers, no labels, no captions, no titles, no typography, no photograph, no 3d, no vector, no oil painting, no neon colors, no watermark, no deformed, no border, no frame, no white border, no margin, no edges, no vignette",
+  imageStyle: "period-appropriate details, artistic interpretation, rich color palette, painterly quality, atmospheric lighting, creative composition, semi-realistic with stylized elements",
+  negativePrompt: "text, words, letters, numbers, labels, captions, typography, photograph, 3d render, vector art, neon colors, watermark, deformed, border, frame, margin",
 
   // === Segmentation ===
   segmentationType: "sentence",
@@ -46,14 +46,5 @@ export const historyStyle: VideoStyle = {
 
   // === Video Effects ===
   panEffect: false,
-
-  // === LLM Context ===
-  // llmContext: `Historical documentary aesthetic. Focus on period-accurate costumes, architecture, and landscapes. Use atmospheric lighting with rich, warm tones. Every scene should feel like a painting come to life.`,
-  llmContext: `Historical documentary with gouache/watercolor illustration aesthetic.
-
-COMPOSITION: Wide establishing shots for landscapes, medium shots for character moments. Fill the entire canvas edge-to-edge with detailed backgrounds.
-LIGHTING: Atmospheric, golden hour, soft diffused light. Rich warm tones.
-SUBJECTS: Period-accurate costumes, architecture, and props. Every scene should feel like a painting come to life.
-CONSTRAINTS: Avoid text-heavy objects (newspapers, signs). If unavoidable, describe them as "distant" or "illegible".`,
 };
 

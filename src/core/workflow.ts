@@ -16,7 +16,7 @@ import type { ResolvedStyle } from "../styles/types.ts";
 import { getDefaultStyle, resolveStyle } from "../styles/index.ts";
 import { transcribeAudio } from "../services/transcription/index.ts";
 import { processTranscript, validateTranscriptData } from "../services/transcription/index.ts";
-import { generateImageQueries, validateImageQueries } from "../services/llm/index.ts";
+import { generateImageQueries, validateImageQueries, type StoryContext } from "../services/llm/index.ts";
 import {
     downloadImagesForQueries,
     validateDownloadedImages,
@@ -31,6 +31,7 @@ import {
     getCachedTranscript,
     getCachedSegments,
     getCachedImageQueries,
+    getCachedStoryContext,
     getCachedImages,
 } from "../services/storage/index.ts";
 import * as logger from "../utils/logger.ts";
@@ -230,6 +231,7 @@ export class WorkflowService {
 
         // Image queries are style-specific (segmentationType)
         const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useSentenceSegmentation);
+        const cachedContext = getCachedStoryContext(audioHash, style.id, "horizontal", useSentenceSegmentation) as StoryContext | null;
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -240,12 +242,14 @@ export class WorkflowService {
                 message: "Using AI to generate visual scene descriptions...",
             });
 
-            imageQueries = await generateImageQueries(formattedTranscript, style);
+            const result = await generateImageQueries(formattedTranscript, style, cachedContext);
+            imageQueries = result.queries;
             validateImageQueries(imageQueries);
 
             // Save to style-specific cache (shared across orientations)
             updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
+                story_context: JSON.stringify(result.storyContext),
             });
 
             logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);

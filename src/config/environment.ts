@@ -96,7 +96,7 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         model: 'gemini-2.5-flash',
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKey: envString('GEMINI_API_KEY'),
-        segmentsPerBatch: 0, // Batch for reliable output on long transcripts
+        segmentsPerBatch: 60, // Batch for reliable output on long transcripts
         maxTokens: 64000,
         temperature: 0.4,
         maxRetries: 3,

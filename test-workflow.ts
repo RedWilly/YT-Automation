@@ -10,7 +10,7 @@
 
 import { transcribeAudio } from "./src/services/transcription/index.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcription/index.ts";
-import { generateImageQueries, validateImageQueries } from "./src/services/llm/index.ts";
+import { generateImageQueries, validateImageQueries, type StoryContext } from "./src/services/llm/index.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/image/index.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video/index.ts";
 import { uploadVideoToMinIO } from "./src/services/storage/index.ts";
@@ -24,6 +24,7 @@ import {
   getCachedTranscript,
   getCachedSegments,
   getCachedImageQueries,
+  getCachedStoryContext,
   getCachedImages,
   initDatabase,
 } from "./src/services/storage/index.ts";
@@ -190,6 +191,7 @@ async function runTestWorkflow(): Promise<void> {
 
     // Image queries are shared across orientations
     const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useShotTypes);
+    const cachedContext = getCachedStoryContext(audioHash, style.id, "horizontal", useShotTypes) as StoryContext | null;
 
     if (cachedQueries) {
       logger.log("Test", "📦 Using cached image queries (no LLM call)");
@@ -197,12 +199,14 @@ async function runTestWorkflow(): Promise<void> {
       logger.success("Test", `Loaded ${imageQueries.length} queries from cache`);
     } else {
       logger.log("Test", "🔄 Calling LLM to generate queries...");
-      imageQueries = await generateImageQueries(formattedTranscript, style);
+      const result = await generateImageQueries(formattedTranscript, style, cachedContext);
+      imageQueries = result.queries;
       validateImageQueries(imageQueries);
 
       // Save to style-specific cache (shared across orientations)
       updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
         image_queries: JSON.stringify(imageQueries),
+        story_context: JSON.stringify(result.storyContext),
       });
 
       logger.success("Test", `Generated ${imageQueries.length} queries and cached`);

@@ -35,13 +35,32 @@ export const historyStyle: VideoStyle = {
   maxWordsPerCaption: 6,
   captionStyle: {
     ...DEFAULT_CAPTION_STYLE,
+    fontSize: 52,
+    primaryColor: "&H00FFFFFF",
+    outlineColor: "&H00000000",
+    backgroundColor: "&H00000000",  // Black (for shadow effect)
+    outlineWidth: 4,  // Thick outline for visibility
+    shadowDepth: 4,   // Thick shadow  
     useBox: false, // Outline style for non-highlighted words
+    // Position & Layout
+    alignment: 2,
+    marginV: 130,
+    marginVVertical: 550,
+    marginL: 10,
+    marginR: 10,
+    // Text Transform
+    scaleX: 100,
+    scaleY: 100,
+    letterSpacing: 0,
+    bold: true,
+    italic: false,
+    uppercase: true,
   },
   highlightStyle: {
-    ...DEFAULT_HIGHLIGHT_STYLE,
-    enabled: true,
-    color: "&H00FF008B", // Purple
-    useBox: true,
+    enabled: true,  // enabled karaoke by default
+    color: "&H0000FFFF",  // Yellow (if enabled)
+    useBox: false,  // No box - just changes text color
+    outlineWidth: 4,
   },
 
   // === Video Effects ===

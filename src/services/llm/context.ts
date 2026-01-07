@@ -232,16 +232,35 @@ export function buildContextInjection(
         return sceneStart <= batchEnd && sceneEnd >= batchStart;
     });
 
-    // Get entity IDs from relevant scenes
+    // -------------------------------------------------------------------------
+    // DETERMINE RELEVANT ENTITIES (Predictive, not Reactive)
+    // -------------------------------------------------------------------------
     const relevantEntityIds = new Set<string>();
-    for (const scene of relevantScenes) {
-        for (const id of scene.primaryEntities) relevantEntityIds.add(id);
-        for (const id of scene.secondaryEntities) relevantEntityIds.add(id);
-    }
+    const [batchStart, batchEnd] = currentSegments;
 
-    // Always include primary entities
     for (const entity of context.entities) {
-        if (entity.importance === 'primary') {
+        // STRATEGY: Err on the side of inclusion. 
+        // If an entity exists in the story, the LLM should know about it 
+        // so it doesn't accidentally hallucinate a duplicate or inconsistent version.
+
+        // Rule 1: Always include PRIMARY & SECONDARY entities (consistency anchors)
+        // We want the LLM to have the full "cast list" available even if they aren't speaking right now.
+        if (entity.importance === 'primary' || entity.importance === 'secondary') {
+            relevantEntityIds.add(entity.id);
+            continue;
+        }
+
+        // Rule 2: Include background entities if they are mentioned or in the scene
+        const isMentionedInBatch = entity.mentions.some(
+            idx => idx >= batchStart && idx <= batchEnd
+        );
+
+        const isInCurrentScene = relevantScenes.some(scene =>
+            scene.primaryEntities.includes(entity.id) ||
+            scene.secondaryEntities.includes(entity.id)
+        );
+
+        if (isMentionedInBatch || isInCurrentScene) {
             relevantEntityIds.add(entity.id);
         }
     }
@@ -253,20 +272,27 @@ export function buildContextInjection(
     const primaryEntities = relevantEntities.filter(e => e.importance === 'primary');
     const secondaryEntities = relevantEntities.filter(e => e.importance !== 'primary');
 
-    let entitySection = '== ESTABLISHED ENTITIES ==\n\n';
+    // -------------------------------------------------------------------------
+    // BUILD ASSET REGISTRY (ALL ENTITIES ARE CRITICAL)
+    // -------------------------------------------------------------------------
+    let entitySection = '== VISUAL ASSETS REGISTRY (MANDATORY USE) ==\n';
+    entitySection += 'Every entity below is a FIXED visual asset. If mentioned, you MUST use its EXACT Visual Anchor description. Do not invent new details.\n\n';
 
-    if (primaryEntities.length > 0) {
-        entitySection += '[PRIMARY]\n';
-        for (const e of primaryEntities) {
-            entitySection += `- ${e.id} (${e.type.toUpperCase()}): ${e.description}\n`;
+    // Sort entities by importance for organization, but include ALL details for everyone
+    const sortedEntities = relevantEntities.sort((a, b) => {
+        const impOrder = { 'primary': 0, 'secondary': 1, 'background': 2 };
+        return impOrder[a.importance] - impOrder[b.importance];
+    });
+
+    for (const e of sortedEntities) {
+        entitySection += `ID: ${e.id} (${e.importance.toUpperCase()} ${e.type.toUpperCase()})\n`;
+        entitySection += `VISUAL ANCHOR: "${e.visualAnchor}"\n`;
+        // Include context/description for everyone, not just primary
+        if (e.description && e.description !== e.visualAnchor) {
+            entitySection += `CONTEXT: ${e.description}\n`;
         }
-        entitySection += '\n';
-    }
-
-    if (secondaryEntities.length > 0) {
-        entitySection += '[SECONDARY]\n';
-        for (const e of secondaryEntities) {
-            entitySection += `- ${e.id} (${e.type.toUpperCase()}): ${e.description}\n`;
+        if (e.eraConstraints) {
+            entitySection += `CONSTRAINTS: Allowed [${e.eraConstraints.allowedWeapons.join(', ')}], Prohibited [${e.eraConstraints.prohibitedItems.join(', ')}]\n`;
         }
         entitySection += '\n';
     }
@@ -284,23 +310,20 @@ export function buildContextInjection(
     }
     sceneSection += '\n';
 
-    // Build state section (if we have previous batch info)
+    // Build state section (continuity from previous batch)
     let stateSection = '';
-    if (batchState && batchState.batchIndex > 0) {
-        stateSection = '== PREVIOUS STATE ==\n';
-        if (batchState.lastQueries.length > 0) {
-            stateSection += `Last query: ${batchState.lastQueries[batchState.lastQueries.length - 1]?.substring(0, 100) ?? ''}...\n`;
-        }
-        if (batchState.activeEntities.length > 0) {
-            stateSection += `Active entities: ${batchState.activeEntities.join(', ')}\n`;
-        }
-        stateSection += `Mood: ${batchState.currentMood}\n`;
-        stateSection += '\n';
+    if (batchState && batchState.batchIndex > 0 && batchState.lastQueries.length > 0) {
+        stateSection = '== VISUAL CONTINUITY (PREVIOUS BATCH) ==\n';
+        stateSection += 'The last few shots generated were:\n';
+        batchState.lastQueries.forEach((q, i) => {
+            stateSection += `[Prev-${3 - i}]: "${q}"\n`;
+        });
+        stateSection += 'INSTRUCTION: Your first new shot must visually follow "Prev-1" to maintain the animation flow.\n\n';
     }
 
     // Build instruction section
     const instructionSection = `== INSTRUCTION (CRITICAL) ==
-Generate image queries for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
+    Generate image queries for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
 
 MANDATORY RULES:
 1. NEVER use shorthand like "the Viking", "the bridge", "the axe", "the spear"
@@ -471,8 +494,9 @@ export function updateBatchState(
     currentScene: string,
     currentMood: string
 ): BatchState {
-    // Keep last 5 queries for context
-    const lastQueries = queries.slice(-5);
+    // Keep last 3 queries for immediate visual continuity (Sliding Window)
+    // This allows the next batch to "hook" onto the previous visual flow
+    const lastQueries = queries.slice(-3);
 
     return {
         batchIndex: previousState.batchIndex + 1,

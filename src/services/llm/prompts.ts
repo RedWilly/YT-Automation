@@ -79,24 +79,55 @@ WHAT TO NEVER INCLUDE in the query:
 BAD EXAMPLE: "The camera zooms out to reveal a massive army approaching the bridge"
 GOOD EXAMPLE: "A lone warrior on a narrow wooden bridge, a massive iron-clad army visible on the distant hillside, morning mist rising from the river below"
 
-## VISUAL SELF-CONTAINMENT
+## VISUAL SELF-CONTAINMENT (CRITICAL)
 
 Each query must contain ALL visual information needed to render the image:
 - The AI image generator has NO MEMORY of previous images
 - It cannot see your other prompts
-- Describe everything visible in THIS frame completely
-- Repeat key visual details (character appearance, location features) when they appear
+- NEVER use shorthand references like "the Viking", "the bridge", "the axe", "the spear"
+- ALWAYS include the FULL entity description from the registry above
 
-## ENTITY CONSISTENCY
+BAD EXAMPLES (shorthand references = FORBIDDEN):
+- "The Viking swings his axe" ❌
+- "Soldiers on the bridge" ❌
+- "A spear thrusts upward" ❌
+- "The warrior's face" ❌
 
-When an entity from the registry appears:
-- Use the EXACT description phrase provided
-- Do not paraphrase or shorten entity descriptions
-- This ensures the AI generates consistent visuals across images
+GOOD EXAMPLES (complete self-contained descriptions):
+- "A lone, bare-chested Viking warrior with a massive Dane axe swings the six-foot ash wood weapon with its large crescent-shaped blade on the narrow wooden Stamford Bridge" ✓
+- "English soldiers in chainmail and helmets stand on the narrow wooden Stamford Bridge spanning the River Derwent" ✓
+- "A long iron-tipped spear thrusts upward through the wooden planks of the narrow Stamford Bridge" ✓
+- "The fierce, grinning face of the bare-chested Viking warrior, covered in blood and sweat" ✓
+
+## ENTITY CONSISTENCY (MANDATORY)
+
+Every entity MUST use its FULL description from the registry. Here is a REFERENCE EXAMPLE:
+
+=== REFERENCE EXAMPLE ===
+Given these entities in the registry:
+- unnamed_viking: "A lone, bare-chested Viking warrior, muscular and battle-hardened, wielding a massive Dane axe"
+- dane_axe: "A massive Viking battle axe, six feet of ash wood with a large crescent-shaped blade and a reverse butt spike"
+- stamford_bridge: "A narrow wooden bridge, about 12 feet wide, spanning the River Derwent in Yorkshire"
+- english_army: "English soldiers in chainmail and helmets, carrying shields and spears"
+
+BAD QUERY (shorthand, incomplete):
+"The Viking swings his axe at the soldiers on the bridge"
+
+GOOD QUERY (complete, self-contained):
+"A lone, bare-chested Viking warrior, muscular and battle-hardened, swings his massive Dane axe with its six-foot ash wood haft and large crescent-shaped blade at English soldiers in chainmail and helmets on the narrow wooden Stamford Bridge spanning the River Derwent, blood splattered on the wooden planks, morning mist rising from the water below"
+
+=== END REFERENCE ===
+
+Key rules:
+- COPY the exact entity descriptions, do not paraphrase
+- INCLUDE weapon details (material, size, shape) every time
+- INCLUDE location details (name, width, what it spans) every time
+- INCLUDE character details (clothing, build, expression) every time
+- ADD atmosphere (lighting, weather, blood, mist, etc.)
 
 ## FORMAT
 
-- Word count: ${useAiImage ? '25-45' : '8-15'} words per query
+- Word count: ${useAiImage ? '45-75' : '8-15'} words per query
 - PRESERVE timestamps exactly from the transcript
 - NEVER include readable text, letters, numbers, or signs in descriptions`;
 
@@ -133,7 +164,7 @@ export function buildContextAwareUserPrompt(
    batchState: BatchState | null,
    currentSegments: [number, number]
 ): string {
-   const wordCount = useAiImage ? '25-45' : '8-15';
+   const wordCount = useAiImage ? '45-75' : '8-15';
 
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);

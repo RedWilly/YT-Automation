@@ -26,6 +26,21 @@ export type EntityType = 'character' | 'location' | 'object' | 'animal' | 'conce
 export type EntityImportance = 'primary' | 'secondary' | 'background';
 
 /**
+ * Era-appropriate constraints for consistency validation
+ * Defines what items are allowed/prohibited in a given historical era
+ */
+export interface EraConstraints {
+    /** Era identifier: "medieval", "ww2", "modern", "ancient", "futuristic", etc. */
+    era: string;
+    /** Weapons appropriate for this era */
+    allowedWeapons: string[];
+    /** Items that should NOT appear in this era (anachronisms) */
+    prohibitedItems: string[];
+    /** Technology level descriptor */
+    technologyLevel: 'prehistoric' | 'ancient' | 'medieval' | 'industrial' | 'modern' | 'futuristic';
+}
+
+/**
  * An entity extracted from the transcript
  * Can be a character, location, object, animal, concept, or group
  */
@@ -37,6 +52,17 @@ export interface Entity {
     importance: EntityImportance;
     firstMention: number; // Segment index where first mentioned
     mentions: number[];   // All segment indices that reference this entity
+    /** 
+     * Immutable visual traits that MUST appear in every query mentioning this entity.
+     * This is the "anchor" description that ensures visual consistency across segments.
+     * Example: "6'2\" Viking warrior with braided red beard, bare-chested, wielding a massive Dane axe"
+     */
+    visualAnchor: string;
+    /**
+     * Era-specific constraints for this entity (optional, overrides global)
+     * Use for entities that don't fit the main era (e.g., a time traveler)
+     */
+    eraConstraints: EraConstraints | null;
 }
 
 /**
@@ -70,6 +96,12 @@ export interface StoryContext {
 
     // Scene graph
     scenes: Scene[];
+
+    /**
+     * Global era constraints for the entire story
+     * Used by verifier to detect anachronistic items
+     */
+    globalEraConstraints: EraConstraints;
 }
 
 /**
@@ -91,19 +123,29 @@ export interface BatchState {
  * Build the system prompt for context extraction
  */
 export function buildExtractionSystemPrompt(): string {
-    return `You are a script analyst specializing in visual storytelling. Your task is to analyze a transcript and extract structured information about entities, scenes, and narrative flow.
+    return `You are a script analyst specializing in visual storytelling. Your task is to analyze a transcript and extract structured information about entities, scenes, narrative flow, and era-appropriate constraints.
 
 # TASK
 Analyze the transcript and extract:
 1. ENTITIES: All characters, locations, objects, animals, concepts, or groups that appear
 2. SCENES: How segments group together into coherent scenes
 3. METADATA: Era, setting, tone, summary
+4. ERA CONSTRAINTS: What items are appropriate/prohibited for this era
 
 # ENTITY EXTRACTION RULES
 - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
+- Each entity MUST have a VISUAL ANCHOR: the immutable visual traits that define this entity
+  - Visual anchor is a FIXED, DETAILED description that MUST appear in EVERY image query mentioning this entity
+  - Example: "6'2\" Viking warrior with braided red beard, blue war paint on face, bare-chested, wielding a massive Dane axe with a 6-foot ash wood handle"
 - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
 - Rate importance: primary (main focus), secondary (supporting), background (minor)
 - Track which segments mention each entity
+
+# ERA CONSTRAINTS RULES
+Identify the historical/fictional era and determine:
+- allowedWeapons: What weapons are appropriate (swords in medieval, rifles in WW2)
+- prohibitedItems: What items would be anachronistic (no guns in medieval, no smartphones in 1800s)
+- technologyLevel: prehistoric, ancient, medieval, industrial, modern, futuristic
 
 # SCENE GROUPING RULES
 - Group consecutive segments that share the same location/context
@@ -117,12 +159,20 @@ Return a valid JSON object with this structure:
     "era": "Time period or setting type",
     "primarySetting": "Main location/environment",
     "tone": "Overall mood/atmosphere",
+    "globalEraConstraints": {
+        "era": "medieval|ww2|modern|ancient|futuristic|etc",
+        "allowedWeapons": ["sword", "spear", "bow"],
+        "prohibitedItems": ["gun", "car", "phone", "computer"],
+        "technologyLevel": "prehistoric|ancient|medieval|industrial|modern|futuristic"
+    },
     "entities": [
         {
             "id": "unique_snake_case_id",
             "type": "character|location|object|animal|concept|group",
             "name": "Display Name",
             "description": "Detailed visual description for image generation",
+            "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
+            "eraConstraints": null,
             "importance": "primary|secondary|background",
             "firstMention": 0,
             "mentions": [0, 5, 10]
@@ -249,10 +299,17 @@ export function buildContextInjection(
     }
 
     // Build instruction section
-    const instructionSection = `== INSTRUCTION ==
+    const instructionSection = `== INSTRUCTION (CRITICAL) ==
 Generate image queries for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
-When referencing entities, use their EXACT descriptions from above.
-Maintain visual continuity with previous queries.
+
+MANDATORY RULES:
+1. NEVER use shorthand like "the Viking", "the bridge", "the axe", "the spear"
+2. ALWAYS copy-paste the FULL description from the ESTABLISHED ENTITIES above
+3. Each query must be a COMPLETE, SELF-CONTAINED visual description
+4. Include ALL identifying details: weapons, clothing, location names, physical features
+
+Example: Instead of "The Viking on the bridge", write:
+"The lone, bare-chested Viking warrior, muscular and battle-hardened, wielding a massive Dane axe, standing on the narrow wooden Stamford Bridge spanning the River Derwent"
 `;
 
     return `${entitySection}${sceneSection}${stateSection}${instructionSection}`;
@@ -320,6 +377,16 @@ export async function extractStoryContext(
 }
 
 /**
+ * Default era constraints for fallback
+ */
+const DEFAULT_ERA_CONSTRAINTS: EraConstraints = {
+    era: 'unspecified',
+    allowedWeapons: [],
+    prohibitedItems: [],
+    technologyLevel: 'modern',
+};
+
+/**
  * Parse the LLM response into a StoryContext object
  */
 function parseStoryContext(content: string): StoryContext {
@@ -336,7 +403,7 @@ function parseStoryContext(content: string): StoryContext {
     cleaned = cleaned.trim();
 
     try {
-        const parsed = JSON.parse(cleaned) as StoryContext;
+        const parsed = JSON.parse(cleaned) as Partial<StoryContext>;
 
         // Validate required fields
         if (!parsed.entities || !Array.isArray(parsed.entities)) {
@@ -350,7 +417,22 @@ function parseStoryContext(content: string): StoryContext {
         if (!parsed.primarySetting) parsed.primarySetting = '';
         if (!parsed.tone) parsed.tone = '';
 
-        return parsed;
+        // Ensure globalEraConstraints exists with defaults
+        if (!parsed.globalEraConstraints) {
+            parsed.globalEraConstraints = {
+                ...DEFAULT_ERA_CONSTRAINTS,
+                era: parsed.era || 'unspecified',
+            };
+        }
+
+        // Ensure each entity has visualAnchor and eraConstraints
+        parsed.entities = parsed.entities.map((entity) => ({
+            ...entity,
+            visualAnchor: entity.visualAnchor || entity.description || '',
+            eraConstraints: entity.eraConstraints ?? null,
+        }));
+
+        return parsed as StoryContext;
     } catch (error) {
         logger.error('Context', 'Failed to parse context extraction response', error);
         // Return minimal valid context
@@ -361,6 +443,7 @@ function parseStoryContext(content: string): StoryContext {
             tone: '',
             entities: [],
             scenes: [],
+            globalEraConstraints: DEFAULT_ERA_CONSTRAINTS,
         };
     }
 }

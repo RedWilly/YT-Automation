@@ -11,6 +11,7 @@ export {
     extractStoryContext,
     type Entity,
     type EntityType,
+    type EraConstraints,
     type Scene,
     type StoryContext,
     type BatchState,

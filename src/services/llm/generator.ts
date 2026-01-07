@@ -1,8 +1,9 @@
 /**
  * Image Query Generator
- * Two-phase workflow for context-aware query generation:
+ * Three-phase workflow for context-aware query generation:
  * Phase 1: Extract story context (entities, scenes) from full transcript
  * Phase 2: Generate queries in batches with context injection
+ * Phase 3: Verify and auto-correct queries for consistency
  */
 
 import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
@@ -108,8 +109,7 @@ export async function generateImageQueries(
         useShotTypes,
         storyContext
     );
-
-    return { queries, storyContext };
+   return { queries, storyContext };
 }
 
 /**
@@ -190,8 +190,24 @@ async function generateQueriesWithContext(
             }
         }
 
-        validateImageQueries(queries);
-        allQueries.push(...queries);
+        // Sanitize linkedTo values before validation
+        // LLM sometimes returns invalid references (e.g., linkedTo >= current index)
+        const sanitizedQueries = queries.map((q, i) => {
+            if (q.linkedTo !== null && q.linkedTo !== undefined) {
+                // linkedTo must be < current batch index and >= 0
+                if (q.linkedTo >= i || q.linkedTo < 0) {
+                    logger.debug('LLM', `Sanitized invalid linkedTo=${q.linkedTo} at index ${i} → null`);
+                    return { ...q, linkedTo: null };
+                }
+            }
+            return q;
+        });
+
+        // Validate with batch-relative indices (as returned by LLM)
+        validateImageQueries(sanitizedQueries);
+        // Then adjust linkedTo values from batch-relative to global indices
+        const adjustedQueries = adjustLinkedToForBatch(sanitizedQueries, start);
+        allQueries.push(...adjustedQueries);
 
         // Update batch state for next iteration
         const queryStrings = queries.map(q => q.query);
@@ -214,6 +230,28 @@ async function generateQueriesWithContext(
     );
 
     return allQueries;
+}
+
+/**
+ * Adjust linkedTo values from batch-relative to global indices
+ * LLM returns linkedTo values relative to the current batch (0-based),
+ * but validation expects global indices across all batches
+ */
+function adjustLinkedToForBatch(queries: ImageSearchQuery[], batchStart: number): ImageSearchQuery[] {
+    return queries.map((query, batchIndex) => {
+        if (query.linkedTo !== undefined && query.linkedTo !== null) {
+            // linkedTo is relative to the batch, adjust to global index
+            const globalLinkedTo = query.linkedTo + batchStart;
+            // Ensure the adjusted linkedTo still references an earlier segment
+            const globalIndex = batchStart + batchIndex;
+            if (globalLinkedTo >= globalIndex) {
+                // Invalid reference - set to null to avoid validation error
+                return { ...query, linkedTo: null };
+            }
+            return { ...query, linkedTo: globalLinkedTo };
+        }
+        return query;
+    });
 }
 
 /**

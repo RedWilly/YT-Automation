@@ -233,17 +233,27 @@ function updateQuery(audioHash: string, styleId: string, orientation: string, in
 
     // Get current style cache
     const style = database.prepare(
-        'SELECT image_queries FROM style_cache WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
-    ).get(audioHash, styleId, orientation) as { image_queries: string | null } | null;
+        'SELECT image_queries, downloaded_images FROM style_cache WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
+    ).get(audioHash, styleId, orientation) as { image_queries: string | null; downloaded_images: string | null } | null;
 
     if (!style?.image_queries) return false;
 
     try {
         const queries = JSON.parse(style.image_queries) as Array<{ query: string; type?: string;[key: string]: unknown }>;
+        let images: Array<{ type?: string;[key: string]: unknown }> = [];
+
+        if (style.downloaded_images) {
+            try {
+                images = JSON.parse(style.downloaded_images);
+            } catch (e) {
+                // If images are corrupted, we just won't update them, but we proceed with queries
+                console.error('Failed to parse downloaded_images', e);
+            }
+        }
 
         if (index < 0 || index >= queries.length) return false;
 
-        // Update the query and type
+        // Update the query and type in image_queries
         const q = queries[index];
         if (q) {
             q.query = newQuery;
@@ -252,11 +262,20 @@ function updateQuery(audioHash: string, styleId: string, orientation: string, in
             }
         }
 
+        // Update both query and type in downloaded_images (if it exists)
+        const img = images[index] as { query?: string; type?: string } | undefined;
+        if (img) {
+            img.query = newQuery;
+            if (newType) {
+                img.type = newType;
+            }
+        }
+
         // Save back to database
         const stmt = database.prepare(
-            'UPDATE style_cache SET image_queries = ?, updated_at = strftime(\'%s\', \'now\') WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
+            'UPDATE style_cache SET image_queries = ?, downloaded_images = ?, updated_at = strftime(\'%s\', \'now\') WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
         );
-        stmt.run(JSON.stringify(queries), audioHash, styleId, orientation);
+        stmt.run(JSON.stringify(queries), JSON.stringify(images), audioHash, styleId, orientation);
 
         return true;
     } catch {

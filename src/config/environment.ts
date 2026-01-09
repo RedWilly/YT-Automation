@@ -80,8 +80,8 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         apiKey: envString('DEEPSEEK_API_KEY'),
         segmentsPerBatch: 60,
         maxTokens: 8000,
-        temperature: 0.4,
-        maxRetries: 3,
+        temperature: 0.2,
+        maxRetries: 6,
     },
     kimi: {
         model: 'kimi-k2-0905-preview',
@@ -89,7 +89,7 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         apiKey: envString('KIMI_API_KEY'),
         segmentsPerBatch: 60,
         maxTokens: 8000,
-        temperature: 0.4,
+        temperature: 0.2,
         maxRetries: 3,
     },
     gemini: {
@@ -98,7 +98,7 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         apiKey: envString('GEMINI_API_KEY'),
         segmentsPerBatch: 60, // Batch for reliable output on long transcripts
         maxTokens: 64000,
-        temperature: 0.4,
+        temperature: 0.2,
         maxRetries: 3,
     },
 };

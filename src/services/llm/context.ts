@@ -276,7 +276,8 @@ export function buildContextInjection(
     // BUILD ASSET REGISTRY (ALL ENTITIES ARE CRITICAL)
     // -------------------------------------------------------------------------
     let entitySection = '== VISUAL ASSETS REGISTRY (MANDATORY USE) ==\n';
-    entitySection += 'Every entity below is a FIXED visual asset. If mentioned, you MUST use its EXACT Visual Anchor description. Do not invent new details.\n\n';
+    entitySection += 'Every entity below is a FIXED visual asset. Even if the story progresses, their base appearance (Visual Anchor) DOES NOT CHANGE unless explicitly stated.\n';
+    entitySection += 'You mostly simply COPY AND PASTE the Visual Anchor into your prompt. Do not paraphrase. Do not get creative with their defined look.\n\n';
 
     // Sort entities by importance for organization, but include ALL details for everyone
     const sortedEntities = relevantEntities.sort((a, b) => {
@@ -299,9 +300,12 @@ export function buildContextInjection(
 
     // Build scene section
     let sceneSection = '== CURRENT SCENE ==\n';
+    let currentSceneId = '';
+
     if (relevantScenes.length > 0) {
         const scene = relevantScenes[0];
         if (scene) {
+            currentSceneId = scene.id;
             sceneSection += `Name: ${scene.name}\n`;
             sceneSection += `Setting: ${scene.setting}\n`;
             sceneSection += `Mood: ${scene.mood}\n`;
@@ -310,15 +314,28 @@ export function buildContextInjection(
     }
     sceneSection += '\n';
 
-    // Build state section (continuity from previous batch)
+    // Build state section (continuity OR transition)
     let stateSection = '';
-    if (batchState && batchState.batchIndex > 0 && batchState.lastQueries.length > 0) {
-        stateSection = '== VISUAL CONTINUITY (PREVIOUS BATCH) ==\n';
-        stateSection += 'The last few shots generated were:\n';
-        batchState.lastQueries.forEach((q, i) => {
-            stateSection += `[Prev-${3 - i}]: "${q}"\n`;
-        });
-        stateSection += 'INSTRUCTION: Your first new shot must visually follow "Prev-1" to maintain the animation flow.\n\n';
+
+    // DETECT SCENE CUT
+    // batchState.currentScene holds the scene ID from the PREVIOUS batch
+    const isNewScene = batchState && batchState.currentScene !== currentSceneId;
+
+    if (batchState && batchState.batchIndex > 0) {
+        if (isNewScene) {
+            // SCENE CUT DETECTED: Do NOT show previous images to prevent bleeding
+            stateSection = '== TRANSITION: CUT TO NEW SCENE ==\n';
+            stateSection += 'Previous scene has ended. START FRESH.\n';
+            stateSection += 'Ignore previous visual continuity. Establish the NEW setting immediately.\n\n';
+        } else if (batchState.lastQueries.length > 0) {
+            // SAME SCENE: Enforce visual continuity
+            stateSection = '== VISUAL CONTINUITY (PREVIOUS BATCH) ==\n';
+            stateSection += 'The last few shots generated were (SAME SCENE):\n';
+            batchState.lastQueries.forEach((q, i) => {
+                stateSection += `[Prev-${3 - i}]: "${q}"\n`;
+            });
+            stateSection += 'INSTRUCTION: Your first new shot must visually follow "Prev-1" to maintain the storyboard sequence.\n\n';
+        }
     }
 
     // Build instruction section
@@ -502,7 +519,7 @@ export function updateBatchState(
         batchIndex: previousState.batchIndex + 1,
         lastQueries,
         activeEntities,
-        currentScene,
+        currentScene, // This becomes 'previousScene' for the next batch
         currentMood,
     };
 }

@@ -94,9 +94,19 @@ WHAT TO INCLUDE:
 
 ## NEGATIVE CONSTRAINTS (INSTANT FAIL IF VIOLATED)
 1. NO TEXT OF ANY KIND. Do not include signs, labels, speech bubbles, numbers, dates, or letters.
-2. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.
-3. NO META DESCRIPTIONS. Do not say "A historical painting of..." or "A realistic photo of...". Just describe the scene.
-4. ABSOLUTELY NO LAZINESS. If a character is in the scene, their full visual anchor must be in the prompt.`;
+2. NO DIAGRAMS OR MAPS. Do not use "cross-section", "diagrammatic", "schematic", "map view", or "arrows". show the REALITY (e.g., the tunnel itself, not a drawing of it).
+3. NO MONTAGES OR SPLIT SCREENS. Do not use "flashback montage", "split image", or "superimposed". Show ONE cohesive moment in time.
+4. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.
+5. NO META DESCRIPTIONS. Do not say "A historical painting of..." or "A realistic photo of...". Just describe the scene.
+6. ABSOLUTELY NO LAZINESS. If a character is in the scene, their full visual anchor must be in the prompt.
+
+## FINAL CONSISTENCY CHECK
+Before outputting, verify:
+1. Did I copy the VISUAL ANCHOR exactly?
+2. Did I include the SETTING details (mud, gray sky, star-shaped walls)?
+3. Does this shot visually match the previous one?
+4. Is there any forbidden text (labels, dates, "concept")?
+5. Is this a single, real scene (not a montage or map)?`;
 
    return `# PERSONA
 ${persona}
@@ -131,7 +141,7 @@ export function buildContextAwareUserPrompt(
    batchState: BatchState | null,
    currentSegments: [number, number]
 ): string {
-   const wordCount = useAiImage ? '45-75' : '8-15';
+   const wordCount = useAiImage ? '80-100' : '8-15';
 
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
@@ -151,13 +161,17 @@ export function buildContextAwareUserPrompt(
 ${formattedTranscript}
 
 # INSTRUCTIONS
-1. Write ${segmentCount} image prompts (one per segment)
+1. Write EXACTLY ${segmentCount} image prompts — one per segment, no more, no less.
 2. Use EXACT entity descriptions from registry above
 3. Each query: ${wordCount} words, complete visual description
 4. NO camera language in queries (camera movement goes in "type" field only)
 ${typeField}
 
 # OUTPUT
-JSON array:
-${outputExample}`;
+JSON array with EXACTLY ${segmentCount} items:
+${outputExample}
+
+# CRITICAL: COUNT VERIFICATION
+Before returning, verify your array has EXACTLY ${segmentCount} items.
+If you return fewer or more, the entire response will be REJECTED and you must retry.`;
 }

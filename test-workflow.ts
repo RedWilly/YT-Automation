@@ -32,7 +32,7 @@ import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedIma
 import * as logger from "./src/utils/logger.ts";
 
 const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
-const MINIO_ENABLED = MINIO.enabled;
+const PRODUCTION = MINIO.enabled;
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
@@ -281,7 +281,7 @@ async function runTestWorkflow(): Promise<void> {
     logger.success("Test", `Video generated: ${videoResult.videoPath}`);
 
     // Step 7: Upload to MinIO (if enabled)
-    if (MINIO_ENABLED) {
+    if (PRODUCTION) {
       logger.step("Test", "Step 7: Uploading to MinIO");
       const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
 

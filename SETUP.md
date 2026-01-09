@@ -153,7 +153,7 @@ GOOGLE_COOKIE=your_google_cookie
 ### Cloud Storage (Optional)
 
 ```env
-MINIO_ENABLED=false
+PRODUCTION=false
 MINIO_ENDPOINT=https://minio.yourdomain.com
 MINIO_ACCESS_KEY=your_access_key
 MINIO_SECRET_KEY=your_secret_key

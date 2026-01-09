@@ -149,7 +149,7 @@ export const AI_IMAGE = {
  * MinIO object storage configuration
  */
 export const MINIO = {
-    enabled: envBool("MINIO_ENABLED"),
+    enabled: envBool("PRODUCTION"),
     endpoint: envString("MINIO_ENDPOINT"),
     accessKey: envString("MINIO_ACCESS_KEY"),
     secretKey: envString("MINIO_SECRET_KEY"),

@@ -332,7 +332,7 @@ export function buildContextInjection(
             stateSection = '== VISUAL CONTINUITY (PREVIOUS BATCH) ==\n';
             stateSection += 'The last few shots generated were (SAME SCENE):\n';
             batchState.lastQueries.forEach((q, i) => {
-                stateSection += `[Prev-${3 - i}]: "${q}"\n`;
+                stateSection += `[Prev-${2 - i}]: "${q}"\n`;
             });
             stateSection += 'INSTRUCTION: Your first new shot must visually follow "Prev-1" to maintain the storyboard sequence.\n\n';
         }

@@ -59,7 +59,7 @@ export function buildContextAwareSystemPrompt(
 CINEMATOGRAPHY RULES (The 'type' field):
 - "pan": Use for establishing shots, wide environments, or following movement.
 - "zoom": Use for emotional beats, realizations, or focusing on specific details.
-- "static": Use for dialogue, stable action, or calm moments. (should not be more than 20% of the total)
+- "static": The RAREST type. Only use for intimate dialogue close-ups or deliberate pauses. Default to pan/zoom.
 
 EDITING FLOW:
 - Vary your shot types to create rhythm.
@@ -93,7 +93,7 @@ WHAT TO INCLUDE:
 - GOOD: "Close up of the 18-year-old Venetian soldier with a weary face, mud-stained woolen coat, and unkempt hair, looking exhausted against the backdrop of a rainy trench."
 
 ## NEGATIVE CONSTRAINTS (INSTANT FAIL IF VIOLATED)
-1. NO TEXT OF ANY KIND. Do not include signs, labels, speech bubbles, numbers, dates, or letters.
+1. ZERO TEXT/SYMBOLS. Never include: signs, labels, subtitles, speech bubbles, numbers, dates, years, letters, watermarks, logos, titles, captions, annotations, UI elements, or any readable characters. If you need to show a document, show "a weathered paper with illegible writing" — never actual text.
 2. NO DIAGRAMS OR MAPS. Do not use "cross-section", "diagrammatic", "schematic", "map view", or "arrows". show the REALITY (e.g., the tunnel itself, not a drawing of it).
 3. NO MONTAGES OR SPLIT SCREENS. Do not use "flashback montage", "split image", or "superimposed". Show ONE cohesive moment in time.
 4. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.

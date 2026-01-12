@@ -18,7 +18,7 @@ import {
 /**
  * Supported AI providers for text generation
  */
-export type AIProvider = 'kimi' | 'deepseek' | 'gemini';
+export type AIProvider = 'kimi' | 'deepseek' | 'gemini' | 'Qwen';
 
 /**
  * Supported AI providers for image generation
@@ -74,6 +74,15 @@ export function parseIdList(envValue?: string): number[] {
  * Each provider has its own optimal settings
  */
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
+    Qwen: {
+        model: 'Qwen/Qwen3-VL-32B-Instruct',
+        baseUrl: 'https://api.together.xyz/v1',
+        apiKey: envString('TOGETHER_API_KEY'),
+        segmentsPerBatch: 60,
+        maxTokens: 200000, //190K
+        temperature: 0.2,
+        maxRetries: 15,
+    },
     deepseek: {
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
@@ -81,16 +90,16 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         segmentsPerBatch: 60,
         maxTokens: 8000,
         temperature: 0.2,
-        maxRetries: 6,
+        maxRetries: 15,
     },
     kimi: {
-        model: 'kimi-k2-0905-preview',
+        model: 'kimi-k2-turbo-preview',
         baseUrl: 'https://api.moonshot.ai/v1',
         apiKey: envString('KIMI_API_KEY'),
         segmentsPerBatch: 60,
-        maxTokens: 8000,
+        maxTokens: 256000,
         temperature: 0.2,
-        maxRetries: 3,
+        maxRetries: 6,
     },
     gemini: {
         model: 'gemini-2.5-flash',
@@ -99,7 +108,7 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         segmentsPerBatch: 60, // Batch for reliable output on long transcripts
         maxTokens: 64000,
         temperature: 0.2,
-        maxRetries: 3,
+        maxRetries: 6,
     },
 };
 

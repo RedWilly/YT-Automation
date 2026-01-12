@@ -187,7 +187,7 @@ async function runTestWorkflow(): Promise<void> {
     // =============================================================
     logger.step("Test", "Step 4: Generating image queries");
 
-    let imageQueries: ImageSearchQuery[];
+    let imageQueries!: ImageSearchQuery[];
 
     // Image queries are shared across orientations
     const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useShotTypes);
@@ -199,14 +199,26 @@ async function runTestWorkflow(): Promise<void> {
       logger.success("Test", `Loaded ${imageQueries.length} queries from cache`);
     } else {
       logger.log("Test", "🔄 Calling LLM to generate queries...");
-      const result = await generateImageQueries(formattedTranscript, style, cachedContext);
-      imageQueries = result.queries;
-      validateImageQueries(imageQueries);
+      const result = await generateImageQueries(
+        formattedTranscript,
+        style,
+        cachedContext,
+        (context) => {
+          // Cache story context immediately after extraction (only if entities/scenes were extracted)
+          if (context.entities.length > 0 || context.scenes.length > 0) {
+            updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
+              story_context: JSON.stringify(context),
+            });
+            logger.log("Test", "📦 Cached story context immediately after extraction");
+          } else {
+            logger.log("Test", "⚠️ No entities/scenes extracted, skipping context cache");
+          }
+        }
+      );
 
-      // Save to style-specific cache (shared across orientations)
+      // Save image queries to style-specific cache (shared across orientations)
       updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
         image_queries: JSON.stringify(imageQueries),
-        story_context: JSON.stringify(result.storyContext),
       });
 
       logger.success("Test", `Generated ${imageQueries.length} queries and cached`);

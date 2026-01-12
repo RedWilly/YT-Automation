@@ -30,7 +30,7 @@ export const historyStyle: VideoStyle = {
   wordsPerSegment: 0, // Not used for sentence-based
 
   // === Captions ===
-  captionsEnabled: true,
+  captionsEnabled: false,
   minWordsPerCaption: 3,
   maxWordsPerCaption: 6,
   captionStyle: {

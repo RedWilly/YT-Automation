@@ -227,7 +227,7 @@ export class WorkflowService {
         // =============================================================
         // STEP 4: LLM IMAGE QUERIES (Check cache first, style-specific)
         // =============================================================
-        let imageQueries: ImageSearchQuery[];
+        let imageQueries!: ImageSearchQuery[];
 
         // Image queries are style-specific (segmentationType)
         const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useSentenceSegmentation);
@@ -242,14 +242,26 @@ export class WorkflowService {
                 message: "Using AI to generate visual scene descriptions...",
             });
 
-            const result = await generateImageQueries(formattedTranscript, style, cachedContext);
-            imageQueries = result.queries;
-            validateImageQueries(imageQueries);
+            const result = await generateImageQueries(
+                formattedTranscript,
+                style,
+                cachedContext,
+                (context) => {
+                    // Cache story context immediately after extraction (only if entities/scenes were extracted)
+                    if (context.entities.length > 0 || context.scenes.length > 0) {
+                        updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
+                            story_context: JSON.stringify(context),
+                        });
+                        logger.log("Workflow", "📦 Cached story context immediately after extraction");
+                    } else {
+                        logger.log("Workflow", "⚠️ No entities/scenes extracted, skipping context cache");
+                    }
+                }
+            );
 
             // Save to style-specific cache (shared across orientations)
             updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
-                story_context: JSON.stringify(result.storyContext),
             });
 
             logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);

@@ -59,7 +59,7 @@ export function buildContextAwareSystemPrompt(
 CINEMATOGRAPHY RULES (The 'type' field):
 - "pan": Use for establishing shots, wide environments, or following movement.
 - "zoom": Use for emotional beats, realizations, or focusing on specific details.
-- "static": Use for dialogue, stable action, or calm moments.
+- "static": Use for dialogue, stable action, or calm moments. (should not be more than 20% of the total)
 
 EDITING FLOW:
 - Vary your shot types to create rhythm.

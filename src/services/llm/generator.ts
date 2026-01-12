@@ -38,12 +38,14 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
  * @param formattedTranscript - Formatted transcript with timestamps
  * @param style - Resolved style configuration for style-specific prompts
  * @param cachedContext - Optional cached StoryContext to skip extraction
+ * @param onContextExtracted - Optional callback called immediately after context extraction
  * @returns Object with queries and storyContext (for caching)
  */
 export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle,
-    cachedContext?: StoryContext | null
+    cachedContext?: StoryContext | null,
+    onContextExtracted?: (context: StoryContext) => void
 ): Promise<{ queries: ImageSearchQuery[]; storyContext: StoryContext }> {
     const lines = formattedTranscript
         .split(/\r?\n/)
@@ -94,6 +96,9 @@ export async function generateImageQueries(
             'Context',
             `Extracted ${storyContext.entities.length} entities, ${storyContext.scenes.length} scenes`
         );
+
+        // Call callback immediately after extraction
+        onContextExtracted?.(storyContext);
     }
 
     // =========================================================================

@@ -400,6 +400,7 @@ export async function extractStoryContext(
 
     const data = await response.json() as LLMResponse;
     const content = data.choices[0]?.message?.content;
+    logger.log('Context', `Raw context extraction response: ${content}`);
 
     if (!content) {
         throw new Error('Empty response from context extraction');
@@ -432,6 +433,7 @@ const DEFAULT_ERA_CONSTRAINTS: EraConstraints = {
 function parseStoryContext(content: string): StoryContext {
     // Clean up the response (remove markdown code blocks if present)
     let cleaned = content.trim();
+    // logger.log('Context', `Raw context extraction response: ${cleaned}`);
     if (cleaned.startsWith('```json')) {
         cleaned = cleaned.slice(7);
     } else if (cleaned.startsWith('```')) {

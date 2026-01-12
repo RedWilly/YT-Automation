@@ -17,7 +17,7 @@ export async function segmentationStage(state: WorkflowState): Promise<WorkflowS
     const cachedSegments = getCachedSegments(
         state.audioHash,
         state.style.id,
-        "horizontal",
+        state.style.orientation,
         useSentenceSegmentation
     );
 
@@ -43,7 +43,7 @@ export async function segmentationStage(state: WorkflowState): Promise<WorkflowS
         .map(seg => `[${seg.start}–${seg.end}ms]: ${seg.text}`)
         .join("\n");
 
-    updateStyleCache(state.audioHash, state.style.id, "horizontal", useSentenceSegmentation, {
+    updateStyleCache(state.audioHash, state.style.id, state.style.orientation, useSentenceSegmentation, {
         segments: JSON.stringify(segments),
         formatted_transcript: formattedTranscript,
     });

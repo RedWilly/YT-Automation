@@ -22,13 +22,13 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
     const cachedQueries = getCachedImageQueries(
         state.audioHash,
         state.style.id,
-        "horizontal",
+        state.style.orientation,
         useSentenceSegmentation
     );
     const cachedContext = getCachedStoryContext(
         state.audioHash,
         state.style.id,
-        "horizontal",
+        state.style.orientation,
         useSentenceSegmentation
     ) as StoryContext | null;
 
@@ -56,7 +56,7 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
         cachedContext,
         (context) => {
             if (context.entities.length > 0 || context.scenes.length > 0) {
-                updateStyleCache(state.audioHash!, state.style.id, "horizontal", useSentenceSegmentation, {
+                updateStyleCache(state.audioHash!, state.style.id, state.style.orientation, useSentenceSegmentation, {
                     story_context: JSON.stringify(context),
                 });
                 logger.log("Workflow", "📦 Cached story context immediately after extraction");
@@ -68,7 +68,7 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
 
     const imageQueries = result.queries;
 
-    updateStyleCache(state.audioHash, state.style.id, "horizontal", useSentenceSegmentation, {
+    updateStyleCache(state.audioHash, state.style.id, state.style.orientation, useSentenceSegmentation, {
         image_queries: JSON.stringify(imageQueries),
     });
 

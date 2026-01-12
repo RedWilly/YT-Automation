@@ -26,6 +26,38 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
 /**
+ * Assign seeds to queries based on linkedTo relationships
+ * - Segments with linkedTo inherit the seed of the linked segment
+ * - Segments without linkedTo get a new random seed
+ * @param queries - Array of image queries with linkedTo field
+ * @returns Map of query index to seed value
+ */
+function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
+  const seedMap = new Map<number, number>();
+
+  for (let i = 0; i < queries.length; i++) {
+    const query = queries[i];
+    if (!query) continue;
+
+    const linkedTo = query.linkedTo;
+
+    // If linked to a previous segment, inherit its seed
+    if (linkedTo !== null && linkedTo !== undefined && linkedTo < i && seedMap.has(linkedTo)) {
+      const inheritedSeed = seedMap.get(linkedTo)!;
+      seedMap.set(i, inheritedSeed);
+      logger.debug('Seeds', `Segment ${i} linked to ${linkedTo}, inheriting seed: ${inheritedSeed}`);
+    } else {
+      // Generate new random seed (1 to 2147483647)
+      const newSeed = Math.floor(Math.random() * 2147483646) + 1;
+      seedMap.set(i, newSeed);
+      logger.debug('Seeds', `Segment ${i} is new scene, assigned seed: ${newSeed}`);
+    }
+  }
+
+  return seedMap;
+}
+
+/**
  * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
  * Both AI generation and web search follow the same patterns:
  * - WEB_SEARCH_DELAY_MS delays between each image
@@ -33,43 +65,77 @@ const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
  * - Same error handling and logging approach
  * - Track progress the same way (current/total)
  * - Continue processing even if individual images fail
+ * - Supports resumption from partial cache (skips already-downloaded images)
+ * - Saves incrementally via callback to persist progress
  *
  * @param queries - Array of image search queries with timestamps
  * @param style - Resolved style configuration for AI image generation
+ * @param existingImages - Optional array of already-downloaded images (for resumption)
+ * @param onImageDownloaded - Optional callback called after each successful download (for incremental caching)
  * @returns Array of downloaded/generated image information
  */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
-  style: ResolvedStyle
+  style: ResolvedStyle,
+  existingImages?: DownloadedImage[],
+  onImageDownloaded?: (images: DownloadedImage[]) => void
 ): Promise<DownloadedImage[]> {
+  const queriesLength = queries.length;
+  const startIndex = existingImages?.length ?? 0;
+  const processedImages: DownloadedImage[] = existingImages ? [...existingImages] : [];
+
+  // Check if resuming from partial cache
+  if (startIndex > 0) {
+    logger.log("Images", `📦 Resuming from cached images: ${startIndex}/${queriesLength} already downloaded`);
+  }
+
+  // If all images already exist, return immediately
+  if (startIndex >= queriesLength) {
+    logger.log("Images", `✓ All ${queriesLength} images already cached`);
+    return processedImages;
+  }
+
   // Log which mode we're using
   if (USE_AI_IMAGE) {
     const provider = getProvider();
-    logger.step("Images", `🎨 AI Image Generation Mode: Using ${provider.name} to generate ${queries.length} images`);
+    logger.step("Images", `🎨 AI Image Generation Mode: Using ${provider.name} to generate ${queriesLength - startIndex} images`);
     logger.debug("Images", `Image style: "${style.imageStyle.substring(0, 60)}..."`);
   } else {
-    logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queries.length} queries`);
+    logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queriesLength - startIndex} queries`);
   }
 
-  const processedImages: DownloadedImage[] = [];
-  const queriesLength = queries.length;
+  // Assign seeds based on linkedTo relationships (only for AI image generation)
+  const seedMap = USE_AI_IMAGE ? assignSeeds(queries) : new Map<number, number>();
 
-  // Process each query with the same logic for both AI and web search
-  for (let i = 0; i < queriesLength; i++) {
+  if (USE_AI_IMAGE && seedMap.size > 0) {
+    // Count unique seeds to show how many "scene groups" we have
+    const uniqueSeeds = new Set(seedMap.values()).size;
+    logger.log("Seeds", `Assigned ${uniqueSeeds} unique seeds across ${queriesLength} segments`);
+  }
+
+  // Process each query starting from where we left off
+  for (let i = startIndex; i < queriesLength; i++) {
     const queryData = queries[i];
     if (!queryData) continue;
 
     try {
+      const seed = seedMap.get(i);
+
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData, style)
-        : await downloadImageForQuery(queryData);
+        ? await generateAIImageForQuery(queryData, style, i, seed)
+        : await downloadImageForQuery(queryData, style, i);
 
       processedImages.push(processedImage);
       logger.debug(
         "Images",
         `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
+
+      // Incremental save: persist after each successful download
+      if (onImageDownloaded) {
+        onImageDownloaded(processedImages);
+      }
 
       // Add delay between web search queries to avoid rate limiting (except for last query)
       // Note: AI providers manage their own rate limiting internally
@@ -102,16 +168,19 @@ export async function downloadImagesForQueries(
  * - Scenes <3s (static): Native resolution (16:9 or 9:16 based on orientation)
  * @param queryData - Image search query with timestamps
  * @param style - Resolved style configuration for prompts
+ * @param index - Image index for filename
+ * @param seed - Seed for reproducible generation (linked segments share seeds)
  * @returns Generated image information
  */
 async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
-  style: ResolvedStyle
+  style: ResolvedStyle,
+  index: number,
+  seed?: number
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
 
-  // Determine aspect ratio - always use native ratio
   const aspectRatio: '16:9' | '9:16' = style.orientation === 'vertical' ? '9:16' : '16:9';
 
   logger.debug('AI-Images', `Scene → ${queryData.type ?? 'default'} → ${aspectRatio}`);
@@ -119,22 +188,25 @@ async function generateAIImageForQuery(
   let lastError: Error | null = null;
   let rewriteCount = 0;
   const MAX_REWRITES = 25;
-  const originalQuery = queryData.query;  // Store original for context
+  const originalQuery = queryData.query;
 
-  // Retry with primary provider using exponential backoff
   for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
     try {
       logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
 
+      // Combine style prefix with scene description
+      const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
+
       const result = await provider.generate({
-        prompt: queryData.query,
+        prompt: styledPrompt,
         negativePrompt: style.negativePrompt,
         aspectRatio,
+        seed,
       });
 
-      // Save the image
-      const sanitizedQuery = sanitizeFilename(queryData.query);
-      const filename = `ai_${sanitizedQuery}.${result.format}`;
+      // Save the image with style-based naming: {styleId}_{orientation}_{index}.{format}
+      const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
+      const filename = `${style.id}${orientationSuffix}_${index}.${result.format}`;
       const filePath = join(TMP_IMAGES_DIR, filename);
 
       await Bun.write(filePath, result.data);
@@ -144,7 +216,7 @@ async function generateAIImageForQuery(
         logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
       }
 
-      return { query: queryData.query, start, end, filePath, type: queryData.type };
+      return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
 
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -167,13 +239,11 @@ async function generateAIImageForQuery(
         queryData.query = rewrittenQuery;
         logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
 
-        // Don't count this as a failed attempt - reset and try with new prompt
         attempt = 0;
         continue;
       }
 
       if (attempt < IMAGE_RETRY_ATTEMPTS) {
-        // Exponential backoff: 1s, 2s, 4s, 8s... capped at 10min
         const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
         logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
         await sleep(delay);
@@ -181,7 +251,6 @@ async function generateAIImageForQuery(
     }
   }
 
-  // Primary provider failed - try fallback with exponential backoff
   const fallback = getFallbackProvider(provider.id);
   if (fallback) {
     logger.step("AI-Images", `Switching to fallback provider: ${fallback.name}`);
@@ -190,10 +259,14 @@ async function generateAIImageForQuery(
       try {
         logger.debug("AI-Images", `[${fallback.name}] Fallback attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS}`);
 
+        // Combine style prefix with scene description
+        const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
+
         const result = await fallback.generate({
-          prompt: queryData.query,
+          prompt: styledPrompt,
           negativePrompt: style.negativePrompt,
           aspectRatio,
+          seed,
         });
 
         const sanitizedQuery = sanitizeFilename(queryData.query);
@@ -203,7 +276,7 @@ async function generateAIImageForQuery(
         await Bun.write(filePath, result.data);
         logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
 
-        return { query: queryData.query, start, end, filePath, type: queryData.type };
+        return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
 
       } catch (fallbackError) {
         lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
@@ -220,7 +293,6 @@ async function generateAIImageForQuery(
     throw new Error(`Both providers failed after retries. Last error: ${lastError?.message}`);
   }
 
-  // No fallback available
   throw new Error(
     `Failed to generate AI image for "${queryData.query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
@@ -253,10 +325,14 @@ function extractDomain(imageUrl: string): string {
 /**
  * Search and download a single image for a query with watermark filtering and retry logic
  * @param queryData - Image search query with timestamps
+ * @param style - Resolved style configuration for naming
+ * @param index - Image index for filename
  * @returns Downloaded image information
  */
 async function downloadImageForQuery(
-  queryData: ImageSearchQuery
+  queryData: ImageSearchQuery,
+  style: ResolvedStyle,
+  index: number
 ): Promise<DownloadedImage> {
   const { query, start, end } = queryData;
 
@@ -276,7 +352,6 @@ async function downloadImageForQuery(
 
       logger.debug("Images", `Fetched ${searchResults.length} results, filtering watermarked images...`);
 
-      // Separate non-watermarked and watermarked images
       const nonWatermarkedUrls: string[] = [];
       const watermarkedUrls: string[] = [];
 
@@ -285,7 +360,6 @@ async function downloadImageForQuery(
 
         const imageUrl = result.image;
 
-        // Check if this image is watermarked
         if (isWatermarkedImage(imageUrl)) {
           const domain = extractDomain(imageUrl);
           logger.debug("Images", `Skipped watermarked image from ${domain}`);
@@ -297,14 +371,12 @@ async function downloadImageForQuery(
 
       logger.debug("Images", `Found ${nonWatermarkedUrls.length} non-watermarked and ${watermarkedUrls.length} watermarked images`);
 
-      // Try all non-watermarked images first, then watermarked as fallback
       const imagesToTry = [...nonWatermarkedUrls, ...watermarkedUrls];
 
       if (imagesToTry.length === 0) {
         throw new Error(`No valid images found for query: "${query}"`);
       }
 
-      // Try downloading each image until one succeeds
       let downloadSucceeded = false;
       let filePath: string | null = null;
 
@@ -318,7 +390,7 @@ async function downloadImageForQuery(
         try {
           logger.debug("Images", `Trying to download image ${i + 1}/${imagesToTry.length} from ${domain}${isWatermarked ? " (watermarked)" : ""}`);
 
-          filePath = await downloadImage(imageUrl, query);
+          filePath = await downloadImage(imageUrl, style, index);
           downloadSucceeded = true;
 
           if (isWatermarked) {
@@ -327,23 +399,18 @@ async function downloadImageForQuery(
             logger.debug("Images", `Successfully downloaded non-watermarked image from ${domain}`);
           }
 
-          break; // Success! Exit the loop
+          break;
         } catch (downloadError) {
-          // Log the failure and try the next image
           const errorMsg = downloadError instanceof Error ? downloadError.message : String(downloadError);
           logger.debug("Images", `Failed to download from ${domain}: ${errorMsg}`);
 
-          // If this is the last image, throw the error
           if (i === imagesToTry.length - 1) {
             throw new Error(`All ${imagesToTry.length} images failed to download. Last error: ${errorMsg}`);
           }
-
-          // Otherwise, continue to the next image
           continue;
         }
       }
 
-      // If download succeeded, return the result
       if (downloadSucceeded && filePath) {
         if (attempt > 1) {
           logger.success("Images", `Successfully downloaded after ${attempt} attempts`);
@@ -372,19 +439,19 @@ async function downloadImageForQuery(
     }
   }
 
-  // All attempts failed
   throw new Error(
     `Failed to download image for query "${query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Last error: ${lastError?.message}`
   );
 }
 
 /**
- * Download an image from URL and save it with query as filename
+ * Download an image from URL and save it with style-based filename
  * @param imageUrl - URL of the image to download
- * @param query - Search query to use as filename
+ * @param style - Resolved style configuration for naming
+ * @param index - Image index for filename
  * @returns Path to the downloaded image file
  */
-async function downloadImage(imageUrl: string, query: string): Promise<string> {
+async function downloadImage(imageUrl: string, style: ResolvedStyle, index: number): Promise<string> {
   logger.debug("Images", `Downloading image from: ${imageUrl}`);
 
   const response = await fetch(imageUrl);
@@ -398,9 +465,9 @@ async function downloadImage(imageUrl: string, query: string): Promise<string> {
   // Determine file extension from URL or content type
   const extension = getImageExtension(imageUrl, response.headers.get("content-type"));
 
-  // Sanitize query for filename
-  const sanitizedQuery = sanitizeFilename(query);
-  const filename = `${sanitizedQuery}${extension}`;
+  // Generate filename with style-based naming: {styleId}_{orientation}_{index}.{ext}
+  const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
+  const filename = `${style.id}${orientationSuffix}_${index}${extension}`;
   const filePath = join(TMP_IMAGES_DIR, filename);
 
   // Save the image
@@ -418,13 +485,11 @@ async function downloadImage(imageUrl: string, query: string): Promise<string> {
  * @returns File extension with dot (e.g., ".jpg")
  */
 function getImageExtension(url: string, contentType: string | null): string {
-  // Try to get extension from URL
   const urlExtension = extname(url).toLowerCase();
   if (urlExtension && [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(urlExtension)) {
     return urlExtension;
   }
 
-  // Try to get extension from content type
   if (contentType) {
     if (contentType.includes("jpeg")) return ".jpg";
     if (contentType.includes("png")) return ".png";
@@ -432,7 +497,6 @@ function getImageExtension(url: string, contentType: string | null): string {
     if (contentType.includes("gif")) return ".gif";
   }
 
-  // Default to .jpg
   return ".jpg";
 }
 
@@ -442,7 +506,6 @@ function getImageExtension(url: string, contentType: string | null): string {
  * @returns Sanitized filename
  */
 function sanitizeFilename(filename: string): string {
-  // Replace invalid Windows filename characters with underscore
   return filename
     .replace(/[<>:"/\\|?*]/g, "_")
     .replace(/\s+/g, "_")

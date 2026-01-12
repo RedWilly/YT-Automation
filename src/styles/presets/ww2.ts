@@ -22,7 +22,7 @@ export const ww2Style: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "black-and-white, WWII documentary, archival photography, high contrast, 1940s military, film grain, photojournalism",
-  negativePrompt: "text, words, letters, numbers, labels, captions, color, modern, cartoon, anime, illustration, watermark, deformed, border, frame, white border, margin, edges, vignette",
+  negativePrompt: "no text, no words, no letters, no numbers, no labels, no captions, no color, modern, cartoon, anime, illustration, watermark, deformed, border, frame, white border, margin, edges, vignette",
 
   // === Segmentation ===
   segmentationType: "wordCount",
@@ -64,17 +64,5 @@ export const ww2Style: VideoStyle = {
 
   // === Video Effects ===
   panEffect: false,
-
-  // === Natural Editing ===
-
-
-  // === LLM Context ===
-  // llmContext: `World War 2 documentary aesthetic. Black-and-white archival photography look. High contrast, dramatic lighting, film grain. Period-accurate 1940s military equipment, uniforms, and vehicles. Capture the raw authenticity of war photojournalism.`,
-  llmContext: `World War 2 documentary with archival black-and-white photography aesthetic.
-
-COMPOSITION: Cinematic war photographer framing. Wide shots for battlefields, medium shots for soldiers, close-ups for equipment details.
-LIGHTING: High contrast, dramatic shadows, film grain texture. Authentic 1940s look.
-SUBJECTS: Period-accurate uniforms, vehicles, weapons. Soldiers, civilians, military equipment in action.
-CONSTRAINTS: No modern objects, no color, no fantasy elements. Avoid maps/documents unless described as "blurred" or "background".`,
 };
 

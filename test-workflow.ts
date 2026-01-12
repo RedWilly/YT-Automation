@@ -10,7 +10,7 @@
 
 import { transcribeAudio } from "./src/services/transcription/index.ts";
 import { processTranscript, validateTranscriptData } from "./src/services/transcription/index.ts";
-import { generateImageQueries, validateImageQueries } from "./src/services/llm/index.ts";
+import { generateImageQueries, validateImageQueries, type StoryContext } from "./src/services/llm/index.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "./src/services/image/index.ts";
 import { generateVideo, validateVideoInputs } from "./src/services/video/index.ts";
 import { uploadVideoToMinIO } from "./src/services/storage/index.ts";
@@ -24,6 +24,7 @@ import {
   getCachedTranscript,
   getCachedSegments,
   getCachedImageQueries,
+  getCachedStoryContext,
   getCachedImages,
   initDatabase,
 } from "./src/services/storage/index.ts";
@@ -31,7 +32,7 @@ import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedIma
 import * as logger from "./src/utils/logger.ts";
 
 const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
-const MINIO_ENABLED = MINIO.enabled;
+const PRODUCTION = MINIO.enabled;
 import { readdir } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
@@ -186,10 +187,11 @@ async function runTestWorkflow(): Promise<void> {
     // =============================================================
     logger.step("Test", "Step 4: Generating image queries");
 
-    let imageQueries: ImageSearchQuery[];
+    let imageQueries!: ImageSearchQuery[];
 
     // Image queries are shared across orientations
     const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useShotTypes);
+    const cachedContext = getCachedStoryContext(audioHash, style.id, "horizontal", useShotTypes) as StoryContext | null;
 
     if (cachedQueries) {
       logger.log("Test", "📦 Using cached image queries (no LLM call)");
@@ -197,10 +199,24 @@ async function runTestWorkflow(): Promise<void> {
       logger.success("Test", `Loaded ${imageQueries.length} queries from cache`);
     } else {
       logger.log("Test", "🔄 Calling LLM to generate queries...");
-      imageQueries = await generateImageQueries(formattedTranscript, style);
-      validateImageQueries(imageQueries);
+      const result = await generateImageQueries(
+        formattedTranscript,
+        style,
+        cachedContext,
+        (context) => {
+          // Cache story context immediately after extraction (only if entities/scenes were extracted)
+          if (context.entities.length > 0 || context.scenes.length > 0) {
+            updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
+              story_context: JSON.stringify(context),
+            });
+            logger.log("Test", "📦 Cached story context immediately after extraction");
+          } else {
+            logger.log("Test", "⚠️ No entities/scenes extracted, skipping context cache");
+          }
+        }
+      );
 
-      // Save to style-specific cache (shared across orientations)
+      // Save image queries to style-specific cache (shared across orientations)
       updateStyleCache(audioHash, style.id, "horizontal", useShotTypes, {
         image_queries: JSON.stringify(imageQueries),
       });
@@ -216,24 +232,43 @@ async function runTestWorkflow(): Promise<void> {
     }
 
     // =============================================================
-    // Step 5: Download Images (check cache first)
+    // Step 5: Download Images (with incremental caching)
     // =============================================================
     logger.step("Test", "Step 5: Downloading images");
 
     let downloadedImages: DownloadedImage[];
 
+    // Get any existing cached images (may be partial from failed run)
     const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useShotTypes);
 
     if (cachedImages && cachedImages.length === imageQueries.length) {
+      // Full cache - use as-is
       logger.log("Test", "📦 Using cached images (all files verified)");
       downloadedImages = cachedImages;
       logger.success("Test", `Loaded ${downloadedImages.length} images from cache`);
     } else {
-      logger.log("Test", "🔄 Downloading images...");
-      downloadedImages = await downloadImagesForQueries(imageQueries, style);
+      // Partial or no cache - download remaining with incremental save
+      const existingCount = cachedImages?.length ?? 0;
+      if (existingCount > 0) {
+        logger.log("Test", `📦 Resuming from ${existingCount}/${imageQueries.length} cached images`);
+      } else {
+        logger.log("Test", "🔄 Downloading images...");
+      }
+
+      downloadedImages = await downloadImagesForQueries(
+        imageQueries,
+        style,
+        cachedImages ?? undefined,
+        (images) => {
+          // Save to cache after each successful download
+          updateStyleCache(audioHash, style.id, style.orientation, useShotTypes, {
+            downloaded_images: JSON.stringify(images),
+          });
+        }
+      );
       validateDownloadedImages(downloadedImages);
 
-      // Save to style-specific cache
+      // Final save
       updateStyleCache(audioHash, style.id, style.orientation, useShotTypes, {
         downloaded_images: JSON.stringify(downloadedImages),
       });
@@ -258,7 +293,7 @@ async function runTestWorkflow(): Promise<void> {
     logger.success("Test", `Video generated: ${videoResult.videoPath}`);
 
     // Step 7: Upload to MinIO (if enabled)
-    if (MINIO_ENABLED) {
+    if (PRODUCTION) {
       logger.step("Test", "Step 7: Uploading to MinIO");
       const minioResult = await uploadVideoToMinIO(videoResult.videoPath);
 

@@ -108,6 +108,7 @@ async function callLLM(
     return await response.json() as LLMResponse;
 }
 
+
 /**
  * Rewrite an unsafe image prompt to make it safe for AI image generation
  * Enhanced with retry awareness and name anonymization
@@ -187,7 +188,6 @@ REWRITE to be safe. Return ONLY the new prompt:`;
             throw new Error("Empty response from LLM");
         }
 
-        // Clean up the response - remove quotes if present
         const rewritten = content.trim().replace(/^["']|["']$/g, "");
 
         logger.success("LLM", `Rewritten prompt: "${rewritten.substring(0, 50)}..."`);
@@ -195,7 +195,6 @@ REWRITE to be safe. Return ONLY the new prompt:`;
         return rewritten;
     } catch (error) {
         logger.warn("LLM", `Failed to rewrite prompt: ${error instanceof Error ? error.message : String(error)}`);
-        // Return a generic safe fallback
         return `Abstract ${style.imageStyle} artwork with ambient mood`;
     }
 }

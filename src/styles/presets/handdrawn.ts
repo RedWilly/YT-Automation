@@ -24,7 +24,7 @@ export const handdrawnStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "hand-drawn doodle, pale yellow background, thin black outlines, stick-figure, flat minimal style, no shading",
-    negativePrompt: "text, words, letters, numbers, labels, photorealistic, 3D, anime, gradients, shading, white background, border, frame, white border, margin, edges, vignette",
+    negativePrompt: "no text, no words, no letters, no numbers, no labels, no photorealistic, no 3D, no anime, no gradients, no shading, no white background, no border, no frame, no white border, no margin, no edges, no vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",
@@ -66,15 +66,4 @@ export const handdrawnStyle: VideoStyle = {
 
     // === Video Effects ===
     panEffect: false,  // Static works best for explainer style
-
-
-    // === LLM Context ===
-    // llmContext: `Hand-drawn doodle style on pale pastel yellow background. Simple stick-figure characters with rounded heads and dot eyes. Use visual icons and symbols instead of text. Flat, clean minimal style with thin black outlines and no shading.`,
-    llmContext: `Hand-drawn doodle explainer on pale pastel yellow background.
-
-CHARACTER: Simple stick-figure with round head, dot eyes, curved mouth. Thin black outlines, flat minimal style. Same character design in every image.
-VISUAL SYMBOLS: Replace all text with icons → clock hands only (no numbers), hourglass (time), lightbulb (ideas), question mark (confusion), checkmark (success), X mark (failure), arrows (movement).
-COMPOSITION: Centered subject, ample whitespace, one concept per image. Minimal environment with simple geometric props.
-COLORS: Pale yellow background mandatory. Black outlines only. Flat accent colors for emphasis (red shirt, yellow lightbulb).
-CONSTRAINTS: No text, no labels, no numbers, no shading, no gradients, no 3D.`,
 };

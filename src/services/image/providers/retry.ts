@@ -29,7 +29,7 @@ export interface RetryConfig {
 const DEFAULT_CONFIG: Required<RetryConfig> = {
     maxAttempts: 3,
     baseDelayMs: 1000,
-    maxDelayMs: 600000, // 10 minutes max delay
+    maxDelayMs: 600000,
     multiplier: 2,
     jitter: true,
     logTag: "Retry",
@@ -105,11 +105,10 @@ export async function withRetry<T>(
  * @returns True if error is likely transient and worth retrying
  */
 export function isRetryableError(error: unknown): boolean {
-    if (!(error instanceof Error)) return true; // Unknown errors, try again
+    if (!(error instanceof Error)) return true;
 
     const message = error.message.toLowerCase();
 
-    // Definitely retry these
     const retryablePatterns = [
         "timeout",
         "econnreset",

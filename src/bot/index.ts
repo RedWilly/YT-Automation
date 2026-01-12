@@ -8,7 +8,6 @@ import { WorkflowService } from "../core/workflow.ts";
 import { jobQueue, type Job } from "../core/queue/index.ts";
 import * as logger from "../utils/logger.ts";
 
-// Import commands
 import {
     handleStartCommand,
     handleHelpCommand,
@@ -20,14 +19,12 @@ import {
     handleQueueCommand,
 } from "./commands/index.ts";
 
-// Import handlers
 import {
     handleVoiceMessage,
     handleAudioMessage,
     handleDocumentMessage,
 } from "./handlers/index.ts";
 
-// Import utilities
 import { waitingForUrl } from "./utils.ts";
 
 /**
@@ -37,7 +34,6 @@ import { waitingForUrl } from "./utils.ts";
 export function createBot() {
     const bot = getTelegramBot();
 
-    // Error handling
     bot.catch((err: unknown, ctx: Context) => {
         logger.error("Bot", "Error in bot", err);
         ctx.reply(`❌ An error occurred: ${err instanceof Error ? err.message : String(err)}`).catch(console.error);
@@ -109,7 +105,6 @@ export async function startBot(): Promise<void> {
 
     logger.log("Bot", "Starting Telegram bot...");
 
-    // Graceful shutdown handler
     const gracefulShutdown = async (reason: string) => {
         logger.log("Bot", `Received ${reason}, initiating graceful shutdown...`);
 
@@ -123,7 +118,6 @@ export async function startBot(): Promise<void> {
         logger.log("Bot", "Bot stopped gracefully");
     };
 
-    // Enable graceful stop on signals
     process.once("SIGINT", () => gracefulShutdown("SIGINT"));
     process.once("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
@@ -147,11 +141,9 @@ export async function startBot(): Promise<void> {
             process.exit(1);
         }
 
-        // Re-throw other errors
         throw error;
     }
 
-    // Set up error handler for runtime 409 errors (when another instance starts later)
     bot.catch(async (err: unknown) => {
         const errorMessage = err instanceof Error ? err.message : String(err);
 
@@ -165,9 +157,8 @@ export async function startBot(): Promise<void> {
             }
 
             logger.log("Bot", "Shutting down gracefully due to conflict");
-            process.exit(0); // Exit cleanly
+            process.exit(0);
         } else {
-            // Log other errors normally
             logger.error("Bot", "Unhandled bot error", err);
         }
     });

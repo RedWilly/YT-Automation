@@ -18,7 +18,7 @@ import {
 /**
  * Supported AI providers for text generation
  */
-export type AIProvider = 'kimi' | 'deepseek' | 'gemini';
+export type AIProvider = 'kimi' | 'deepseek' | 'gemini' | 'Qwen';
 
 /**
  * Supported AI providers for image generation
@@ -74,32 +74,41 @@ export function parseIdList(envValue?: string): number[] {
  * Each provider has its own optimal settings
  */
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
+    Qwen: {
+        model: 'Qwen/Qwen3-VL-32B-Instruct',
+        baseUrl: 'https://api.together.xyz/v1',
+        apiKey: envString('TOGETHER_API_KEY'),
+        segmentsPerBatch: 60,
+        maxTokens: 200000, //190K
+        temperature: 0.2,
+        maxRetries: 15,
+    },
     deepseek: {
         model: 'deepseek-chat',
         baseUrl: 'https://api.deepseek.com/v1',
         apiKey: envString('DEEPSEEK_API_KEY'),
         segmentsPerBatch: 60,
         maxTokens: 8000,
-        temperature: 0.4,
-        maxRetries: 3,
+        temperature: 0.2,
+        maxRetries: 15,
     },
     kimi: {
-        model: 'kimi-k2-0905-preview',
+        model: 'kimi-k2-turbo-preview',
         baseUrl: 'https://api.moonshot.ai/v1',
         apiKey: envString('KIMI_API_KEY'),
         segmentsPerBatch: 60,
-        maxTokens: 8000,
-        temperature: 0.4,
-        maxRetries: 3,
+        maxTokens: 256000,
+        temperature: 0.2,
+        maxRetries: 6,
     },
     gemini: {
         model: 'gemini-2.5-flash',
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKey: envString('GEMINI_API_KEY'),
-        segmentsPerBatch: 0, // 0 = entire transcript at once
+        segmentsPerBatch: 60, // Batch for reliable output on long transcripts
         maxTokens: 64000,
-        temperature: 0.4,
-        maxRetries: 3,
+        temperature: 0.2,
+        maxRetries: 6,
     },
 };
 
@@ -149,7 +158,7 @@ export const AI_IMAGE = {
  * MinIO object storage configuration
  */
 export const MINIO = {
-    enabled: envBool("MINIO_ENABLED"),
+    enabled: envBool("PRODUCTION"),
     endpoint: envString("MINIO_ENDPOINT"),
     accessKey: envString("MINIO_ACCESS_KEY"),
     secretKey: envString("MINIO_SECRET_KEY"),

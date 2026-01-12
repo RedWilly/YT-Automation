@@ -99,7 +99,6 @@ class JobQueueService {
         const styleInfo = style ? ` (style: ${style.name})` : "";
         logger.log("Queue", `Added file job ${job.id}: ${filename}${styleInfo}`);
 
-        // Start processing if not already running
         this.processNext();
 
         return job;
@@ -132,7 +131,6 @@ class JobQueueService {
         const styleInfo = style ? ` (style: ${style.name})` : "";
         logger.log("Queue", `Added URL job ${job.id}${styleInfo}`);
 
-        // Start processing if not already running
         this.processNext();
 
         return job;
@@ -191,7 +189,6 @@ class JobQueueService {
             return;
         }
 
-        // Get the context for this job
         const ctx = this.contextMap.get(nextJob.id);
         if (!ctx) {
             logger.error("Queue", `No context found for job ${nextJob.id}`);
@@ -213,32 +210,25 @@ class JobQueueService {
         logger.step("Queue", `Processing job ${nextJob.id}`);
 
         try {
-            // Process the job
             await this.processor(nextJob, ctx);
 
-            // Mark as completed
             nextJob.status = "completed";
             nextJob.completedAt = Date.now();
             logger.success("Queue", `Job ${nextJob.id} completed`);
 
         } catch (error) {
-            // Mark as failed
             nextJob.status = "failed";
             nextJob.completedAt = Date.now();
             nextJob.error = error instanceof Error ? error.message : String(error);
             logger.error("Queue", `Job ${nextJob.id} failed: ${nextJob.error}`);
         }
 
-        // Clean up context
         this.contextMap.delete(nextJob.id);
         this.isProcessing = false;
 
-        // Check for more pending jobs and notify user
         const pendingCount = this.queue.filter(j => j.status === "pending").length;
         if (pendingCount > 0) {
             logger.log("Queue", `${pendingCount} job(s) remaining in queue`);
-
-            // Notify next user that their job is starting
             const nextPendingJob = this.queue.find(j => j.status === "pending");
             if (nextPendingJob) {
                 const nextCtx = this.contextMap.get(nextPendingJob.id);

@@ -55,6 +55,7 @@ export interface StyleCacheEntry {
     natural_edit: number;  // 0 or 1 (SQLite boolean)
     segments: string | null;
     formatted_transcript: string | null;
+    story_context: string | null;  // JSON.stringify(StoryContext)
     image_queries: string | null;
     downloaded_images: string | null;
     created_at: number;
@@ -80,6 +81,7 @@ export interface AudioCacheUpdate {
 export interface StyleCacheUpdate {
     segments?: string;
     formatted_transcript?: string;
+    story_context?: string;
     image_queries?: string;
     downloaded_images?: string;
 }
@@ -130,6 +132,7 @@ export function initDatabase(): void {
       natural_edit INTEGER NOT NULL DEFAULT 0,
       segments TEXT,
       formatted_transcript TEXT,
+      story_context TEXT,
       image_queries TEXT,
       downloaded_images TEXT,
       created_at INTEGER DEFAULT (strftime('%s', 'now')),
@@ -462,6 +465,29 @@ export function getCachedImageQueries(audioHash: string, styleId: string, orient
             return JSON.parse(cache.image_queries) as ImageSearchQuery[];
         } catch {
             logger.warn("Cache", "Failed to parse cached image queries");
+            return null;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Get cached story context (style-specific)
+ * @param audioHash - Audio file hash
+ * @param styleId - Style ID
+ * @param orientation - Video orientation (horizontal or vertical)
+ * @param naturalEdit - Whether natural edit mode is enabled
+ * @returns Story context object or null
+ */
+export function getCachedStoryContext(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): unknown | null {
+    const cache = getStyleCache(audioHash, styleId, orientation, naturalEdit);
+
+    if (cache?.story_context) {
+        try {
+            return JSON.parse(cache.story_context);
+        } catch {
+            logger.warn("Cache", "Failed to parse cached story context");
             return null;
         }
     }

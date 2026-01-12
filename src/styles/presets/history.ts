@@ -19,41 +19,51 @@ import { DEFAULT_CAPTION_STYLE, DEFAULT_HIGHLIGHT_STYLE } from "../types.ts";
 export const historyStyle: VideoStyle = {
   id: "history",
   name: "History",
-  description: "Classic documentary style with gouache illustration aesthetic and karaoke captions",
+  description: "Documentary style with painterly aesthetic and karaoke captions",
 
   // === Image Generation ===
-  imageStyle: "gouache watercolor illustration, soft blended colors, painterly textures, atmospheric lighting, matte painting, rich soft colors, detailed background",
-  negativePrompt: "text, words, letters, numbers, labels, captions, titles, typography, photograph, 3d, vector, oil painting, neon colors, watermark, deformed, border, frame, white border, margin, edges, vignette",
+  imageStyle: "period-appropriate details, artistic interpretation, rich color palette, painterly quality, atmospheric lighting, creative composition, semi-realistic with stylized elements",
+  negativePrompt: "text, words, letters, numbers, labels, captions, typography, photograph, 3d render, vector art, neon colors, watermark, deformed, border, frame, margin",
 
   // === Segmentation ===
   segmentationType: "sentence",
   wordsPerSegment: 0, // Not used for sentence-based
 
   // === Captions ===
-  captionsEnabled: true,
+  captionsEnabled: false,
   minWordsPerCaption: 3,
   maxWordsPerCaption: 6,
   captionStyle: {
     ...DEFAULT_CAPTION_STYLE,
+    fontSize: 52,
+    primaryColor: "&H00FFFFFF",
+    outlineColor: "&H00000000",
+    backgroundColor: "&H00000000",  // Black (for shadow effect)
+    outlineWidth: 4,  // Thick outline for visibility
+    shadowDepth: 4,   // Thick shadow  
     useBox: false, // Outline style for non-highlighted words
+    // Position & Layout
+    alignment: 2,
+    marginV: 130,
+    marginVVertical: 550,
+    marginL: 10,
+    marginR: 10,
+    // Text Transform
+    scaleX: 100,
+    scaleY: 100,
+    letterSpacing: 0,
+    bold: true,
+    italic: false,
+    uppercase: true,
   },
   highlightStyle: {
-    ...DEFAULT_HIGHLIGHT_STYLE,
-    enabled: true,
-    color: "&H00FF008B", // Purple
-    useBox: true,
+    enabled: true,  // enabled karaoke by default
+    color: "&H0000FFFF",  // Yellow (if enabled)
+    useBox: false,  // No box - just changes text color
+    outlineWidth: 4,
   },
 
   // === Video Effects ===
   panEffect: false,
-
-  // === LLM Context ===
-  // llmContext: `Historical documentary aesthetic. Focus on period-accurate costumes, architecture, and landscapes. Use atmospheric lighting with rich, warm tones. Every scene should feel like a painting come to life.`,
-  llmContext: `Historical documentary with gouache/watercolor illustration aesthetic.
-
-COMPOSITION: Wide establishing shots for landscapes, medium shots for character moments. Fill the entire frame with detailed backgrounds.
-LIGHTING: Atmospheric, golden hour, soft diffused light. Rich warm tones.
-SUBJECTS: Period-accurate costumes, architecture, and props. Every scene should feel like a painting come to life.
-CONSTRAINTS: Avoid text-heavy objects (newspapers, signs). If unavoidable, describe them as "distant" or "illegible".`,
 };
 

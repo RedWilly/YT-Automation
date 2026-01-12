@@ -2,53 +2,111 @@
  * LLM Prompt templates using the 4-Pillar approach:
  * Persona, Task, Context, Format
  * 
- * Enhanced with Runway Gen-4 keyword categories and Gemini command language
+ * Enhanced with entity-aware context injection for consistency
  */
 
 import type { ResolvedStyle } from '../../styles/types.ts';
+import type { StoryContext, BatchState } from './context.ts';
+import { buildContextInjection } from './context.ts';
 
 /**
- * Build system prompt for the LLM with style-specific context
- * Applies Gemini prompting guide: Persona + Task + Context + Format
+ * Build context-aware system prompt for Phase 2 query generation
+ * Includes entity definitions from extracted StoryContext
  */
-export function buildSystemPrompt(useAiImage: boolean, style: ResolvedStyle): string {
-   // --- PERSONA (who is the AI?) ---
-   const persona = `You are a senior visual storyboard artist and cinematographer. You specialize in translating spoken narratives into cinematic image descriptions optimized for AI generation.`;
+export function buildContextAwareSystemPrompt(
+   useAiImage: boolean,
+   style: ResolvedStyle,
+   storyContext: StoryContext
+): string {
+   // --- PERSONA ---
+   const persona = `You are a Lead Storyboard Artist for a high-end animation studio. Your job is to translate a script into a cohesive, frame-by-frame visual narrative.
 
-   // --- TASK (what must be done?) ---
-   const task = `ANALYZE the transcript segment-by-segment. GENERATE one vivid image description per segment. ENSURE visual narrative continuity across all images.`;
+   CORE RESPONSIBILITIES:
+   1. VISUAL CONTINUITY: Every shot must look like it belongs to the same film. Lighting, color palette, and art style must stay locked.
+   2. SPATIAL CONSISTENCY: If a character is on the left in one shot, they shouldn't magically teleport to the right unless there's a reason.
+   3. ASSET FIDELITY: You must use the EXACT defined assets (characters, locations, objects) without altering their appearance.`;
 
-   // --- CONTEXT (background + constraints) ---
+   // --- TASK ---
+   const task = `Create a sequence of detailed image prompts for an AI generation pipeline. 
+   
+   GOAL: transform the script into a contiguous visual flow.
+   - Treat this as an ANIMATION or FILM production.
+   - Each prompt is one keyframe.
+   - Maintain the "Director's Vision" found in the Scene and Global Context.`;
+
+   // --- CONTEXT: STORY OVERVIEW ---
+   const storyOverview = `PRODUCTION CONTEXT:
+- Era/Period: ${storyContext.era || 'Not specified'}
+- Primary Location: ${storyContext.primarySetting || 'Various locations'}
+- Visual Tone: ${storyContext.tone || 'Not specified'}`;
+
+   // --- CONTEXT: STYLE ---
    const styleDirection = useAiImage
-      ? `BLEND style keywords naturally into every query: "${style.imageStyle}"
-Pattern: [Style prefix] of [subject doing action in setting]. [Style modifiers].
-Example: "gouache watercolor illustration of a king standing in throne room. soft blended colors, atmospheric lighting, painterly textures."`
+      ? `VISUAL STYLE GUIDE:
+- Describe the SCENE only (what is filmed).
+- DO NOT describe the artistic medium (e.g., "oil painting", "digital art") - this is handled by a separate style engine.
+- Focus on LIGHTING, COMPOSITION, and ATMOSPHERE to glue the shots together.`
       : `OPTIMIZE for web image search. Use concrete, searchable noun phrases.`;
 
-   const forbidden = useAiImage && style.negativePrompt
-      ? `REJECT these elements (never include): ${style.negativePrompt}`
-      : '';
-
-   const llmContext = style.llmContext || '';
-
-   // --- FORMAT (output specification) ---
-   const wordCount = useAiImage ? '40-70' : '8-15';
-
-   // Shot types only for sentence-based segmentation (not wordCount)
+   // --- SHOT TYPES ---
    const useShotTypes = style.segmentationType === 'sentence';
-
    const outputSchema = useShotTypes
-      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static"}`
+      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static", "linkedTo": number|null}`
       : `{"start": number, "end": number, "query": "string"}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
-ASSIGN shot type for visual rhythm:
-- "pan" → establishing shots, wide scenes, new locations
-- "zoom" → close-ups, details, emphasis, specific facts
-- "static" → main action, dialogue, primary subject
-VARY types: never repeat the same type 3+ times consecutively.`
+CINEMATOGRAPHY RULES (The 'type' field):
+- "pan": Use for establishing shots, wide environments, or following movement.
+- "zoom": Use for emotional beats, realizations, or focusing on specific details.
+- "static": Use for dialogue, stable action, or calm moments. (should not be more than 20% of the total)
+
+EDITING FLOW:
+- Vary your shot types to create rhythm.
+- Do not stick on "static" for too long.
+- SEQUENCE your shots: Wide -> Medium -> Close-up is a classic pattern.
+
+VISUAL LINKING ('linkedTo'):
+- This is crucial for consistency.
+- If a shot relates to a previous one (e.g., same conversation, same room), LINK IT.
+- This tells the renderer "Keep the visual data from that previous frame".`
       : '';
+
+   // --- CRITICAL RULES ---
+   const criticalRules = `
+## QUERY CONTENT RULES (CRITICAL)
+
+WHAT TO INCLUDE:
+- SUFFUSE every query with the "Setting" and "Atmosphere" defined in the current scene.
+- COPY & PASTE the "VISUAL ANCHOR" for any entity present. Do not summarize it.
+- Action: What is happening in this frozen moment.
+
+## SPATIAL & ENVIRONMENTAL CONSISTENCY
+- The BACKGROUND must remain consistent. If they are in a "muddy trench with gray sky," EVERY shot in that scene must mention "muddy trench" and "gray sky".
+- LIGHTING CONTINUITY: If it's "dawn" in shot 1, it generally shouldn't be "midnight" in shot 2 unless time passes.
+- OBJECT PERMANENCE: If a table has a "red vase" on it in the wide shot, the close-up of the table must also have the "red vase" (or at least not contradict it).
+
+## VISUAL SELF-CONTAINMENT
+- The AI has NO MEMORY of previous images. 
+- You MUST repeat the full visual description every time an entity appears.
+- BAD: "The soldier looks tired."
+- GOOD: "Close up of the 18-year-old Venetian soldier with a weary face, mud-stained woolen coat, and unkempt hair, looking exhausted against the backdrop of a rainy trench."
+
+## NEGATIVE CONSTRAINTS (INSTANT FAIL IF VIOLATED)
+1. NO TEXT OF ANY KIND. Do not include signs, labels, speech bubbles, numbers, dates, or letters.
+2. NO DIAGRAMS OR MAPS. Do not use "cross-section", "diagrammatic", "schematic", "map view", or "arrows". show the REALITY (e.g., the tunnel itself, not a drawing of it).
+3. NO MONTAGES OR SPLIT SCREENS. Do not use "flashback montage", "split image", or "superimposed". Show ONE cohesive moment in time.
+4. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.
+5. NO META DESCRIPTIONS. Do not say "A historical painting of..." or "A realistic photo of...". Just describe the scene.
+6. ABSOLUTELY NO LAZINESS. If a character is in the scene, their full visual anchor must be in the prompt.
+
+## FINAL CONSISTENCY CHECK
+Before outputting, verify:
+1. Did I copy the VISUAL ANCHOR exactly?
+2. Did I include the SETTING details (mud, gray sky, star-shaped walls)?
+3. Does this shot visually match the previous one?
+4. Is there any forbidden text (labels, dates, "concept")?
+5. Is this a single, real scene (not a montage or map)?`;
 
    return `# PERSONA
 ${persona}
@@ -56,67 +114,64 @@ ${persona}
 # TASK
 ${task}
 
-# CONTEXT
-## Style Keywords
+# ${storyOverview}
+
+# STYLE
 ${styleDirection}
-${forbidden}
 
-## Creative Brief
-${llmContext}
-
-## Query Structure (Runway Gen-4 Categories)
-INCLUDE these elements in every query:
-- SUBJECT: Who/what is the focus? Be specific (e.g., "weathered fisherman" not "man")
-- ACTION: What is happening? Use active verbs
-- SETTING: Where is this? Include environment details
-- LIGHTING: Describe the light quality (e.g., "golden hour", "dramatic shadows")
-- COMPOSITION: Frame the shot (e.g., "medium shot", "centered", "rule of thirds")
 ${shotTypeInstructions}
 
-Word count: ${wordCount} words per query.
+${criticalRules}
 
-## Critical Rules
-1. PRESERVE timestamps exactly (copy start/end values unchanged)
-2. NEVER include text, words, letters, numbers, or labels in visual descriptions
-3. MAINTAIN consistency: same character = identical description phrase, same location = identical phrase
-4. REPLACE text concepts with visual symbols (e.g., "$500" → "stack of money with dollar symbol icon")
-5. ENSURE visual continuity: consecutive segments in same scene should flow naturally
-
-# FORMAT
-RETURN only a valid JSON array. No markdown, no preamble, no explanations.
+# OUTPUT FORMAT
+Return ONLY a valid JSON array. No markdown, no explanations.
 Schema: ${outputSchema}`;
 }
 
 /**
- * Build user prompt with the transcript
+ * Build context-aware user prompt for Phase 2 query generation
+ * Includes entity registry and batch state from previous batch
  */
-export function buildUserPrompt(
+export function buildContextAwareUserPrompt(
    formattedTranscript: string,
    segmentCount: number,
    useAiImage: boolean,
-   naturalEdit: boolean = false
+   naturalEdit: boolean,
+   storyContext: StoryContext,
+   batchState: BatchState | null,
+   currentSegments: [number, number]
 ): string {
-   const wordCount = useAiImage ? '40-70' : '8-15';
+   const wordCount = useAiImage ? '80-100' : '8-15';
+
+   // Build the context injection with entity definitions
+   const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
 
    const typeField = naturalEdit
-      ? `- INCLUDE "type" field: "pan", "zoom", or "static"`
+      ? `- SET "type": "pan", "zoom", or "static" (for video editing, NOT in query text)
+- SET "linkedTo": index of related segment (< current index), or null`
       : '';
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "...", "type": "pan"}, ...]`
+      ? `[{"start": 0, "end": 5000, "query": "a lone Viking warrior...", "type": "pan", "linkedTo": null}, ...]`
       : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
 
-   return `# TRANSCRIPT (${segmentCount} segments)
+   return `${contextSection}
+
+# TRANSCRIPT (${segmentCount} segments)
 ${formattedTranscript}
 
-# EXECUTE
-1. IDENTIFY recurring characters, locations, and themes
-2. GENERATE exactly ${segmentCount} queries
-3. USE ${wordCount} words per query
-4. COPY exact timestamps from segments
+# INSTRUCTIONS
+1. Write EXACTLY ${segmentCount} image prompts — one per segment, no more, no less.
+2. Use EXACT entity descriptions from registry above
+3. Each query: ${wordCount} words, complete visual description
+4. NO camera language in queries (camera movement goes in "type" field only)
 ${typeField}
 
 # OUTPUT
-JSON array only:
-${outputExample}`;
+JSON array with EXACTLY ${segmentCount} items:
+${outputExample}
+
+# CRITICAL: COUNT VERIFICATION
+Before returning, verify your array has EXACTLY ${segmentCount} items.
+If you return fewer or more, the entire response will be REJECTED and you must retry.`;
 }

@@ -16,7 +16,7 @@ import type { ResolvedStyle } from "../styles/types.ts";
 import { getDefaultStyle, resolveStyle } from "../styles/index.ts";
 import { transcribeAudio } from "../services/transcription/index.ts";
 import { processTranscript, validateTranscriptData } from "../services/transcription/index.ts";
-import { generateImageQueries, validateImageQueries } from "../services/llm/index.ts";
+import { generateImageQueries, validateImageQueries, type StoryContext } from "../services/llm/index.ts";
 import {
     downloadImagesForQueries,
     validateDownloadedImages,
@@ -31,6 +31,7 @@ import {
     getCachedTranscript,
     getCachedSegments,
     getCachedImageQueries,
+    getCachedStoryContext,
     getCachedImages,
 } from "../services/storage/index.ts";
 import * as logger from "../utils/logger.ts";
@@ -58,12 +59,10 @@ export class WorkflowService {
         // Use default style if not provided
         const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
 
-        // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
         await progress.start(`🎙️ Audio received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
-            // Step 1: Download audio file from Telegram
             await progress.update({
                 step: "Downloading Audio",
                 message: "Downloading audio file from Telegram...",
@@ -71,7 +70,6 @@ export class WorkflowService {
             const audioFilePath = await downloadTelegramFile(fileId, filename, TMP_AUDIO_DIR);
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
-            // Run the core processing logic
             const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
             await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
@@ -96,15 +94,12 @@ export class WorkflowService {
         url: string,
         style?: ResolvedStyle
     ): Promise<WorkflowResult> {
-        // Use default style if not provided
         const resolvedStyle = style ?? resolveStyle(getDefaultStyle());
 
-        // Initialize progress tracker
         const progress = new ProgressTracker(ctx);
         await progress.start(`📎 URL received, starting processing...\n🎨 Style: ${resolvedStyle.name}`);
 
         try {
-            // Step 1: Download audio file from URL
             await progress.update({
                 step: "Downloading Audio",
                 message: "Downloading audio file from URL...",
@@ -112,7 +107,6 @@ export class WorkflowService {
             const audioFilePath = await downloadAudioFromUrl(url, TMP_AUDIO_DIR);
             logger.step("Workflow", "Audio downloaded", audioFilePath);
 
-            // Run the core processing logic
             const result = await this.runCoreWorkflow(audioFilePath, progress, resolvedStyle);
 
             await progress.complete(this.buildCompletionMessage(result, resolvedStyle));
@@ -193,7 +187,6 @@ export class WorkflowService {
             logger.step("Workflow", "Transcription completed and cached");
         }
 
-        // Validate transcript data
         validateTranscriptData(transcriptWords);
 
         // =============================================================
@@ -202,7 +195,6 @@ export class WorkflowService {
         let segments: TranscriptSegment[];
         let formattedTranscript: string;
 
-        // Cache key uses sentence vs wordCount to differentiate
         const useSentenceSegmentation = style.segmentationType === "sentence";
         const cachedSegments = getCachedSegments(audioHash, style.id, "horizontal", useSentenceSegmentation);
 
@@ -216,11 +208,9 @@ export class WorkflowService {
                 message: `Segmenting transcript (${style.segmentationType} mode)...`,
             });
 
-            // processTranscript now handles both merge AND split via unified balanceSegments()
             const result = processTranscript(transcriptWords, audioDuration, style);
             segments = result.segments;
 
-            // Build formatted transcript for LLM
             formattedTranscript = segments
                 .map(seg => `[${seg.start}–${seg.end}ms]: ${seg.text}`)
                 .join("\n");
@@ -237,10 +227,11 @@ export class WorkflowService {
         // =============================================================
         // STEP 4: LLM IMAGE QUERIES (Check cache first, style-specific)
         // =============================================================
-        let imageQueries: ImageSearchQuery[];
+        let imageQueries!: ImageSearchQuery[];
 
         // Image queries are style-specific (segmentationType)
         const cachedQueries = getCachedImageQueries(audioHash, style.id, "horizontal", useSentenceSegmentation);
+        const cachedContext = getCachedStoryContext(audioHash, style.id, "horizontal", useSentenceSegmentation) as StoryContext | null;
 
         if (cachedQueries) {
             logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
@@ -251,8 +242,22 @@ export class WorkflowService {
                 message: "Using AI to generate visual scene descriptions...",
             });
 
-            imageQueries = await generateImageQueries(formattedTranscript, style);
-            validateImageQueries(imageQueries);
+            const result = await generateImageQueries(
+                formattedTranscript,
+                style,
+                cachedContext,
+                (context) => {
+                    // Cache story context immediately after extraction (only if entities/scenes were extracted)
+                    if (context.entities.length > 0 || context.scenes.length > 0) {
+                        updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
+                            story_context: JSON.stringify(context),
+                        });
+                        logger.log("Workflow", "📦 Cached story context immediately after extraction");
+                    } else {
+                        logger.log("Workflow", "⚠️ No entities/scenes extracted, skipping context cache");
+                    }
+                }
+            );
 
             // Save to style-specific cache (shared across orientations)
             updateStyleCache(audioHash, style.id, "horizontal", useSentenceSegmentation, {
@@ -287,27 +292,46 @@ export class WorkflowService {
         }
 
         // =============================================================
-        // STEP 5: DOWNLOAD/GENERATE IMAGES (Check cache first)
+        // STEP 5: DOWNLOAD/GENERATE IMAGES (with incremental caching)
         // =============================================================
         let downloadedImages: DownloadedImage[];
 
+        // Get any existing cached images (may be partial from failed run)
         const cachedImages = getCachedImages(audioHash, style.id, style.orientation, useSentenceSegmentation);
 
         if (cachedImages && cachedImages.length === imageQueries.length) {
+            // Full cache - use as-is
             logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
             downloadedImages = cachedImages;
         } else {
+            // Partial or no cache - download remaining images with incremental save
+            const existingCount = cachedImages?.length ?? 0;
+            const remainingCount = imageQueries.length - existingCount;
+
             await progress.update({
                 step: "Downloading Images",
-                message: `Searching and downloading ${imageQueries.length} images...`,
-                current: 0,
+                message: existingCount > 0
+                    ? `Resuming download: ${remainingCount} remaining of ${imageQueries.length} images...`
+                    : `Downloading ${imageQueries.length} images...`,
+                current: existingCount,
                 total: imageQueries.length,
             });
 
-            downloadedImages = await downloadImagesForQueries(imageQueries, style);
+            // Pass existing images for resumption, and callback for incremental saves
+            downloadedImages = await downloadImagesForQueries(
+                imageQueries,
+                style,
+                cachedImages ?? undefined,
+                (images) => {
+                    // Save to cache after each successful download
+                    updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
+                        downloaded_images: JSON.stringify(images),
+                    });
+                }
+            );
             validateDownloadedImages(downloadedImages);
 
-            // Note: imageQueries may have been rewritten if prompts were flagged as unsafe
+            // Final save with image_queries as well
             updateStyleCache(audioHash, style.id, style.orientation, useSentenceSegmentation, {
                 image_queries: JSON.stringify(imageQueries),
                 downloaded_images: JSON.stringify(downloadedImages),

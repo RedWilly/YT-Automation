@@ -7,7 +7,7 @@ import { S3Client } from "bun";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import * as logger from "../../utils/logger.ts";
-import { MINIO } from "../../config/environment.ts";
+import { MINIO } from "../../config/index.ts";
 
 // Get MinIO config
 const MINIO_ENDPOINT = MINIO.endpoint;

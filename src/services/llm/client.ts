@@ -3,7 +3,7 @@
  * Handles API communication with LLM providers (DeepSeek, Kimi, etc.)
  */
 
-import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
+import { AI_TEXT, getAIConfig } from '../../config/index.ts';
 import type {
     LLMRequest,
     LLMResponse,

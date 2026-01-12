@@ -4,7 +4,7 @@
  */
 
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
-import { AI_IMAGE } from "../../../config/environment.ts";
+import { AI_IMAGE } from "../../../config/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 const WORKER_API_KEY = AI_IMAGE.workerApiKey;

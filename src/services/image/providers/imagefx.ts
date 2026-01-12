@@ -7,7 +7,7 @@
 import { ImageFX, Prompt, type AspectRatio } from "@rohitaryal/imagefx-api";
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
 import { UnsafePromptError } from "./errors.ts";
-import { AI_IMAGE } from "../../../config/environment.ts";
+import { AI_IMAGE } from "../../../config/index.ts";
 import { DEFAULT_PATHS } from "../../../config/defaults.ts";
 import * as logger from "../../../utils/logger.ts";
 import { join } from "node:path";

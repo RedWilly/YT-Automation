@@ -3,7 +3,7 @@
  */
 
 import { AssemblyAI } from "assemblyai";
-import { TRANSCRIPTION } from "../../config/environment.ts";
+import { TRANSCRIPTION } from "../../config/index.ts";
 import type {
   AssemblyAIUploadResponse,
   AssemblyAITranscriptRequest,

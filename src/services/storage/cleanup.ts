@@ -6,7 +6,7 @@
 import { readdir, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import * as logger from "../../utils/logger.ts";
-import { PATHS } from "../../config/environment.ts";
+import { PATHS } from "../../config/index.ts";
 import type { CleanupResult } from "../../types/index.ts";
 import { clearAllCache } from "./cache.ts";
 

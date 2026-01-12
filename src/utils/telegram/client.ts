@@ -4,7 +4,7 @@
  */
 
 import { Telegraf, type Context } from "telegraf";
-import { TELEGRAM } from "../../config/environment.ts";
+import { TELEGRAM } from "../../config/index.ts";
 import * as logger from "../logger.ts";
 
 // Get config values

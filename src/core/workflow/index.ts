@@ -9,7 +9,7 @@ import {
     type Context,
 } from "../../utils/telegram/index.ts";
 import { DEFAULT_PATHS } from "../../config/defaults.ts";
-import { MINIO } from "../../config/environment.ts";
+import { MINIO } from "../../config/index.ts";
 import type { WorkflowResult } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { getDefaultStyle, resolveStyle } from "../../styles/index.ts";

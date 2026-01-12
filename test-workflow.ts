@@ -15,7 +15,7 @@ import { downloadImagesForQueries, validateDownloadedImages } from "./src/servic
 import { generateVideo, validateVideoInputs } from "./src/services/video/index.ts";
 import { uploadVideoToMinIO } from "./src/services/storage/index.ts";
 import { DEFAULT_PATHS } from "./src/config/defaults.ts";
-import { MINIO } from "./src/config/environment.ts";
+import { MINIO } from "./src/config/index.ts";
 import { getDefaultStyle, resolveStyle } from "./src/styles/index.ts";
 import {
   hashAudioFile,

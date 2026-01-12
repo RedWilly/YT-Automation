@@ -12,7 +12,7 @@ import type { ImageProvider } from "./types.ts";
 import { cloudflareProvider } from "./cloudflare.ts";
 import { togetherAIProvider } from "./togetherai.ts";
 import { imageFXProvider } from "./imagefx.ts";
-import { AI_IMAGE } from "../../../config/environment.ts";
+import { AI_IMAGE } from "../../../config/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 const AI_IMAGE_MODEL = AI_IMAGE.provider;

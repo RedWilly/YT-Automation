@@ -5,7 +5,7 @@
 
 import { duckDuckGoImageSearch } from "../../utils/dim.ts";
 import { DEFAULT_PATHS, DEFAULT_IMAGE_SETTINGS } from "../../config/defaults.ts";
-import { AI_TEXT, AI_IMAGE } from "../../config/environment.ts";
+import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { getProvider, getFallbackProvider } from "./providers/index.ts";

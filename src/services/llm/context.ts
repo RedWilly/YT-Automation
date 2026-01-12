@@ -4,7 +4,7 @@
  * Enables context-aware query generation across batches
  */
 
-import { getAIConfig } from '../../config/environment.ts';
+import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import * as logger from '../../utils/logger.ts';
 

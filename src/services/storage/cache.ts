@@ -21,7 +21,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
-import { PATHS } from "../../config/environment.ts";
+import { PATHS } from "../../config/index.ts";
 import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "../../types/index.ts";
 import * as logger from "../../utils/logger.ts";
 

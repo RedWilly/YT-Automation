@@ -4,7 +4,7 @@
  */
 
 import type { WorkflowState } from "./types.ts";
-import { MINIO } from "../../../config/environment.ts";
+import { MINIO } from "../../../config/index.ts";
 import { uploadVideoToMinIO } from "../../../services/storage/index.ts";
 import * as logger from "../../../utils/logger.ts";
 

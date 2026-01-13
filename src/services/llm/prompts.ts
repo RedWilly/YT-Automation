@@ -171,7 +171,13 @@ ${typeField}
 JSON array with EXACTLY ${segmentCount} items:
 ${outputExample}
 
-# CRITICAL: COUNT VERIFICATION
-Before returning, verify your array has EXACTLY ${segmentCount} items.
+# CRITICAL: COUNT VERIFICATION (ZERO TOLERANCE)
+You MUST return EXACTLY ${segmentCount} items. Not ${segmentCount - 1}. Not ${segmentCount + 1}. EXACTLY ${segmentCount}.
+
+Before returning:
+1. COUNT your array items
+2. If count ≠ ${segmentCount}, you have FAILED — go back and fix it
+3. DO NOT BE LAZY — every segment needs its own unique, detailed query
+
 If you return fewer or more, the entire response will be REJECTED and you must retry.`;
 }

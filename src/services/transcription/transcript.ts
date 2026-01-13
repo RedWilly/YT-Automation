@@ -1,8 +1,3 @@
-/**
- * Transcript processing service for intelligent segmentation
- * Supports sentence-based and word-count based segmentation
- */
-
 import { segmentBySentences, segmentByWordCount, getSentenceTimestamps } from "../segmentation/index.ts";
 import type {
   AssemblyAIWord,
@@ -12,15 +7,6 @@ import type {
 import type { ResolvedStyle } from "../../styles/types.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Process transcript words into segments based on style configuration
- * Supports both sentence-based and word-count based segmentation
- *
- * @param words - Array of words from AssemblyAI transcription
- * @param audioDurationSeconds - Audio duration in seconds from AssemblyAI
- * @param style - Resolved style configuration
- * @returns Segments array and formatted transcript string
- */
 export function processTranscript(
   words: AssemblyAIWord[],
   audioDurationSeconds: number | null,
@@ -110,11 +96,6 @@ export function processTranscript(
   };
 }
 
-/**
- * Generate formatted transcript string from segments
- * @param segments - Array of transcript segments
- * @returns Formatted transcript string
- */
 function generateFormattedTranscript(segments: TranscriptSegment[]): string {
   let formatted = "";
   const segmentsLength = segments.length;
@@ -129,11 +110,6 @@ function generateFormattedTranscript(segments: TranscriptSegment[]): string {
   return formatted;
 }
 
-/**
- * Validate transcript data
- * @param words - Array of words to validate
- * @returns True if valid, throws error otherwise
- */
 export function validateTranscriptData(words: AssemblyAIWord[]): boolean {
   if (!Array.isArray(words)) {
     throw new Error("Words must be an array");

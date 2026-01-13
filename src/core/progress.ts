@@ -1,15 +1,7 @@
-/**
- * Progress tracking service
- * Manages workflow progress and sends updates via Telegram
- */
-
 import { sendMessage, editMessage, type Context } from "../utils/telegram/index.ts";
 import * as logger from "../utils/logger.ts";
 import type { ProgressUpdate } from "../types/index.ts";
 
-/**
- * Progress tracker class to manage workflow progress
- */
 export class ProgressTracker {
   private chatId: number | string;
   private messageId: number | null = null;
@@ -22,10 +14,6 @@ export class ProgressTracker {
     this.chatId = ctx.chat.id;
   }
 
-  /**
-   * Send initial progress message
-   * @param message - Initial message text
-   */
   async start(message: string): Promise<void> {
     try {
       const sentMessage = await sendMessage(this.chatId, message);
@@ -38,10 +26,6 @@ export class ProgressTracker {
     }
   }
 
-  /**
-   * Update progress message
-   * @param update - Progress update information
-   */
   async update(update: ProgressUpdate): Promise<void> {
     try {
       const message = this.formatMessage(update);
@@ -64,11 +48,6 @@ export class ProgressTracker {
     }
   }
 
-  /**
-   * Send completion message
-   * @param message - Completion message
-   * @param youtubeUrl - Optional YouTube URL
-   */
   async complete(message: string, youtubeUrl?: string): Promise<void> {
     try {
       const elapsedTime = this.getElapsedTime();
@@ -92,10 +71,6 @@ export class ProgressTracker {
     }
   }
 
-  /**
-   * Send error message
-   * @param error - Error message or Error object
-   */
   async error(error: string | Error): Promise<void> {
     try {
       const errorMsg = error instanceof Error ? error.message : error;
@@ -114,11 +89,6 @@ export class ProgressTracker {
     }
   }
 
-  /**
-   * Format progress update message
-   * @param update - Progress update
-   * @returns Formatted message
-   */
   private formatMessage(update: ProgressUpdate): string {
     let message = `⏳ *${update.step}*\n\n`;
     message += `${update.message}\n\n`;
@@ -138,11 +108,6 @@ export class ProgressTracker {
     return message;
   }
 
-  /**
-   * Create a visual progress bar
-   * @param percentage - Progress percentage (0-100)
-   * @returns Progress bar string
-   */
   private createProgressBar(percentage: number): string {
     const totalBars = 10;
     const filledBars = Math.round((percentage / 100) * totalBars);
@@ -151,10 +116,6 @@ export class ProgressTracker {
     return "▓".repeat(filledBars) + "░".repeat(emptyBars);
   }
 
-  /**
-   * Get elapsed time since start
-   * @returns Formatted elapsed time string
-   */
   private getElapsedTime(): string {
     const elapsed = Date.now() - this.startTime;
     const seconds = Math.floor(elapsed / 1000);

@@ -1,8 +1,3 @@
-/**
- * Video generation service using FFmpeg
- * Supports configurable pan effects and caption styles via style system
- */
-
 import { DEFAULT_PATHS, DEFAULT_VIDEO_SETTINGS } from "../../config/defaults.ts";
 import type { DownloadedImage, VideoGenerationResult, AssemblyAIWord, TranscriptSegment } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
@@ -17,16 +12,6 @@ import { createFilterComplex } from "./ffmpeg/index.ts";
 const TMP_VIDEO_DIR = DEFAULT_PATHS.video;
 const IMAGES_PER_CHUNK = DEFAULT_VIDEO_SETTINGS.imagesPerChunk;
 
-/**
- * Generate video from images and audio using FFmpeg with chunked rendering
- * @param images - Array of downloaded images with timing information
- * @param audioFilePath - Path to the audio file
- * @param words - Word-level data from AssemblyAI
- * @param segments - Transcript segments
- * @param outputFileName - Output filename (without extension)
- * @param style - Resolved style configuration
- * @returns Video generation result with path and duration
- */
 export async function generateVideo(
   images: DownloadedImage[],
   audioFilePath: string,
@@ -546,32 +531,17 @@ async function concatenateChunks(
   });
 }
 
-/**
- * Validate video generation inputs
- * @param images - Array of images to validate
- * @param audioFilePath - Audio file path to validate
- * @returns True if valid, throws error otherwise
- */
 export function validateVideoInputs(
   images: DownloadedImage[],
   audioFilePath: string
 ): boolean {
-  if (!Array.isArray(images)) {
-    throw new Error("Images must be an array");
-  }
-
   if (images.length === 0) {
     throw new Error("No images provided for video generation");
   }
-
-  if (typeof audioFilePath !== "string" || audioFilePath.length === 0) {
+  if (!audioFilePath) {
     throw new Error("Invalid audio file path");
   }
-
-  logger.success(
-    "Video",
-    `Validation passed for ${images.length} images and audio file`
-  );
+  logger.success("Video", `Validation passed for ${images.length} images and audio file`);
   return true;
 }
 

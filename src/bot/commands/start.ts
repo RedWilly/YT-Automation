@@ -1,15 +1,7 @@
-/**
- * /start command handler
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import { AI_TEXT } from "../../config/index.ts";
 import { getDefaultStyle, getStyleIds } from "../../styles/index.ts";
 
-/**
- * Handle /start command
- * Shows welcome message with bot capabilities
- */
 export async function handleStartCommand(ctx: Context): Promise<void> {
     const imageMode = AI_TEXT.useAiImage ? "🎨 AI Generation" : "🔍 Web Search";
     const defaultStyle = getDefaultStyle();

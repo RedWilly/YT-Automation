@@ -1,8 +1,3 @@
-/**
- * Cleanup service for temporary files and cache database
- * Handles deletion of temporary files and cache entries after successful workflow completion
- */
-
 import { readdir, unlink, stat } from "node:fs/promises";
 import { join } from "node:path";
 import * as logger from "../../utils/logger.ts";
@@ -10,12 +5,6 @@ import { PATHS } from "../../config/index.ts";
 import type { CleanupResult } from "../../types/index.ts";
 import { clearAllCache } from "./cache.ts";
 
-/**
- * Clean up all temporary files after successful workflow completion
- * @param keepFinalVideo - Whether to keep the final video file (default: false)
- * @param finalVideoPath - Path to the final video file to keep (if keepFinalVideo is true)
- * @returns Cleanup result with deleted files and total size freed
- */
 export async function cleanupTempFiles(
     keepFinalVideo: boolean = false,
     finalVideoPath?: string
@@ -68,13 +57,6 @@ export async function cleanupTempFiles(
     };
 }
 
-/**
- * Clean up files in a specific directory
- * @param dirPath - Directory path to clean
- * @param label - Label for logging
- * @param excludePath - Optional path to exclude from deletion
- * @returns Cleanup result for this directory
- */
 async function cleanupDirectory(
     dirPath: string,
     label: string,
@@ -134,12 +116,6 @@ async function cleanupDirectory(
     return { deleted, failed, size };
 }
 
-/**
- * Clean up only video temporary files (chunks and concat lists)
- * Keeps the final video file
- * @param finalVideoPath - Path to the final video file to keep
- * @returns Cleanup result
- */
 export async function cleanupVideoTempFiles(
     finalVideoPath: string
 ): Promise<CleanupResult> {

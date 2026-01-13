@@ -1,8 +1,3 @@
-/**
- * Service configurations
- * Telegram, transcription, image, storage, and path configurations
- */
-
 import { envBool, envNumber, envString } from "../utils/env.ts";
 import {
     DEFAULT_PATHS,
@@ -11,15 +6,7 @@ import {
 } from './defaults.ts';
 import type { AIProvider, AIImageProvider } from './providers.ts';
 
-// =============================================================
-// HELPER FUNCTIONS
-// =============================================================
-
-/**
- * Parse a comma-separated list of numeric IDs from an environment variable
- * @param envValue - Raw environment variable string (e.g., "123, -1009876543210")
- * @returns Parsed list of numeric IDs
- */
+/** Parse comma-separated numeric IDs (e.g., "123, -1009876543210") */
 export function parseIdList(envValue?: string): number[] {
     if (!envValue) return [];
 
@@ -36,39 +23,23 @@ export function parseIdList(envValue?: string): number[] {
     return values;
 }
 
-// =============================================================
-// ENVIRONMENT CONFIGURATION
-// =============================================================
-
-/**
- * Telegram bot configuration
- */
 export const TELEGRAM = {
     botToken: envString("TELEGRAM_BOT_TOKEN"),
     allowedUserIds: parseIdList(process.env.ALLOWED_USER_IDS),
     allowedChatIds: parseIdList(process.env.ALLOWED_CHAT_IDS),
 } as const;
 
-/**
- * Transcription service configuration
- */
 export const TRANSCRIPTION = {
     assemblyAiKey: envString("ASSEMBLYAI_API_KEY"),
     pollIntervalMs: envNumber("ASSEMBLYAI_POLL_INTERVAL_MS", DEFAULT_TRANSCRIPTION.pollIntervalMs),
     maxPolls: envNumber("ASSEMBLYAI_MAX_POLLS", DEFAULT_TRANSCRIPTION.maxPolls),
 } as const;
 
-/**
- * AI text generation configuration
- */
 export const AI_TEXT = {
     provider: envString('AI_PROVIDER') as AIProvider,
     useAiImage: envBool('USE_AI_IMAGE'),
 } as const;
 
-/**
- * AI image generation configuration
- */
 export const AI_IMAGE = {
     provider: envString("AI_IMAGE_MODEL") as AIImageProvider,
     workerApiKey: envString("WORKER_API_KEY"),
@@ -78,9 +49,6 @@ export const AI_IMAGE = {
     retryAttempts: envNumber("IMAGE_RETRY_ATTEMPTS", DEFAULT_IMAGE_SETTINGS.retryAttempts),
 } as const;
 
-/**
- * MinIO object storage configuration
- */
 export const MINIO = {
     enabled: envBool("PRODUCTION"),
     endpoint: envString("MINIO_ENDPOINT"),
@@ -90,9 +58,6 @@ export const MINIO = {
     region: envString("MINIO_REGION", "us-east-1"),
 } as const;
 
-/**
- * File paths configuration
- */
 export const PATHS = {
     audio: envString("TMP_AUDIO_DIR", DEFAULT_PATHS.audio),
     images: envString("TMP_IMAGES_DIR", DEFAULT_PATHS.images),
@@ -100,9 +65,6 @@ export const PATHS = {
     cache: envString("CACHE_DB_PATH", DEFAULT_PATHS.cache),
 } as const;
 
-/**
- * Debug and logging configuration
- */
 export const DEBUG = {
     enabled: envBool("DEBUG"),
 } as const;

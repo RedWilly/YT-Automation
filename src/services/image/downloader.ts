@@ -1,8 +1,3 @@
-/**
- * Image search and download service using DuckDuckGo or AI generation
- * Uses modular provider system for AI image generation
- */
-
 import { duckDuckGoImageSearch } from "../../utils/dim.ts";
 import { DEFAULT_PATHS, DEFAULT_IMAGE_SETTINGS } from "../../config/defaults.ts";
 import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
@@ -20,18 +15,8 @@ const WEB_SEARCH_DELAY_MS = AI_IMAGE.searchDelayMs;
 const IMAGE_RETRY_ATTEMPTS = AI_IMAGE.retryAttempts;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
-/**
- * Domains that typically serve watermarked stock photos
- */
 const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
-/**
- * Assign seeds to queries based on linkedTo relationships
- * - Segments with linkedTo inherit the seed of the linked segment
- * - Segments without linkedTo get a new random seed
- * @param queries - Array of image queries with linkedTo field
- * @returns Map of query index to seed value
- */
 function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
   const seedMap = new Map<number, number>();
 
@@ -58,21 +43,10 @@ function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
 }
 
 /**
- * Search and download images for all queries (uses AI or web search based on USE_AI_IMAGE flag)
- * Both AI generation and web search follow the same patterns:
- * - WEB_SEARCH_DELAY_MS delays between each image
- * - Retry logic with IMAGE_RETRY_ATTEMPTS for failed images
- * - Same error handling and logging approach
- * - Track progress the same way (current/total)
- * - Continue processing even if individual images fail
- * - Supports resumption from partial cache (skips already-downloaded images)
- * - Saves incrementally via callback to persist progress
- *
- * @param queries - Array of image search queries with timestamps
- * @param style - Resolved style configuration for AI image generation
- * @param existingImages - Optional array of already-downloaded images (for resumption)
- * @param onImageDownloaded - Optional callback called after each successful download (for incremental caching)
- * @returns Array of downloaded/generated image information
+ * Search and download images for all queries. Supports:
+ * - Resumption from partial cache (skips already-downloaded images)
+ * - Incremental saving via callback to persist progress
+ * - Retry logic with exponential backoff
  */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
@@ -161,17 +135,6 @@ export async function downloadImagesForQueries(
   return processedImages;
 }
 
-/**
- * Generate a single AI image for a query using the configured provider with retry logic
- * Uses modular provider system with automatic fallback and exponential backoff
- * Determines aspect ratio based on scene duration and orientation:
- * - Scenes <3s (static): Native resolution (16:9 or 9:16 based on orientation)
- * @param queryData - Image search query with timestamps
- * @param style - Resolved style configuration for prompts
- * @param index - Image index for filename
- * @param seed - Seed for reproducible generation (linked segments share seeds)
- * @returns Generated image information
- */
 async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle,
@@ -298,21 +261,11 @@ async function generateAIImageForQuery(
   );
 }
 
-/**
- * Check if an image URL is from a watermarked stock photo site
- * @param imageUrl - URL of the image to check
- * @returns true if the URL contains a watermarked domain
- */
 function isWatermarkedImage(imageUrl: string): boolean {
   const lowerUrl = imageUrl.toLowerCase();
   return WATERMARKED_DOMAINS.some((domain) => lowerUrl.includes(domain));
 }
 
-/**
- * Extract domain from URL for logging purposes
- * @param imageUrl - URL to extract domain from
- * @returns Domain name or "unknown"
- */
 function extractDomain(imageUrl: string): string {
   try {
     const url = new URL(imageUrl);
@@ -322,13 +275,6 @@ function extractDomain(imageUrl: string): string {
   }
 }
 
-/**
- * Search and download a single image for a query with watermark filtering and retry logic
- * @param queryData - Image search query with timestamps
- * @param style - Resolved style configuration for naming
- * @param index - Image index for filename
- * @returns Downloaded image information
- */
 async function downloadImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle,
@@ -444,13 +390,6 @@ async function downloadImageForQuery(
   );
 }
 
-/**
- * Download an image from URL and save it with style-based filename
- * @param imageUrl - URL of the image to download
- * @param style - Resolved style configuration for naming
- * @param index - Image index for filename
- * @returns Path to the downloaded image file
- */
 async function downloadImage(imageUrl: string, style: ResolvedStyle, index: number): Promise<string> {
   logger.debug("Images", `Downloading image from: ${imageUrl}`);
 
@@ -478,12 +417,6 @@ async function downloadImage(imageUrl: string, style: ResolvedStyle, index: numb
   return filePath;
 }
 
-/**
- * Get image file extension from URL or content type
- * @param url - Image URL
- * @param contentType - Content-Type header value
- * @returns File extension with dot (e.g., ".jpg")
- */
 function getImageExtension(url: string, contentType: string | null): string {
   const urlExtension = extname(url).toLowerCase();
   if (urlExtension && [".jpg", ".jpeg", ".png", ".webp", ".gif"].includes(urlExtension)) {
@@ -500,11 +433,6 @@ function getImageExtension(url: string, contentType: string | null): string {
   return ".jpg";
 }
 
-/**
- * Sanitize filename by removing invalid characters
- * @param filename - Original filename
- * @returns Sanitized filename
- */
 function sanitizeFilename(filename: string): string {
   return filename
     .replace(/[<>:"/\\|?*]/g, "_")
@@ -513,35 +441,10 @@ function sanitizeFilename(filename: string): string {
     .substring(0, 200);
 }
 
-/**
- * Validate downloaded images
- * @param images - Array of downloaded images to validate
- * @returns True if valid, throws error otherwise
- */
 export function validateDownloadedImages(images: DownloadedImage[]): boolean {
-  if (!Array.isArray(images)) {
-    throw new Error("Images must be an array");
-  }
-
   if (images.length === 0) {
     throw new Error("No images were downloaded");
   }
-
-  const imagesLength = images.length;
-  for (let i = 0; i < imagesLength; i++) {
-    const image = images[i];
-    if (!image) continue;
-
-    if (
-      typeof image.query !== "string" ||
-      typeof image.start !== "number" ||
-      typeof image.end !== "number" ||
-      typeof image.filePath !== "string"
-    ) {
-      throw new Error(`Invalid image data at index ${i}`);
-    }
-  }
-
   logger.success("Images", `Validation passed for ${images.length} images`);
   return true;
 }

@@ -1,20 +1,7 @@
-/**
- * Environment validation
- * Validates required configuration at startup
- */
-
 import * as logger from "../utils/logger.ts";
 import { PROVIDER_CONFIGS, type AIProvider, type ProviderConfig } from './providers.ts';
 import { AI_TEXT, TELEGRAM, TRANSCRIPTION } from './services.ts';
 
-// =============================================================
-// VALIDATION
-// =============================================================
-
-/**
- * Validate required environment configuration
- * Called at startup to ensure critical values are set
- */
 export function validateEnvironment(): void {
     // Validate AI provider
     const provider = AI_TEXT.provider;
@@ -44,9 +31,6 @@ export function validateEnvironment(): void {
     }
 }
 
-/**
- * Get the active AI provider configuration
- */
 export function getAIConfig(): ProviderConfig {
     return PROVIDER_CONFIGS[AI_TEXT.provider];
 }

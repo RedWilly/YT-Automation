@@ -1,7 +1,3 @@
-/**
- * Video, image, and FFmpeg type definitions
- */
-
 import type { ShotType } from "./llm.ts";
 
 // Image Download Types

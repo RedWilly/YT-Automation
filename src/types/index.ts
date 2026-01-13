@@ -1,8 +1,3 @@
-/**
- * Type definitions for the YouTube automation workflow
- * Re-exports all types from modular files
- */
-
 // Transcription types
 export type {
   AssemblyAIUploadResponse,

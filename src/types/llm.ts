@@ -1,8 +1,4 @@
 /**
- * LLM (Language Model) type definitions
- */
-
-/**
  * Shot type for natural editing - controls per-shot video effects
  * - pan: vertical pan up/down (random direction), uses 4:3 aspect ratio for headroom
  * - zoom: subtle zoom in/out (random direction), uses 16:9 aspect ratio

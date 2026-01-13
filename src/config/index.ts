@@ -1,10 +1,5 @@
-/**
- * Configuration module
- * Re-exports all configuration from modular files
- */
-
 // Defaults
-export type { CaptionAlignment } from "./defaults.ts";
+
 export {
     DEFAULT_VIDEO_DIMENSIONS,
     DEFAULT_VIDEO_SETTINGS,

@@ -1,8 +1,3 @@
-/**
- * Workflow stage types and interfaces
- * Defines the shared state passed between stages
- */
-
 import type { ProgressTracker } from "../../progress.ts";
 import type { ResolvedStyle } from "../../../styles/types.ts";
 import type {

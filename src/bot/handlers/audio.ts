@@ -1,17 +1,8 @@
-/**
- * Audio message handlers
- * Handles voice, audio, and document (audio) messages
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import { jobQueue } from "../../core/queue/index.ts";
 import { parseStyleFromCaption } from "../utils.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Handle voice messages
- * Adds the voice file to the queue for processing
- */
 export async function handleVoiceMessage(ctx: Context): Promise<void> {
     logger.log("Bot", "Received voice message");
 
@@ -42,10 +33,6 @@ export async function handleVoiceMessage(ctx: Context): Promise<void> {
     }
 }
 
-/**
- * Handle audio messages
- * Adds the audio file to the queue for processing
- */
 export async function handleAudioMessage(ctx: Context): Promise<void> {
     logger.log("Bot", "Received audio message");
 
@@ -77,10 +64,6 @@ export async function handleAudioMessage(ctx: Context): Promise<void> {
     }
 }
 
-/**
- * Handle document messages (audio files sent as documents)
- * Adds the audio document to the queue for processing
- */
 export async function handleDocumentMessage(ctx: Context): Promise<void> {
     logger.log("Bot", "Received document message");
 

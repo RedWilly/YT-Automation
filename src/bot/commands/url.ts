@@ -1,7 +1,3 @@
-/**
- * /url command handler
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { parseStyleFromMessage, getStyle, getDefaultStyle, resolveStyle } from "../../styles/index.ts";
@@ -9,13 +5,6 @@ import { jobQueue } from "../../core/queue/index.ts";
 import { waitingForUrl } from "../utils.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Handle URL input from user
- * Adds the URL job to the queue for processing
- * @param ctx - Telegram context
- * @param url - Audio file URL
- * @param style - Optional resolved style configuration
- */
 export async function handleUrlInput(ctx: Context, url: string, style?: ResolvedStyle): Promise<void> {
     logger.log("Bot", `Received URL input: ${url}`);
 
@@ -44,11 +33,6 @@ export async function handleUrlInput(ctx: Context, url: string, style?: Resolved
     // If position is 1, it will start immediately and the workflow will notify
 }
 
-/**
- * Handle /url command
- * Prompts user to provide a presigned URL for large audio files
- * Supports style parsing from command text
- */
 export async function handleUrlCommand(ctx: Context): Promise<void> {
     logger.log("Bot", "Received /url command");
 

@@ -1,7 +1,3 @@
-/**
- * Queue module - Re-exports from submodules
- */
-
 // Service exports
 export { jobQueue } from "./service.ts";
 

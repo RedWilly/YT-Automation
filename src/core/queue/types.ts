@@ -1,24 +1,10 @@
-/**
- * Queue Types
- * Type definitions for the job queue system
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 
-/**
- * Job status enumeration
- */
 export type JobStatus = "pending" | "processing" | "completed" | "failed";
 
-/**
- * Job type enumeration
- */
 export type JobType = "file" | "url";
 
-/**
- * Represents a single job in the queue
- */
 export interface Job {
     id: string;
     chatId: number | string;
@@ -39,14 +25,8 @@ export interface Job {
     error?: string;
 }
 
-/**
- * Callback function type for processing jobs
- */
 export type JobProcessor = (job: Job, ctx: Context) => Promise<void>;
 
-/**
- * Queue status information
- */
 export interface QueueStatus {
     pending: Job[];
     processing: Job | null;

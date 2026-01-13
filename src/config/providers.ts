@@ -1,27 +1,13 @@
-/**
- * AI Provider configurations
- * Centralizes all AI provider settings and configurations
- */
-
 import { envString } from "../utils/env.ts";
 
 // =============================================================
 // TYPE DEFINITIONS
 // =============================================================
 
-/**
- * Supported AI providers for text generation
- */
 export type AIProvider = 'kimi' | 'deepseek' | 'gemini' | 'Qwen';
 
-/**
- * Supported AI providers for image generation
- */
 export type AIImageProvider = "cloudflare" | "togetherai" | "imagefx";
 
-/**
- * AI provider configuration
- */
 export interface ProviderConfig {
     model: string;
     baseUrl: string;
@@ -37,10 +23,6 @@ export interface ProviderConfig {
 // AI PROVIDER CONFIGURATIONS
 // =============================================================
 
-/**
- * AI provider configurations for text generation
- * Each provider has its own optimal settings
- */
 export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
     Qwen: {
         model: 'Qwen/Qwen3-VL-32B-Instruct',

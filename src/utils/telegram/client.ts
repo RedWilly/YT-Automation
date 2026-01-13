@@ -1,8 +1,3 @@
-/**
- * Telegram Bot Client
- * Singleton pattern for Telegram bot instance with access control
- */
-
 import { Telegraf, type Context } from "telegraf";
 import { TELEGRAM } from "../../config/index.ts";
 import * as logger from "../logger.ts";
@@ -15,10 +10,6 @@ const ALLOWED_USER_IDS = TELEGRAM.allowedUserIds;
 // Singleton instance
 let botInstance: Telegraf | null = null;
 
-/**
- * Get or create the Telegram bot instance (singleton)
- * @returns Telegraf bot instance
- */
 export function getTelegramBot(): Telegraf {
     if (!botInstance) {
         if (!TELEGRAM_BOT_TOKEN) {
@@ -69,13 +60,6 @@ export function getTelegramBot(): Telegraf {
     return botInstance;
 }
 
-/**
- * Send a message to a chat
- * @param chatId - Chat ID
- * @param text - Message text
- * @param options - Optional message options
- * @returns Message result
- */
 export async function sendMessage(
     chatId: number | string,
     text: string,
@@ -85,14 +69,6 @@ export async function sendMessage(
     return await bot.telegram.sendMessage(chatId, text, options);
 }
 
-/**
- * Edit a message
- * @param chatId - Chat ID
- * @param messageId - Message ID to edit
- * @param text - New message text
- * @param options - Optional message options
- * @returns Edit result
- */
 export async function editMessage(
     chatId: number | string,
     messageId: number,
@@ -103,12 +79,6 @@ export async function editMessage(
     return await bot.telegram.editMessageText(chatId, messageId, undefined, text, options);
 }
 
-/**
- * Delete a message
- * @param chatId - Chat ID
- * @param messageId - Message ID to delete
- * @returns Delete result
- */
 export async function deleteMessage(
     chatId: number | string,
     messageId: number
@@ -117,18 +87,10 @@ export async function deleteMessage(
     return await bot.telegram.deleteMessage(chatId, messageId);
 }
 
-/**
- * Get file URL from Telegram
- * @param fileId - File ID
- * @returns File URL
- */
 export async function getFileUrl(fileId: string): Promise<string> {
     const bot = getTelegramBot();
     const file = await bot.telegram.getFile(fileId);
     return `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}/${file.file_path}`;
 }
 
-/**
- * Type export for Context
- */
 export type { Context };

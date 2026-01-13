@@ -1,8 +1,3 @@
-/**
- * File Download Utilities
- * Download files from Telegram and external URLs
- */
-
 import { createWriteStream, existsSync } from "node:fs";
 import { pipeline } from "node:stream/promises";
 import { join } from "node:path";
@@ -10,13 +5,6 @@ import { mkdir } from "node:fs/promises";
 import * as logger from "../logger.ts";
 import { getFileUrl } from "./client.ts";
 
-/**
- * Download file from Telegram
- * @param fileId - Telegram file ID
- * @param filename - Filename to save as
- * @param tmpDir - Directory to save file in
- * @returns Path to downloaded file
- */
 export async function downloadTelegramFile(
     fileId: string,
     filename: string,
@@ -52,11 +40,6 @@ export async function downloadTelegramFile(
     return filePath;
 }
 
-/**
- * Extract filename from URL path (for pre-download existence check)
- * @param url - URL to extract filename from
- * @returns Sanitized filename or fallback
- */
 export function extractFilenameFromUrl(url: string): string {
     try {
         const urlObj = new URL(url);
@@ -82,12 +65,6 @@ export function extractFilenameFromUrl(url: string): string {
     return `audio_url_${Date.now()}.mp3`;
 }
 
-/**
- * Extract filename from Content-Disposition header or URL
- * @param response - Fetch response object
- * @param url - Original URL
- * @returns Sanitized filename
- */
 export function extractFilenameFromResponse(response: Response, url: string): string {
     // Try to get filename from Content-Disposition header (like browsers do)
     const contentDisposition = response.headers.get("content-disposition");
@@ -139,12 +116,6 @@ export function extractFilenameFromResponse(response: Response, url: string): st
     return `audio_url_${timestamp}.mp3`;
 }
 
-/**
- * Download audio file from a URL (e.g., Cloudflare R2, S3 presigned URL)
- * @param url - URL to download from
- * @param tmpDir - Directory to save file in
- * @returns Path to downloaded file
- */
 export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise<string> {
     logger.log("Telegram", `Processing audio from URL: ${url}`);
 

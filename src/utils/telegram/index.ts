@@ -1,8 +1,3 @@
-/**
- * Telegram utilities - Re-exports from submodules
- */
-
-// Client exports
 export {
     getTelegramBot,
     sendMessage,
@@ -12,7 +7,6 @@ export {
     type Context,
 } from "./client.ts";
 
-// Download exports
 export {
     downloadTelegramFile,
     downloadAudioFromUrl,

@@ -1,7 +1,3 @@
-/**
- * AssemblyAI and transcription-related type definitions
- */
-
 // AssemblyAI Types
 export interface AssemblyAIUploadResponse {
   upload_url: string;

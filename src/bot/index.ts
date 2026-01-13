@@ -1,8 +1,3 @@
-/**
- * Telegram bot entry point
- * Assembles commands and handlers into a configured bot instance
- */
-
 import { getTelegramBot, type Context } from "../utils/telegram/index.ts";
 import { WorkflowService } from "../core/index.ts";
 import { jobQueue, type Job } from "../core/queue/index.ts";
@@ -27,10 +22,6 @@ import {
 
 import { waitingForUrl } from "./utils.ts";
 
-/**
- * Create and configure the Telegram bot
- * @returns Configured Telegraf bot instance
- */
 export function createBot() {
     const bot = getTelegramBot();
 
@@ -76,11 +67,6 @@ export function createBot() {
     return bot;
 }
 
-/**
- * Job processor function for the queue
- * Processes file and URL jobs using WorkflowService
- * Passes style configuration from job to workflow
- */
 async function processJob(job: Job, ctx: Context): Promise<void> {
     if (job.type === "file" && job.fileId && job.filename) {
         await WorkflowService.processAudioFile(ctx, job.fileId, job.filename, job.style);
@@ -91,10 +77,6 @@ async function processJob(job: Job, ctx: Context): Promise<void> {
     }
 }
 
-/**
- * Start the bot with graceful error handling
- * Handles 409 Conflict errors when another bot instance starts
- */
 export async function startBot(): Promise<void> {
     logger.log("Bot", "Initializing bot...");
 

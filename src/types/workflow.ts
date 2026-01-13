@@ -1,7 +1,3 @@
-/**
- * Workflow and progress tracking type definitions
- */
-
 import type { MinIOUploadResult } from "./video.ts";
 
 // Workflow Types

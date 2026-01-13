@@ -16,15 +16,31 @@ const AI_MODEL = aiConfig.model;
 const AI_PROVIDER = AI_TEXT.provider;
 
 /**
- * Call LLM chat API with retry logic and parse the image queries.
- * Retries are useful when the model returns malformed or noisy JSON.
+ * Call LLM chat API with retry logic.
+ * When returnRaw is true, returns the raw string response for custom parsing.
+ * Otherwise, parses and returns ImageSearchQuery[].
  */
 export async function callLLMWithRetry(
     systemPrompt: string,
     userPrompt: string,
     label: string,
-    maxRetries: number
-): Promise<ImageSearchQuery[]> {
+    maxRetries: number,
+    returnRaw: true
+): Promise<string>;
+export async function callLLMWithRetry(
+    systemPrompt: string,
+    userPrompt: string,
+    label: string,
+    maxRetries: number,
+    returnRaw?: false
+): Promise<ImageSearchQuery[]>;
+export async function callLLMWithRetry(
+    systemPrompt: string,
+    userPrompt: string,
+    label: string,
+    maxRetries: number,
+    returnRaw?: boolean
+): Promise<ImageSearchQuery[] | string> {
     let lastError: Error | undefined;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -34,6 +50,13 @@ export async function callLLMWithRetry(
 
             if (!content) {
                 throw new Error("Empty response from LLM");
+            }
+
+            if (returnRaw) {
+                if (attempt > 0) {
+                    logger.success("LLM", `Successfully received response on attempt ${attempt + 1}${label}`);
+                }
+                return content;
             }
 
             const queries = parseImageQueries(content);

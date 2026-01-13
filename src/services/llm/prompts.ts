@@ -27,12 +27,12 @@ export function buildContextAwareSystemPrompt(
    3. ASSET FIDELITY: You must use the EXACT defined assets (characters, locations, objects) without altering their appearance.`;
 
    // --- TASK ---
-   const task = `Create a sequence of detailed image prompts for an AI generation pipeline. 
+   const task = `Output STRUCTURED SHOT METADATA for each segment. You do NOT write image prompts—those are generated automatically from your structured output.
    
-   GOAL: transform the script into a contiguous visual flow.
-   - Treat this as an ANIMATION or FILM production.
-   - Each prompt is one keyframe.
-   - Maintain the "Director's Vision" found in the Scene and Global Context.`;
+   YOUR JOB: Identify WHO is in the shot, WHERE it takes place, and WHAT ACTION is happening.
+   - Reference entities by their ID from the ENTITY REGISTRY
+   - Reference scenes by their ID from the SCENE LIST
+   - Describe only the ACTION, not visual appearances (handled automatically)`;
 
    // --- CONTEXT: STORY OVERVIEW ---
    const storyOverview = `PRODUCTION CONTEXT:
@@ -51,8 +51,18 @@ export function buildContextAwareSystemPrompt(
    // --- SHOT TYPES ---
    const useShotTypes = style.segmentationType === 'sentence';
    const outputSchema = useShotTypes
-      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static", "linkedTo": number|null}`
-      : `{"start": number, "end": number, "query": "string"}`;
+      ? `{
+  "start": number,
+  "end": number,
+  "sceneId": "scene_id_from_context",
+  "presentEntities": ["entity_id1", "entity_id2"],
+  "focusEntities": ["entity_id1"],
+  "action": "what is happening in this frozen moment",
+  "composition": "wide shot" | "medium shot" | "close-up" | "extreme close-up" | null,
+  "type": "pan" | "zoom" | "static",
+  "linkedTo": number | null
+}`
+      : `{"start": number, "end": number, "sceneId": "scene_id", "presentEntities": ["id"], "action": "description"}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
@@ -74,39 +84,50 @@ VISUAL LINKING ('linkedTo'):
 
    // --- CRITICAL RULES ---
    const criticalRules = `
-## QUERY CONTENT RULES (CRITICAL)
+## TEXT ELIMINATION (ABSOLUTE ZERO TOLERANCE)
+1. NEVER include quoted dialogue from transcript in action field
+2. NEVER include numbers, years, dates, times (e.g., "1944", "3am", "June 12")
+3. NEVER use words: "sign", "label", "poster", "handwritten", "typed", "subtitle", "title card", "text", "writing", "inscription"
+4. Convert dialogue to visual description:
+   - BAD: "He says 'Attack at dawn'"
+   - GOOD: "officer gesturing urgently while addressing his men"
+5. NEVER include: speech bubbles, watermarks, logos, titles, captions, annotations, UI elements
 
-WHAT TO INCLUDE:
-- SUFFUSE every query with the "Setting" and "Atmosphere" defined in the current scene.
-- COPY & PASTE the "VISUAL ANCHOR" for any entity present. Do not summarize it.
-- Action: What is happening in this frozen moment.
+## ENTITY REFERENCES (CRITICAL)
+- Use entity IDs from the ENTITY REGISTRY, not descriptions
+- The "action" field describes WHAT HAPPENS, not what entities look like
+- Visual descriptions are handled automatically—you just need to identify WHO is present
+- List ALL entities visible in frame in "presentEntities"
+- List entities that should be prominently featured in "focusEntities"
 
-## SPATIAL & ENVIRONMENTAL CONSISTENCY
-- The BACKGROUND must remain consistent. If they are in a "muddy trench with gray sky," EVERY shot in that scene must mention "muddy trench" and "gray sky".
-- LIGHTING CONTINUITY: If it's "dawn" in shot 1, it generally shouldn't be "midnight" in shot 2 unless time passes.
-- OBJECT PERMANENCE: If a table has a "red vase" on it in the wide shot, the close-up of the table must also have the "red vase" (or at least not contradict it).
+## SCENE CONSISTENCY
+- Use sceneId from the SCENE LIST to maintain setting consistency
+- All shots within a scene automatically inherit the scene's backdrop
+- When the narrative moves to a new location, switch to the appropriate sceneId
+- If no scene matches, use the most relevant one or "default"
 
-## VISUAL SELF-CONTAINMENT
-- The AI has NO MEMORY of previous images. 
-- You MUST repeat the full visual description every time an entity appears.
-- BAD: "The soldier looks tired."
-- GOOD: "Close up of the 18-year-old Venetian soldier with a weary face, mud-stained woolen coat, and unkempt hair, looking exhausted against the backdrop of a rainy trench."
+## COMPOSITION GUIDANCE
+- Use "composition" to suggest framing: "wide shot", "medium shot", "close-up", "extreme close-up"
+- Wide shots for establishing, close-ups for emotional beats
+- Leave null if no specific framing is needed
 
-## NEGATIVE CONSTRAINTS (INSTANT FAIL IF VIOLATED)
-1. ZERO TEXT/SYMBOLS. Never include: signs, labels, subtitles, speech bubbles, numbers, dates, years, letters, watermarks, logos, titles, captions, annotations, UI elements, or any readable characters. If you need to show a document, show "a weathered paper with illegible writing" — never actual text.
-2. NO DIAGRAMS OR MAPS. Do not use "cross-section", "diagrammatic", "schematic", "map view", or "arrows". show the REALITY (e.g., the tunnel itself, not a drawing of it).
-3. NO MONTAGES OR SPLIT SCREENS. Do not use "flashback montage", "split image", or "superimposed". Show ONE cohesive moment in time.
-4. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.
-5. NO META DESCRIPTIONS. Do not say "A historical painting of..." or "A realistic photo of...". Just describe the scene.
-6. ABSOLUTELY NO LAZINESS. If a character is in the scene, their full visual anchor must be in the prompt.
+## NEGATIVE CONSTRAINTS (INSTANT FAIL)
+1. NO text/symbols of any kind in action descriptions
+2. NO diagrams, maps, cross-sections, schematics
+3. NO montages or split screens—describe ONE moment
+4. NO camera terms in action field (use "type" field)
+5. NO meta descriptions ("A painting of...", "An image showing...")
 
-## FINAL CONSISTENCY CHECK
-Before outputting, verify:
-1. Did I copy the VISUAL ANCHOR exactly?
-2. Did I include the SETTING details (mud, gray sky, star-shaped walls)?
-3. Does this shot visually match the previous one?
-4. Is there any forbidden text (labels, dates, "concept")?
-5. Is this a single, real scene (not a montage or map)?`;
+## ACTION FIELD RULES
+- Describe physical actions and body language only
+- NO visual appearance details (those come from entity anchors)
+- NO dialogue content
+- Keep it concise: 5-15 words typically
+- Examples:
+  - GOOD: "standing at attention, saluting"
+  - GOOD: "leaning forward intently, hands gripping the table"
+  - BAD: "the tall soldier with blue eyes stands at attention" (no appearance)
+  - BAD: "saying 'we must attack now'" (no dialogue)`;
 
    return `# PERSONA
 ${persona}
@@ -141,19 +162,28 @@ export function buildContextAwareUserPrompt(
    batchState: BatchState | null,
    currentSegments: [number, number]
 ): string {
-   const wordCount = useAiImage ? '80-100' : '8-15';
-
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
 
    const typeField = naturalEdit
-      ? `- SET "type": "pan", "zoom", or "static" (for video editing, NOT in query text)
-- SET "linkedTo": index of related segment (< current index), or null`
+      ? `- SET "type": "pan", "zoom", or "static" (for video editing)
+- SET "linkedTo": index of related segment (< current index), or null
+- SET "composition": framing guidance or null`
       : '';
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "a lone Viking warrior...", "type": "pan", "linkedTo": null}, ...]`
-      : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
+      ? `[{
+  "start": 0,
+  "end": 5000,
+  "sceneId": "trench_scene",
+  "presentEntities": ["protagonist", "commander"],
+  "focusEntities": ["protagonist"],
+  "action": "crouching low, peering over the edge",
+  "composition": "medium shot",
+  "type": "pan",
+  "linkedTo": null
+}, ...]`
+      : `[{"start": 0, "end": 5000, "sceneId": "main_scene", "presentEntities": ["entity_1"], "action": "walking through the doorway"}, ...]`;
 
    return `${contextSection}
 
@@ -161,10 +191,11 @@ export function buildContextAwareUserPrompt(
 ${formattedTranscript}
 
 # INSTRUCTIONS
-1. Write EXACTLY ${segmentCount} image prompts — one per segment, no more, no less.
-2. Use EXACT entity descriptions from registry above
-3. Each query: ${wordCount} words, complete visual description
-4. NO camera language in queries (camera movement goes in "type" field only)
+1. Output EXACTLY ${segmentCount} structured shots — one per segment
+2. Use entity IDs from ENTITY REGISTRY (not descriptions)
+3. Use sceneId from SCENE LIST
+4. "action" field: ONLY what is happening (5-15 words), NO visual descriptions
+5. NO dialogue, NO numbers/dates, NO text references in action field
 ${typeField}
 
 # OUTPUT
@@ -176,8 +207,9 @@ You MUST return EXACTLY ${segmentCount} items. Not ${segmentCount - 1}. Not ${se
 
 Before returning:
 1. COUNT your array items
-2. If count ≠ ${segmentCount}, you have FAILED — go back and fix it
-3. DO NOT BE LAZY — every segment needs its own unique, detailed query
+2. If count ≠ ${segmentCount}, STOP and fix it
+3. Verify each action field has NO visual descriptions (just actions)
+4. Verify all entity/scene IDs exist in the registries above
 
-If you return fewer or more, the entire response will be REJECTED and you must retry.`;
+If you return fewer or more items, the entire response will be REJECTED.`;
 }

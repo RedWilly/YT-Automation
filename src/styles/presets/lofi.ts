@@ -22,7 +22,7 @@ export const lofiStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: 'hand drawn scene, lo-fi 1980s japanese magazine art style, muted tones, pastel color palette, soft grain, nostalgic aesthetic, animated',
-    negativePrompt: 'no text, no words, no letters, no numbers, no labels, no 3D, no photorealistic, no modern, no neon, no harsh colors, no digital, no watermark, no border, no frame, no white border, no margin, no edges, no vignette, no caption',
+    negativePrompt: 'text, words, letters, numbers, writing, handwriting, subtitles, captions, lower thirds, title cards, labels, signs, posters, logos, watermarks, signatures, calligraphy, diagrams, charts, infographics, UI, interface, overlays, speech bubbles, comics, memes, annotations, timestamps, dates, years, quotes, dialogue boxes, credits, headlines, typography, 3D, photorealistic, modern, neon, harsh colors, digital, border, frame, white border, margin, edges, vignette',
 
     // === Segmentation ===
     segmentationType: 'sentence',

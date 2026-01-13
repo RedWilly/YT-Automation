@@ -21,7 +21,7 @@ export const pixelStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: 'pixel art. pixelated scene reminiscent of a nostalgic video game.',
-    negativePrompt: 'text, words, letters, numbers, labels, 3D, photorealistic, blurry, smooth gradients, watermark, border, frame, white border, margin, edges, vignette',
+    negativePrompt: 'text, words, letters, numbers, writing, handwriting, subtitles, captions, lower thirds, title cards, labels, signs, posters, logos, watermarks, signatures, calligraphy, diagrams, charts, infographics, UI, interface, overlays, speech bubbles, comics, memes, annotations, timestamps, dates, years, quotes, dialogue boxes, credits, headlines, typography, 3D, photorealistic, blurry, smooth gradients, border, frame, white border, margin, edges, vignette',
 
     // === Segmentation ===
     segmentationType: 'sentence',

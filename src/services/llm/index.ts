@@ -10,3 +10,9 @@ export {
     type StoryContext,
     type BatchState,
 } from './context.ts';
+export {
+    buildImagePrompt,
+    generateConsistentSeed,
+    legacyQueryToStructuredShot,
+    type StructuredShot,
+} from './shot-builder.ts';

@@ -1,7 +1,7 @@
-import type { StoryContext, Scene, StructuredShot, Composition } from './types.ts';
+import type { StoryContext, Scene, StructuredShot, Composition } from '../../types/llm.ts';
 import type { ResolvedStyle } from '../../styles/types.ts';
 
-export type { StructuredShot } from './types.ts';
+export type { StructuredShot } from '../../types/llm.ts';
 
 const COMPOSITION_PREFIXES: Record<Composition, string> = {
     'extreme-wide': 'Extreme wide establishing shot,',
@@ -85,5 +85,3 @@ export function generateConsistentSeed(shot: StructuredShot, shotIndex: number):
     const seedBase = `${shot.sceneId}_${allEntities.join(',')}`;
     return Math.abs(hashCode(seedBase) + shotIndex) % 2147483647 || 1;
 }
-
-

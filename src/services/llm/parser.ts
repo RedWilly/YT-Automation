@@ -1,7 +1,7 @@
 /** Handles parsing, JSON extraction, and validation of LLM responses */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
-import { BEAT_TYPES, COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "./types.ts";
+import { BEAT_TYPES, COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
 import * as logger from "../../utils/logger.ts";
 
 /** Parse and validate image queries from LLM response */

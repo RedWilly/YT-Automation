@@ -6,8 +6,8 @@
  */
 
 import type { ResolvedStyle } from '../../styles/types.ts';
-import type { StoryContext, BatchState } from './types.ts';
-import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA } from './types.ts';
+import type { StoryContext, BatchState } from '../../types/llm.ts';
+import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -255,7 +255,6 @@ Schema: ${outputSchema}`;
 export function buildContextAwareUserPrompt(
    formattedTranscript: string,
    segmentCount: number,
-   useAiImage: boolean,
    naturalEdit: boolean,
    storyContext: StoryContext,
    batchState: BatchState | null,

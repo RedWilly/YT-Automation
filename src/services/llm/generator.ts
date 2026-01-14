@@ -11,7 +11,7 @@ import {
 import { callLLMWithRetry } from './client.ts';
 import { parseStructuredShots, validateStructuredShots } from './parser.ts';
 import { buildImagePrompt } from './shot-builder.ts';
-import type { StructuredShot, StoryContext, BatchState } from './types.ts';
+import type { StructuredShot, StoryContext, BatchState } from '../../types/llm.ts';
 import {
     extractStoryContext,
     createInitialBatchState,
@@ -137,7 +137,6 @@ async function generateQueriesWithContext(
         const userPrompt = buildContextAwareUserPrompt(
             batchFormatted,
             expectedCount,
-            USE_AI_IMAGE,
             useShotTypes,
             storyContext,
             batchState,

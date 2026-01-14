@@ -8,13 +8,13 @@ export type {
     EntityType, ContentType, ContentStrategy, EntityImportance, EraConstraints,
     Group, BeatType, FocusType, NarrativeBeat, NarrativeArc, Entity, Scene,
     StoryContext, BatchState,
-} from './types.ts';
+} from '../../types/llm.ts';
 
 import type {
     StoryContext, BatchState, EraConstraints, BeatType,
-} from './types.ts';
+} from '../../types/llm.ts';
 
-import { BEAT_TYPES } from './types.ts';
+import { BEAT_TYPES } from '../../types/llm.ts';
 
 export function buildExtractionSystemPrompt(): string {
     return `You are a visual content analyst for a universal video production system. Your task is to analyze ANY type of transcript—stories, educational content, documentaries, product videos, abstract concepts—and extract structured information for visual generation.

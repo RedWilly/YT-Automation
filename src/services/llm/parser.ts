@@ -229,18 +229,35 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
         if (typeof obj.start !== "number") return false;
         if (typeof obj.end !== "number") return false;
         if (typeof obj.sceneId !== "string") return false;
-        if (!Array.isArray(obj.presentEntities)) return false;
-        if (!Array.isArray(obj.focusEntities)) return false;
         if (typeof obj.action !== "string") return false;
         if (!["pan", "zoom", "static"].includes(obj.type as string)) return false;
+
+        // beatType validation
+        const validBeatTypes = ['establishing', 'action', 'emotional', 'dialogue', 
+                                'tension', 'climax', 'resolution', 'transition'];
+        if (!validBeatTypes.includes(obj.beatType as string)) return false;
+
+        // focus object validation
+        if (!obj.focus || typeof obj.focus !== 'object') return false;
+        const focus = obj.focus as Record<string, unknown>;
+        if (!Array.isArray(focus.primary)) return false;
+        if (!Array.isArray(focus.secondary)) return false;
+        if (!Array.isArray(focus.exclude)) return false;
+
+        // composition validation (can be null)
+        if (obj.composition !== null && obj.composition !== undefined) {
+            const validCompositions = ['extreme-wide', 'wide', 'medium', 'close-up', 
+                                       'extreme-close-up', 'two-shot'];
+            if (!validCompositions.includes(obj.composition as string)) return false;
+        }
 
         // Optional linkedTo: must be number or null if present
         if (obj.linkedTo !== undefined && obj.linkedTo !== null && typeof obj.linkedTo !== "number") {
             return false;
         }
 
-        // Optional composition
-        if (obj.composition !== undefined && obj.composition !== null && typeof obj.composition !== "string") {
+        // Optional framingNote
+        if (obj.framingNote !== undefined && obj.framingNote !== null && typeof obj.framingNote !== "string") {
             return false;
         }
 
@@ -320,6 +337,16 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
         }
         if (shot.start > shot.end) {
             throw new Error(`Invalid shot at index ${i}: start (${shot.start}) > end (${shot.end})`);
+        }
+
+        // Validate focus has at least primary
+        if (!shot.focus || !Array.isArray(shot.focus.primary)) {
+            throw new Error(`Invalid shot at index ${i}: focus.primary is required`);
+        }
+
+        // Validate beatType
+        if (!shot.beatType) {
+            throw new Error(`Invalid shot at index ${i}: beatType is required`);
         }
 
         // Validate linkedTo

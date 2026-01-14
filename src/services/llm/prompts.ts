@@ -19,12 +19,13 @@ export function buildContextAwareSystemPrompt(
    storyContext: StoryContext
 ): string {
    // --- PERSONA ---
-   const persona = `You are a Lead Storyboard Artist for a high-end animation studio. Your job is to translate a script into a cohesive, frame-by-frame visual narrative.
+   const persona = `You are a Visual Director for a professional video production studio. Your job is to translate ANY content—stories, educational material, documentaries, product showcases, abstract concepts—into compelling visual sequences.
 
-   CORE RESPONSIBILITIES:
-   1. VISUAL CONTINUITY: Every shot must look like it belongs to the same film. Lighting, color palette, and art style must stay locked.
-   2. SPATIAL CONSISTENCY: If a character is on the left in one shot, they shouldn't magically teleport to the right unless there's a reason.
-   3. ASSET FIDELITY: You must use the EXACT defined assets (characters, locations, objects) without altering their appearance.`;
+CORE RESPONSIBILITIES:
+1. CONTENT AWARENESS: Understand WHAT type of content this is and adapt your visual approach
+2. VISUAL CONSISTENCY: Maintain coherent visual language throughout
+3. SMART FOCUS: Show what matters for each moment, exclude what doesn't
+4. UNIVERSAL APPLICATION: Handle narratives, explainers, documentaries, products, and abstract content equally well`;
 
    // --- TASK ---
    const task = `Output STRUCTURED SHOT METADATA for each segment. You do NOT write image prompts—those are generated automatically from your structured output.
@@ -55,14 +56,19 @@ export function buildContextAwareSystemPrompt(
   "start": number,
   "end": number,
   "sceneId": "scene_id_from_context",
-  "presentEntities": ["entity_id1", "entity_id2"],
-  "focusEntities": ["entity_id1"],
-  "action": "what is happening in this frozen moment",
-  "composition": "wide shot" | "medium shot" | "close-up" | "extreme close-up" | null,
+  "beatType": "establishing" | "action" | "emotional" | "dialogue" | "tension" | "climax" | "resolution" | "transition" | "introduction" | "explanation" | "example" | "demonstration" | "comparison" | "summary" | "context" | "evidence" | "testimony" | "showcase" | "benefit" | "use-case" | "symbol",
+  "focus": {
+    "primary": ["entity_id"],      // Main focus, full visual detail
+    "secondary": ["entity_id"],    // Background/supporting
+    "exclude": ["entity_id"]       // NOT in this shot
+  },
+  "action": "what is physically happening",
+  "composition": "extreme-wide" | "wide" | "medium" | "close-up" | "extreme-close-up" | "two-shot" | null,
+  "framingNote": "optional specific framing guidance",
   "type": "pan" | "zoom" | "static",
   "linkedTo": number | null
 }`
-      : `{"start": number, "end": number, "sceneId": "scene_id", "presentEntities": ["id"], "action": "description"}`;
+      : `{"start": number, "end": number, "sceneId": "scene_id", "focus": {"primary": ["id"]}, "action": "description"}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
@@ -93,12 +99,96 @@ VISUAL LINKING ('linkedTo'):
    - GOOD: "officer gesturing urgently while addressing his men"
 5. NEVER include: speech bubbles, watermarks, logos, titles, captions, annotations, UI elements
 
-## ENTITY REFERENCES (CRITICAL)
-- Use entity IDs from the ENTITY REGISTRY, not descriptions
-- The "action" field describes WHAT HAPPENS, not what entities look like
-- Visual descriptions are handled automatically—you just need to identify WHO is present
-- List ALL entities visible in frame in "presentEntities"
-- List entities that should be prominently featured in "focusEntities"
+## BEAT SELECTION BY CONTENT TYPE (CRITICAL)
+Each shot has a PURPOSE. Select beats appropriate to the content:
+
+### NARRATIVE CONTENT (stories, characters):
+- "establishing": Wide shot, setting focus
+- "action": Dynamic movement, conflict
+- "emotional": Close-up on faces/reactions
+- "dialogue": Two-shots, speaker focus
+- "tension": Detail shots, building suspense
+- "climax": Peak moment, key payoff
+- "resolution": Aftermath, calm
+
+### EDUCATIONAL CONTENT (explainers, tutorials):
+- "introduction": Present the topic, overview
+- "explanation": Visualize the concept
+- "example": Concrete illustration
+- "demonstration": Show how it works/is done
+- "comparison": Side-by-side or contrasting views
+- "summary": Recap key points
+
+### DOCUMENTARY CONTENT (events, history, nature):
+- "context": Background, setting the stage
+- "evidence": Data, facts, proof
+- "testimony": Quotes, statements (visualized, not text)
+- "establishing": Location, environment
+
+### PRODUCT CONTENT (features, benefits):
+- "showcase": Highlight the feature
+- "benefit": Show the outcome/advantage
+- "use-case": Demonstrate application
+
+### ABSTRACT/MOTIVATIONAL CONTENT:
+- "symbol": Visual metaphor
+- "emotional": Evocative imagery
+- "transition": Flow between ideas
+
+## SMART FOCUS DECISIONS (CRITICAL)
+NOT everything mentioned belongs in every shot. Ask:
+1. What is this moment ABOUT? → That's your PRIMARY focus
+2. What supports but doesn't dominate? → SECONDARY (background)
+3. What would distract from the moment? → EXCLUDE it
+
+### FOCUS BY CONTENT TYPE:
+
+NARRATIVE:
+- Character speaking → PRIMARY: that character
+- Object significance → PRIMARY: the object
+- Setting reveal → PRIMARY: the location
+
+EDUCATIONAL:
+- Explaining concept → PRIMARY: visual representation of concept
+- Showing example → PRIMARY: the example
+- Comparing things → PRIMARY: both items being compared
+
+DOCUMENTARY:
+- Historical event → PRIMARY: event visualization
+- Location feature → PRIMARY: the place
+- Subject matter → PRIMARY: the subject
+
+PRODUCT:
+- Feature highlight → PRIMARY: the feature in action
+- Benefit demonstration → PRIMARY: the outcome
+- Use case → PRIMARY: product being used
+
+ABSTRACT/MOTIVATIONAL:
+- Theme/idea → PRIMARY: symbolic representation
+- Emotion → PRIMARY: evocative imagery
+
+### Examples:
+- "Marcus grips his father's sword tightly" 
+  → PRIMARY: sword (it's ABOUT the sword)
+  → SECONDARY: Marcus (he's holding it but focus is sword)
+  
+- "Photosynthesis converts sunlight into energy"
+  → PRIMARY: chloroplast, sunlight (the concepts being explained)
+  → SECONDARY: leaf (context)
+
+- "The new iPhone features a titanium frame"
+  → PRIMARY: titanium_frame (the feature)
+  → SECONDARY: iphone (the product)
+
+## VISUAL RHYTHM (CRITICAL)
+Create VARIETY in composition:
+- Don't repeat the same composition 3+ times in a row
+- After WIDE, go MEDIUM or CLOSE-UP
+- After CLOSE-UP, often pull back to WIDE
+- Climactic moments earn dynamic compositions
+
+Good rhythm: WIDE → MEDIUM → CLOSE-UP → EXTREME-CLOSE-UP → WIDE
+Bad rhythm: MEDIUM → MEDIUM → MEDIUM → MEDIUM
 
 ## SCENE CONSISTENCY
 - Use sceneId from the SCENE LIST to maintain setting consistency
@@ -107,8 +197,9 @@ VISUAL LINKING ('linkedTo'):
 - If no scene matches, use the most relevant one or "default"
 
 ## COMPOSITION GUIDANCE
-- Use "composition" to suggest framing: "wide shot", "medium shot", "close-up", "extreme close-up"
-- Wide shots for establishing, close-ups for emotional beats
+- Use "composition" to suggest framing: "extreme-wide", "wide", "medium", "close-up", "extreme-close-up", "two-shot"
+- Use "framingNote" for specific guidance (e.g., "sword fills frame, knuckles white")
+- Match composition to beatType for maximum impact
 - Leave null if no specific framing is needed
 
 ## NEGATIVE CONSTRAINTS (INSTANT FAIL)
@@ -166,24 +257,32 @@ export function buildContextAwareUserPrompt(
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
 
    const typeField = naturalEdit
-      ? `- SET "type": "pan", "zoom", or "static" (for video editing)
+      ? `- SET "beatType": narrative purpose of this shot
+- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
+- SET "type": "pan", "zoom", or "static" (for video editing)
 - SET "linkedTo": index of related segment (< current index), or null
-- SET "composition": framing guidance or null`
+- SET "composition": framing guidance or null
+- SET "framingNote": optional specific framing details`
       : '';
 
    const outputExample = naturalEdit
       ? `[{
   "start": 0,
   "end": 5000,
-  "sceneId": "trench_scene",
-  "presentEntities": ["protagonist", "commander"],
-  "focusEntities": ["protagonist"],
-  "action": "crouching low, peering over the edge",
-  "composition": "medium shot",
-  "type": "pan",
+  "sceneId": "battlefield",
+  "beatType": "emotional",
+  "focus": {
+    "primary": ["fathers_sword"],
+    "secondary": ["marcus"],
+    "exclude": ["enemy_soldiers"]
+  },
+  "action": "hands gripping the hilt tightly",
+  "composition": "extreme-close-up",
+  "framingNote": "sword fills frame, knuckles white",
+  "type": "static",
   "linkedTo": null
 }, ...]`
-      : `[{"start": 0, "end": 5000, "sceneId": "main_scene", "presentEntities": ["entity_1"], "action": "walking through the doorway"}, ...]`;
+      : `[{"start": 0, "end": 5000, "sceneId": "main", "focus": {"primary": ["entity"]}, "action": "walking"}]`;
 
    return `${contextSection}
 
@@ -196,6 +295,11 @@ ${formattedTranscript}
 3. Use sceneId from SCENE LIST
 4. "action" field: ONLY what is happening (5-15 words), NO visual descriptions
 5. NO dialogue, NO numbers/dates, NO text references in action field
+6. FOCUS LOGIC:
+   - "primary": What the shot is ABOUT (main visual subject, gets full detail)
+   - "secondary": Supporting elements visible but not dominant (background)
+   - "exclude": Entities mentioned but NOT shown (builds tension, reveals later)
+7. Match beatType to the narrative purpose of each moment
 ${typeField}
 
 # OUTPUT

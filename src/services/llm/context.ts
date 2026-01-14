@@ -8,129 +8,143 @@ import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import * as logger from '../../utils/logger.ts';
 
-// ============================================================================
-// Types
-// ============================================================================
+export type EntityType = 
+    | 'character' | 'group' | 'location' | 'object' | 'animal' 
+    | 'concept' | 'event' | 'comparison' | 'data' | 'step' 
+    | 'feature' | 'benefit' | 'symbol';
 
-/**
- * Entity types that can appear in a script
- */
-export type EntityType = 'character' | 'location' | 'object' | 'animal' | 'concept' | 'group';
+export type ContentType = 
+    | 'narrative' | 'educational' | 'documentary' | 'product' 
+    | 'abstract' | 'news' | 'motivational' | 'comparison';
 
-/**
- * Importance level for entities
- * - primary: Main focus of the story, appears frequently
- * - secondary: Supporting role, appears multiple times
- * - background: Mentioned once or twice, not central
- */
+export interface ContentStrategy {
+    type: ContentType;
+    visualApproach: 'realistic' | 'symbolic' | 'diagrammatic' | 'metaphorical' | 'documentary';
+    entityMeaning: string;
+    typicalBeats: BeatType[];
+}
+
 export type EntityImportance = 'primary' | 'secondary' | 'background';
 
-/**
- * Era-appropriate constraints for consistency validation
- * Defines what items are allowed/prohibited in a given historical era
- */
 export interface EraConstraints {
-    /** Era identifier: "medieval", "ww2", "modern", "ancient", "futuristic", etc. */
     era: string;
-    /** Weapons appropriate for this era */
     allowedWeapons: string[];
-    /** Items that should NOT appear in this era (anachronisms) */
     prohibitedItems: string[];
-    /** Technology level descriptor */
     technologyLevel: 'prehistoric' | 'ancient' | 'medieval' | 'industrial' | 'modern' | 'futuristic';
 }
 
-/**
- * An entity extracted from the transcript
- * Can be a character, location, object, animal, concept, or group
- */
+export interface Group {
+    id: string;
+    name: string;
+    visualAnchor: string;
+    memberIds: string[];
+    allegiance?: 'protagonist' | 'antagonist' | 'neutral';
+}
+
+export type BeatType = 
+    | 'establishing' | 'action' | 'emotional' | 'dialogue' 
+    | 'tension' | 'climax' | 'resolution' | 'transition'
+    | 'introduction' | 'explanation' | 'example' | 'demonstration' 
+    | 'comparison' | 'summary' | 'context' | 'evidence'
+    | 'testimony' | 'showcase' | 'benefit' | 'use-case';
+
+export type FocusType = 'character' | 'object' | 'setting' | 'action' | 'group';
+
+export interface NarrativeBeat {
+    segmentIndex: number;
+    beatType: BeatType;
+    importance: 'high' | 'medium' | 'low';
+    suggestedFocus: FocusType;
+}
+
+export interface NarrativeArc {
+    beats: NarrativeBeat[];
+}
+
 export interface Entity {
     id: string;
     type: EntityType;
     name: string;
-    description: string;  // Visual description for image generation
+    description: string;
     importance: EntityImportance;
-    firstMention: number; // Segment index where first mentioned
-    mentions: number[];   // All segment indices that reference this entity
-    /** 
-     * Immutable visual traits that MUST appear in every query mentioning this entity.
-     * This is the "anchor" description that ensures visual consistency across segments.
-     * Example: "6'2\" Viking warrior with braided red beard, bare-chested, wielding a massive Dane axe"
-     */
+    firstMention: number;
+    mentions: number[];
     visualAnchor: string;
-    /**
-     * Era-specific constraints for this entity (optional, overrides global)
-     * Use for entities that don't fit the main era (e.g., a time traveler)
-     */
     eraConstraints: EraConstraints | null;
+    groupId?: string;
+    uniqueTraits?: string;
+    role?: 'leader' | 'soldier' | 'civilian' | 'background';
 }
 
-/**
- * A scene groups related segments together
- * Segments in a scene share the same location/context
- */
 export interface Scene {
     id: string;
     name: string;
     description: string;
-    segmentRange: [number, number]; // [start, end] indices
-    primaryEntities: string[];      // Entity IDs that are main focus
-    secondaryEntities: string[];    // Entity IDs in supporting role
-    setting: string;                // Where/when this happens
-    mood: string;                   // Tone/atmosphere
+    segmentRange: [number, number];
+    primaryEntities: string[];
+    secondaryEntities: string[];
+    setting: string;
+    mood: string;
 }
 
-/**
- * Complete story context extracted from transcript
- * Used to maintain consistency across batched query generation
- */
 export interface StoryContext {
-    // Overall story metadata
     summary: string;
     era: string;
     primarySetting: string;
     tone: string;
-
-    // Entity registry
+    contentType: ContentType;
+    contentStrategy: ContentStrategy;
     entities: Entity[];
-
-    // Scene graph
+    groups: Group[];
     scenes: Scene[];
-
-    /**
-     * Global era constraints for the entire story
-     * Used by verifier to detect anachronistic items
-     */
     globalEraConstraints: EraConstraints;
+
+    narrativeArc: NarrativeArc;
 }
 
-/**
- * State passed between batches for continuity
- */
 export interface BatchState {
     batchIndex: number;
-    lastQueries: string[];     // Last N queries from previous batch
-    activeEntities: string[];  // Entity IDs that were on screen
-    currentScene: string;      // Scene ID
-    currentMood: string;       // Current mood/atmosphere
+    lastQueries: string[];
+    activeEntities: string[];
+    currentScene: string;
+    currentMood: string;
 }
 
-// ============================================================================
-// Extraction Prompt
-// ============================================================================
-
-/**
- * Build the system prompt for context extraction
- */
 export function buildExtractionSystemPrompt(): string {
-    return `You are a script analyst specializing in visual storytelling. Your task is to analyze a transcript and extract structured information about entities, scenes, narrative flow, and era-appropriate constraints.
+    return `You are a visual content analyst for a universal video production system. Your task is to analyze ANY type of transcript—stories, educational content, documentaries, product videos, abstract concepts—and extract structured information for visual generation.
 
 # TASK
 Analyze the transcript and extract:
-1. ENTITIES: All characters, locations, objects, animals, concepts, or groups that appear
-2. SCENES: How segments group together into coherent scenes
-3. METADATA: Era, setting, tone, summary
-4. ERA CONSTRAINTS: What items are appropriate/prohibited for this era
+1. CONTENT TYPE: What kind of content is this? (narrative, educational, documentary, product, abstract, motivational, comparison, news)
+2. ENTITIES: All visual elements appropriate to the content type
+3. GROUPS: Shared visual identities (factions for narrative, categories for educational, etc.)
+4. SCENES: How segments group together
+5. NARRATIVE BEATS: The purpose/beat for each segment
+6. METADATA: Setting, tone, summary
+7. ERA CONSTRAINTS: Time period appropriateness (if applicable)
+
+# CONTENT TYPE DETECTION (FIRST STEP)
+Before extracting entities, identify the content type:
+- "narrative": Stories with characters, plot, conflict, story arc
+- "educational": Explains concepts, teaches, how-to, tutorials
+- "documentary": Real events, history, nature, places, biographies
+- "product": Showcases items, features, benefits, demos
+- "abstract": Conceptual, artistic, metaphorical, philosophical
+- "motivational": Inspirational, life lessons, quotes, self-improvement
+- "comparison": Compares alternatives, pros/cons, vs videos
+- "news": Current events, reports, announcements
+
+# ENTITY EXTRACTION BY CONTENT TYPE
+Adapt entity types based on detected content:
+
+NARRATIVE → characters, groups, locations, objects, animals
+EDUCATIONAL → concepts, steps, examples, comparisons, processes, data
+DOCUMENTARY → subjects, events, locations, evidence, people
+PRODUCT → features, benefits, use-cases, the product, competitors
+ABSTRACT → symbols, themes, metaphors, emotions
+MOTIVATIONAL → themes, examples, outcomes, quotes (as concepts)
+COMPARISON → alternatives, criteria, outcomes, pros, cons
+NEWS → events, people, locations, data
 
 # ENTITY EXTRACTION RULES
 - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
@@ -143,6 +157,48 @@ Analyze the transcript and extract:
   - Consecutive segments: "0-22" instead of [0,1,2,3,...,22]
   - Gaps: ["0-5", "10-15"] for segments 0-5 and 10-15
   - Single: ["7"] for just segment 7
+- For characters, assign a role: leader, soldier, civilian, or background
+- If a character belongs to a group/faction, set groupId to the group's id
+
+# GROUP EXTRACTION RULES
+- Identify factions, armies, teams, or any collection of characters with shared visual identity
+- Each group has a visualAnchor describing shared appearance (e.g., "red cloaks, bronze armor, plumed helmets")
+- memberIds lists all character entity IDs that belong to this group (use range notation like "soldier_1-soldier_10")
+- allegiance: protagonist (heroes), antagonist (enemies), or neutral
+
+# BEAT RULES (UNIVERSAL - ADAPT TO CONTENT TYPE)
+Analyze EACH segment for its beat type. Use beats appropriate to the content:
+
+NARRATIVE BEATS:
+- establishing: Setting the scene, location focus
+- action: Movement, conflict, physical activity
+- emotional: Character feelings, reactions, intimate moments
+- dialogue: Conversation between characters
+- tension: Building suspense, anticipation
+- climax: Peak moment, payoff
+- resolution: Aftermath, calm after storm
+- transition: Moving between scenes/moments
+
+EDUCATIONAL BEATS:
+- introduction: Presenting a topic, overview
+- explanation: Describing how/why something works
+- example: Showing a specific case or illustration
+- demonstration: Showing how to do something
+- comparison: Contrasting two or more things
+- summary: Recap, key takeaways
+
+DOCUMENTARY BEATS:
+- context: Historical/factual background
+- evidence: Data, facts, proof
+- testimony: Quotes, statements
+
+PRODUCT BEATS:
+- showcase: Highlighting a feature
+- benefit: Showing advantage/outcome
+- use-case: Demonstrating application
+
+Rate importance: high (key moment), medium (supporting), low (filler)
+suggestedFocus: what should be primary focus (character, object, setting, action, group, concept)
 
 # ERA CONSTRAINTS RULES
 Identify the historical/fictional era and determine:
@@ -158,9 +214,16 @@ Identify the historical/fictional era and determine:
 # OUTPUT FORMAT
 Return a valid JSON object with this structure:
 {
-    "summary": "Brief overview of the story",
-    "era": "Time period or setting type",
-    "primarySetting": "Main location/environment",
+    "summary": "Brief overview of the content",
+    "contentType": "narrative|educational|documentary|product|abstract|motivational|comparison|news",
+    "contentStrategy": {
+        "type": "same as contentType",
+        "visualApproach": "realistic|symbolic|diagrammatic|metaphorical|documentary",
+        "entityMeaning": "What entities represent in this content type",
+        "typicalBeats": ["list", "of", "common", "beats"]
+    },
+    "era": "Time period or setting type (if applicable, else 'modern' or 'timeless')",
+    "primarySetting": "Main location/environment/context",
     "tone": "Overall mood/atmosphere",
     "globalEraConstraints": {
         "era": "medieval|ww2|modern|ancient|futuristic|etc",
@@ -171,28 +234,50 @@ Return a valid JSON object with this structure:
     "entities": [
         {
             "id": "unique_snake_case_id",
-            "type": "character|location|object|animal|concept|group",
+            "type": "character|location|object|animal|concept|event|step|feature|benefit|symbol|data|comparison",
             "name": "Display Name",
             "description": "Detailed visual description for image generation",
             "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
             "eraConstraints": null,
             "importance": "primary|secondary|background",
             "firstMention": 0,
-            "mentions": ["0-5", "8-12"]
+            "mentions": ["0-5", "8-12"],
+            "groupId": "optional_group_id (for characters in factions)",
+            "uniqueTraits": "traits specific to this entity",
+            "role": "leader|soldier|civilian|background (for characters)"
+        }
+    ],
+    "groups": [
+        {
+            "id": "group_id",
+            "name": "Group Name",
+            "visualAnchor": "Shared appearance for ALL members",
+            "memberIds": ["member_1", "member_2-member_10"],
+            "allegiance": "protagonist|antagonist|neutral"
         }
     ],
     "scenes": [
         {
             "id": "scene_id",
-            "name": "Scene Name",
-            "description": "What happens in this scene",
+            "name": "Scene/Section Name",
+            "description": "What happens in this section",
             "segmentRange": [0, 15],
             "primaryEntities": ["entity_id1"],
             "secondaryEntities": ["entity_id2"],
-            "setting": "Where/when this happens",
-            "mood": "Tone of this scene"
+            "setting": "Where/when this happens or context",
+            "mood": "Tone of this section"
         }
-    ]
+    ],
+    "narrativeArc": {
+        "beats": [
+            {
+                "segmentIndex": 0,
+                "beatType": "establishing|action|emotional|dialogue|tension|climax|resolution|transition|introduction|explanation|example|demonstration|comparison|summary|context|evidence|testimony|showcase|benefit|use-case",
+                "importance": "high|medium|low",
+                "suggestedFocus": "character|object|setting|action|group|concept"
+            }
+        ]
+    }
 }
 
 ## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
@@ -508,12 +593,41 @@ function parseStoryContext(content: string): StoryContext {
         if (!parsed.primarySetting) parsed.primarySetting = '';
         if (!parsed.tone) parsed.tone = '';
 
+        // Ensure contentType exists with default
+        if (!parsed.contentType) {
+            parsed.contentType = 'narrative'; // Default to narrative for backward compatibility
+        }
+
+        // Ensure contentStrategy exists with defaults
+        if (!parsed.contentStrategy) {
+            parsed.contentStrategy = {
+                type: parsed.contentType,
+                visualApproach: 'realistic',
+                entityMeaning: 'Visual elements in the content',
+                typicalBeats: ['establishing', 'action', 'resolution'],
+            };
+        }
+
         // Ensure globalEraConstraints exists with defaults
         if (!parsed.globalEraConstraints) {
             parsed.globalEraConstraints = {
                 ...DEFAULT_ERA_CONSTRAINTS,
                 era: parsed.era || 'unspecified',
             };
+        }
+
+        // Ensure groups array exists and expand memberIds
+        if (!parsed.groups || !Array.isArray(parsed.groups)) {
+            parsed.groups = [];
+        }
+        parsed.groups = parsed.groups.map((group) => ({
+            ...group,
+            memberIds: expandMemberIds(group.memberIds),
+        }));
+
+        // Ensure narrativeArc exists with defaults
+        if (!parsed.narrativeArc || !parsed.narrativeArc.beats) {
+            parsed.narrativeArc = { beats: [] };
         }
 
         // Ensure each entity has visualAnchor, eraConstraints, and expanded mentions
@@ -565,6 +679,42 @@ function expandMentionRanges(mentions: unknown): number[] {
                     result.push(num);
                 }
             }
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Expand group memberIds from range notation to full arrays
+ * Handles: ["soldier_1", "soldier_2-soldier_10"] → ["soldier_1", "soldier_2", "soldier_3", ..., "soldier_10"]
+ */
+function expandMemberIds(memberIds: unknown): string[] {
+    if (!memberIds || !Array.isArray(memberIds)) {
+        return [];
+    }
+
+    const result: string[] = [];
+
+    for (const item of memberIds) {
+        if (typeof item !== 'string') {
+            continue;
+        }
+
+        // Check for range notation like "soldier_2-soldier_10"
+        const rangeMatch = item.match(/^(.+?)(\d+)-\1(\d+)$/);
+        if (rangeMatch) {
+            const prefix = rangeMatch[1];
+            const start = parseInt(rangeMatch[2] ?? '', 10);
+            const end = parseInt(rangeMatch[3] ?? '', 10);
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+                for (let i = start; i <= end; i++) {
+                    result.push(`${prefix}${i}`);
+                }
+            }
+        } else {
+            // Regular ID, just add it
+            result.push(item);
         }
     }
 

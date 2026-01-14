@@ -228,7 +228,7 @@ async function generateQueriesWithContext(
         allStructuredShots.push(...adjustedShots);
 
         // Update batch state for next iteration
-        const activeEntities = sanitizedShots.flatMap(s => s.presentEntities);
+        const activeEntities = sanitizedShots.flatMap(s => [...s.focus.primary, ...s.focus.secondary]);
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;
 

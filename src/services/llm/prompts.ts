@@ -7,7 +7,7 @@
 
 import type { ResolvedStyle } from '../../styles/types.ts';
 import type { StoryContext, BatchState } from '../../types/llm.ts';
-import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA } from '../../types/llm.ts';
+import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -66,7 +66,7 @@ CORE RESPONSIBILITIES:
   "action": "what is physically happening",
   "composition": ${COMPOSITION_SCHEMA} | null,
   "framingNote": "optional specific framing guidance",
-  "type": "pan" | "zoom" | "static"
+  "type": ${SHOT_TYPE_SCHEMA}
 }`
       : `{
   "start": number,
@@ -96,97 +96,26 @@ EDITING FLOW:
 - SEQUENCE your shots: Wide -> Medium -> Close-up is a classic pattern.`
       : '';
 
-   // --- CRITICAL RULES ---
+   // --- CRITICAL RULES (Condensed for token efficiency) ---
+   const typicalBeats = storyContext.contentStrategy?.typicalBeats?.join(', ');
+   const contentType = storyContext.contentStrategy?.type || storyContext.contentType;
+
    const criticalRules = `
-## TEXT ELIMINATION (ABSOLUTE ZERO TOLERANCE)
-1. NEVER include quoted dialogue from transcript in action field
-2. NEVER include numbers, years, dates, times (e.g., "1944", "3am", "June 12")
-3. NEVER use words: "sign", "label", "poster", "handwritten", "typed", "subtitle", "title card", "text", "writing", "inscription"
-4. Convert dialogue to visual description:
-   - BAD: "He says 'Attack at dawn'"
-   - GOOD: "officer gesturing urgently while addressing his men"
-5. NEVER include: speech bubbles, watermarks, logos, titles, captions, annotations, UI elements
+## HARD CONSTRAINTS (INSTANT REJECTION)
+1. NO text/numbers/dates in action field (no "1944", no dialogue quotes)
+2. NO diagrams/maps/montages/split screens—describe ONE moment
+3. Action field = 5-15 words, physical description only, NO appearances
+4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
 
-## BEAT SELECTION BY CONTENT TYPE (CRITICAL)
-Each shot has a PURPOSE. Select beats appropriate to the content:
+## CONTENT STRATEGY (From Phase 1 Analysis)
+Content Type: ${contentType}
+Visual Approach: ${storyContext.contentStrategy?.visualApproach}
+Typical Beats: ${typicalBeats}
 
-### NARRATIVE CONTENT (stories, characters):
-- "establishing": Wide shot, setting focus
-- "action": Dynamic movement, conflict
-- "emotional": Close-up on faces/reactions
-- "dialogue": Two-shots, speaker focus
-- "tension": Detail shots, building suspense
-- "climax": Peak moment, key payoff
-- "resolution": Aftermath, calm
-
-### EDUCATIONAL CONTENT (explainers, tutorials):
-- "introduction": Present the topic, overview
-- "explanation": Visualize the concept
-- "example": Concrete illustration
-- "demonstration": Show how it works/is done
-- "comparison": Side-by-side or contrasting views
-- "summary": Recap key points
-
-### DOCUMENTARY CONTENT (events, history, nature):
-- "context": Background, setting the stage
-- "evidence": Data, facts, proof
-- "testimony": Quotes, statements (visualized, not text)
-- "establishing": Location, environment
-
-### PRODUCT CONTENT (features, benefits):
-- "showcase": Highlight the feature
-- "benefit": Show the outcome/advantage
-- "use-case": Demonstrate application
-
-### ABSTRACT/MOTIVATIONAL CONTENT:
-- "symbol": Visual metaphor
-- "emotional": Evocative imagery
-- "transition": Flow between ideas
-
-## SMART FOCUS DECISIONS (CRITICAL)
-NOT everything mentioned belongs in every shot. Ask:
-1. What is this moment ABOUT? → That's your PRIMARY focus
-2. What supports but doesn't dominate? → SECONDARY (background)
-3. What would distract from the moment? → EXCLUDE it
-
-### FOCUS BY CONTENT TYPE:
-
-NARRATIVE:
-- Character speaking → PRIMARY: that character
-- Object significance → PRIMARY: the object
-- Setting reveal → PRIMARY: the location
-
-EDUCATIONAL:
-- Explaining concept → PRIMARY: visual representation of concept
-- Showing example → PRIMARY: the example
-- Comparing things → PRIMARY: both items being compared
-
-DOCUMENTARY:
-- Historical event → PRIMARY: event visualization
-- Location feature → PRIMARY: the place
-- Subject matter → PRIMARY: the subject
-
-PRODUCT:
-- Feature highlight → PRIMARY: the feature in action
-- Benefit demonstration → PRIMARY: the outcome
-- Use case → PRIMARY: product being used
-
-ABSTRACT/MOTIVATIONAL:
-- Theme/idea → PRIMARY: symbolic representation
-- Emotion → PRIMARY: evocative imagery
-
-### Examples:
-- "Marcus grips his father's sword tightly" 
-  → PRIMARY: sword (it's ABOUT the sword)
-  → SECONDARY: Marcus (he's holding it but focus is sword)
-  
-- "Photosynthesis converts sunlight into energy"
-  → PRIMARY: chloroplast, sunlight (the concepts being explained)
-  → SECONDARY: leaf (context)
-
-- "The new iPhone features a titanium frame"
-  → PRIMARY: titanium_frame (the feature)
-  → SECONDARY: iphone (the product)
+## FOCUS LOGIC
+- PRIMARY: What the shot is ABOUT (main visual subject, gets full detail)
+- SECONDARY: Supporting elements visible but not dominant (names only in background)
+- EXCLUDE: Entities mentioned but NOT shown (builds tension, reveals later)
 
 ## VISUAL RHYTHM (CRITICAL)
 Create VARIETY in composition:
@@ -219,14 +148,9 @@ Bad rhythm: MEDIUM → MEDIUM → MEDIUM → MEDIUM
 
 ## ACTION FIELD RULES
 - Describe physical actions and body language only
-- NO visual appearance details (those come from entity anchors)
-- NO dialogue content
-- Keep it concise: 5-15 words typically
-- Examples:
-  - GOOD: "standing at attention, saluting"
-  - GOOD: "leaning forward intently, hands gripping the table"
-  - BAD: "the tall soldier with blue eyes stands at attention" (no appearance)
-  - BAD: "saying 'we must attack now'" (no dialogue)`;
+- NO visual appearance details (handled by entity anchors)
+- NO dialogue content (convert "He says X" to physical gesture)
+- Examples: "standing at attention, saluting" ✓ | "saying 'attack now'" ✗`;
 
    return `# PERSONA
 ${persona}

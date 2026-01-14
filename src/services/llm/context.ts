@@ -2,19 +2,9 @@
 
 import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
-import * as logger from '../../utils/logger.ts';
-
-export type {
-    EntityType, ContentType, ContentStrategy, EntityImportance, EraConstraints,
-    Group, BeatType, FocusType, NarrativeBeat, NarrativeArc, Entity, Scene,
-    StoryContext, BatchState,
-} from '../../types/llm.ts';
-
-import type {
-    StoryContext, BatchState, EraConstraints, BeatType,
-} from '../../types/llm.ts';
-
+import type { StoryContext, BatchState, EraConstraints } from '../../types/llm.ts';
 import { BEAT_TYPES } from '../../types/llm.ts';
+import * as logger from '../../utils/logger.ts';
 
 export function buildExtractionSystemPrompt(): string {
     return `You are a visual content analyst for a universal video production system. Your task is to analyze ANY type of transcript—stories, educational content, documentaries, product videos, abstract concepts—and extract structured information for visual generation.

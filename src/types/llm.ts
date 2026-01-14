@@ -12,8 +12,6 @@ export interface ImageSearchQuery {
   query: string;
   /** Shot type for natural editing effects */
   type?: ShotType;
-  /** Index of related previous segment for visual consistency (null = new scene) */
-  linkedTo?: number | null;
 }
 
 export interface LLMMessage {

@@ -6,7 +6,8 @@
  */
 
 import type { ResolvedStyle } from '../../styles/types.ts';
-import type { StoryContext, BatchState } from './context.ts';
+import type { StoryContext, BatchState } from './types.ts';
+import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA } from './types.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -56,19 +57,31 @@ CORE RESPONSIBILITIES:
   "start": number,
   "end": number,
   "sceneId": "scene_id_from_context",
-  "beatType": "establishing" | "action" | "emotional" | "dialogue" | "tension" | "climax" | "resolution" | "transition" | "introduction" | "explanation" | "example" | "demonstration" | "comparison" | "summary" | "context" | "evidence" | "testimony" | "showcase" | "benefit" | "use-case" | "symbol",
+  "beatType": ${BEAT_TYPE_SCHEMA},
   "focus": {
-    "primary": ["entity_id"],      // Main focus, full visual detail
-    "secondary": ["entity_id"],    // Background/supporting
-    "exclude": ["entity_id"]       // NOT in this shot
+    "primary": ["entity_id"],
+    "secondary": ["entity_id"],
+    "exclude": ["entity_id"]
   },
   "action": "what is physically happening",
-  "composition": "extreme-wide" | "wide" | "medium" | "close-up" | "extreme-close-up" | "two-shot" | null,
+  "composition": ${COMPOSITION_SCHEMA} | null,
   "framingNote": "optional specific framing guidance",
-  "type": "pan" | "zoom" | "static",
-  "linkedTo": number | null
+  "type": "pan" | "zoom" | "static"
 }`
-      : `{"start": number, "end": number, "sceneId": "scene_id", "focus": {"primary": ["id"]}, "action": "description"}`;
+      : `{
+  "start": number,
+  "end": number,
+  "sceneId": "scene_id",
+  "beatType": ${BEAT_TYPE_SCHEMA},
+  "focus": {
+    "primary": ["entity_id"],
+    "secondary": [],
+    "exclude": []
+  },
+  "action": "what is happening",
+  "composition": null,
+  "type": "pan"
+}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
@@ -80,12 +93,7 @@ CINEMATOGRAPHY RULES (The 'type' field):
 EDITING FLOW:
 - Vary your shot types to create rhythm.
 - Do not stick on "static" for too long.
-- SEQUENCE your shots: Wide -> Medium -> Close-up is a classic pattern.
-
-VISUAL LINKING ('linkedTo'):
-- This is crucial for consistency.
-- If a shot relates to a previous one (e.g., same conversation, same room), LINK IT.
-- This tells the renderer "Keep the visual data from that previous frame".`
+- SEQUENCE your shots: Wide -> Medium -> Close-up is a classic pattern.`
       : '';
 
    // --- CRITICAL RULES ---
@@ -260,10 +268,12 @@ export function buildContextAwareUserPrompt(
       ? `- SET "beatType": narrative purpose of this shot
 - SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
 - SET "type": "pan", "zoom", or "static" (for video editing)
-- SET "linkedTo": index of related segment (< current index), or null
 - SET "composition": framing guidance or null
 - SET "framingNote": optional specific framing details`
-      : '';
+      : `- SET "beatType": purpose of this shot (action, explanation, establishing, etc.)
+- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
+- SET "type": "pan" (default)
+- SET "composition": null`;
 
    const outputExample = naturalEdit
       ? `[{
@@ -279,10 +289,22 @@ export function buildContextAwareUserPrompt(
   "action": "hands gripping the hilt tightly",
   "composition": "extreme-close-up",
   "framingNote": "sword fills frame, knuckles white",
-  "type": "static",
-  "linkedTo": null
+  "type": "static"
 }, ...]`
-      : `[{"start": 0, "end": 5000, "sceneId": "main", "focus": {"primary": ["entity"]}, "action": "walking"}]`;
+      : `[{
+  "start": 0,
+  "end": 5000,
+  "sceneId": "main_scene",
+  "beatType": "action",
+  "focus": {
+    "primary": ["main_entity"],
+    "secondary": [],
+    "exclude": []
+  },
+  "action": "walking through the scene",
+  "composition": null,
+  "type": "pan"
+}]`;
 
    return `${contextSection}
 

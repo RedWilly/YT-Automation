@@ -16,17 +16,12 @@ import {
 } from './prompts.ts';
 import { callLLMWithRetry } from './client.ts';
 import { parseStructuredShots, validateStructuredShots } from './parser.ts';
-import { 
-    buildImagePrompt, 
-    generateConsistentSeed,
-    type StructuredShot 
-} from './shot-builder.ts';
+import { buildImagePrompt } from './shot-builder.ts';
+import type { StructuredShot, StoryContext, BatchState } from './types.ts';
 import {
     extractStoryContext,
     createInitialBatchState,
     updateBatchState,
-    type StoryContext,
-    type BatchState,
 } from './context.ts';
 
 // Get AI configuration
@@ -51,8 +46,8 @@ export async function generateImageQueries(
     style: ResolvedStyle,
     cachedContext?: StoryContext | null,
     onContextExtracted?: (context: StoryContext) => void
-): Promise<{ 
-    queries: ImageSearchQuery[]; 
+): Promise<{
+    queries: ImageSearchQuery[];
     storyContext: StoryContext;
     structuredShots: StructuredShot[];
 }> {
@@ -123,7 +118,7 @@ export async function generateImageQueries(
         useShotTypes,
         storyContext
     );
-   return { queries, storyContext, structuredShots };
+    return { queries, storyContext, structuredShots };
 }
 
 /**
@@ -208,33 +203,18 @@ async function generateQueriesWithContext(
             }
         }
 
-        // Sanitize linkedTo values before validation
-        // LLM sometimes returns invalid references (e.g., linkedTo >= current index)
-        const sanitizedShots = batchShots.map((shot, i) => {
-            if (shot.linkedTo !== null && shot.linkedTo !== undefined) {
-                // linkedTo must be < current batch index and >= 0
-                if (shot.linkedTo >= i || shot.linkedTo < 0) {
-                    logger.debug('LLM', `Sanitized invalid linkedTo=${shot.linkedTo} at index ${i} → null`);
-                    return { ...shot, linkedTo: null };
-                }
-            }
-            return shot;
-        });
-
-        // Validate with batch-relative indices (as returned by LLM)
-        validateStructuredShots(sanitizedShots);
-        // Then adjust linkedTo values from batch-relative to global indices
-        const adjustedShots = adjustLinkedToForBatch(sanitizedShots, start);
-        allStructuredShots.push(...adjustedShots);
+        // Validate structured shots
+        validateStructuredShots(batchShots);
+        allStructuredShots.push(...batchShots);
 
         // Update batch state for next iteration
-        const activeEntities = sanitizedShots.flatMap(s => [...s.focus.primary, ...s.focus.secondary]);
+        const activeEntities = batchShots.flatMap(s => [...s.focus.primary, ...s.focus.secondary]);
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;
 
         batchState = updateBatchState(
             batchState,
-            sanitizedShots.map(s => s.action),
+            batchShots.map(s => s.action),
             [...new Set(activeEntities)],
             currentScene?.id || '',
             currentMood
@@ -242,12 +222,11 @@ async function generateQueriesWithContext(
     }
 
     // Convert structured shots to ImageSearchQuery format for downstream compatibility
-    const queries: ImageSearchQuery[] = allStructuredShots.map((shot, index) => ({
+    const queries: ImageSearchQuery[] = allStructuredShots.map((shot) => ({
         start: shot.start,
         end: shot.end,
         query: buildImagePrompt(shot, storyContext, style),
         type: shot.type,
-        linkedTo: shot.linkedTo,
     }));
 
     logger.success(
@@ -256,28 +235,6 @@ async function generateQueriesWithContext(
     );
 
     return { queries, structuredShots: allStructuredShots };
-}
-
-/**
- * Adjust linkedTo values from batch-relative to global indices
- * LLM returns linkedTo values relative to the current batch (0-based),
- * but validation expects global indices across all batches
- */
-function adjustLinkedToForBatch(shots: StructuredShot[], batchStart: number): StructuredShot[] {
-    return shots.map((shot, batchIndex) => {
-        if (shot.linkedTo !== undefined && shot.linkedTo !== null) {
-            // linkedTo is relative to the batch, adjust to global index
-            const globalLinkedTo = shot.linkedTo + batchStart;
-            // Ensure the adjusted linkedTo still references an earlier segment
-            const globalIndex = batchStart + batchIndex;
-            if (globalLinkedTo >= globalIndex) {
-                // Invalid reference - set to null to avoid validation error
-                return { ...shot, linkedTo: null };
-            }
-            return { ...shot, linkedTo: globalLinkedTo };
-        }
-        return shot;
-    });
 }
 
 /**

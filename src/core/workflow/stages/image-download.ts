@@ -58,7 +58,8 @@ export async function imageDownloadStage(state: WorkflowState): Promise<Workflow
                 useSentenceSegmentation,
                 { downloaded_images: JSON.stringify(images) }
             );
-        }
+        },
+        state.structuredShots
     );
 
     validateDownloadedImages(downloadedImages);

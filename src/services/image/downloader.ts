@@ -3,6 +3,8 @@ import { DEFAULT_PATHS, DEFAULT_IMAGE_SETTINGS } from "../../config/defaults.ts"
 import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
 import type { ImageSearchQuery, DownloadedImage } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
+import type { StructuredShot } from "../llm/types.ts";
+import { generateConsistentSeed } from "../llm/index.ts";
 import { getProvider, getFallbackProvider } from "./providers/index.ts";
 import { calculateBackoffDelay, sleep } from "./providers/retry.ts";
 import { isUnsafePromptError } from "./providers/errors.ts";
@@ -17,25 +19,21 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
 const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
-function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
+function assignSeeds(queries: ImageSearchQuery[], shots?: StructuredShot[]): Map<number, number> {
   const seedMap = new Map<number, number>();
 
   for (let i = 0; i < queries.length; i++) {
-    const query = queries[i];
-    if (!query) continue;
-
-    const linkedTo = query.linkedTo;
-
-    // If linked to a previous segment, inherit its seed
-    if (linkedTo !== null && linkedTo !== undefined && linkedTo < i && seedMap.has(linkedTo)) {
-      const inheritedSeed = seedMap.get(linkedTo)!;
-      seedMap.set(i, inheritedSeed);
-      logger.debug('Seeds', `Segment ${i} linked to ${linkedTo}, inheriting seed: ${inheritedSeed}`);
+    const shot = shots?.[i];
+    if (shot) {
+      // Use deterministic entity-based seed
+      const seed = generateConsistentSeed(shot, i);
+      seedMap.set(i, seed);
+      logger.debug('Seeds', `Segment ${i}: seed ${seed} (based on ${shot.sceneId}, entities: ${[...shot.focus.primary, ...shot.focus.secondary].join(',')})`);
     } else {
-      // Generate new random seed (1 to 2147483647)
-      const newSeed = Math.floor(Math.random() * 2147483646) + 1;
-      seedMap.set(i, newSeed);
-      logger.debug('Seeds', `Segment ${i} is new scene, assigned seed: ${newSeed}`);
+      // Fallback to random seed if no structured shot
+      const seed = Math.floor(Math.random() * 2147483646) + 1;
+      seedMap.set(i, seed);
+      logger.debug('Seeds', `Segment ${i}: random seed ${seed} (no structured shot)`);
     }
   }
 
@@ -52,7 +50,8 @@ export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
   style: ResolvedStyle,
   existingImages?: DownloadedImage[],
-  onImageDownloaded?: (images: DownloadedImage[]) => void
+  onImageDownloaded?: (images: DownloadedImage[]) => void,
+  structuredShots?: StructuredShot[]
 ): Promise<DownloadedImage[]> {
   const queriesLength = queries.length;
   const startIndex = existingImages?.length ?? 0;
@@ -78,8 +77,8 @@ export async function downloadImagesForQueries(
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queriesLength - startIndex} queries`);
   }
 
-  // Assign seeds based on linkedTo relationships (only for AI image generation)
-  const seedMap = USE_AI_IMAGE ? assignSeeds(queries) : new Map<number, number>();
+  // Assign seeds based on entity composition (only for AI image generation)
+  const seedMap = USE_AI_IMAGE ? assignSeeds(queries, structuredShots) : new Map<number, number>();
 
   if (USE_AI_IMAGE && seedMap.size > 0) {
     // Count unique seeds to show how many "scene groups" we have

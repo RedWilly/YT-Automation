@@ -4,7 +4,7 @@
  */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
-import type { StructuredShot } from "./shot-builder.ts";
+import { BEAT_TYPES, COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "./types.ts";
 import * as logger from "../../utils/logger.ts";
 
 /**
@@ -165,8 +165,8 @@ export function repairJson(json: string): string {
 export function fallbackExtraction(content: string): ImageSearchQuery[] {
     const results: ImageSearchQuery[] = [];
 
-    // Match object-like pattern containing start, end, query, optionally type, and optionally linkedTo
-    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(pan|zoom|static)\5)?(?:[\s\S]*?linkedTo["']?\s*:\s*(null|\d+))?/gi;
+    // Match object-like pattern containing start, end, query, optionally type
+    const regex = /start["']?\s*:\s*(\d+)[\s\S]*?end["']?\s*:\s*(\d+)[\s\S]*?query["']?\s*:\s*(["'])([\s\S]*?)\3(?:[\s\S]*?type["']?\s*:\s*(["'])(pan|zoom|static)\5)?/gi;
 
     let match: RegExpExecArray | null;
 
@@ -178,8 +178,6 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
         const endVal = parseInt(match[2], 10);
         const queryVal = match[4].trim();
         const typeVal = match[6] as "pan" | "zoom" | "static" | undefined;
-        const linkedToRaw = match[7];
-        const linkedToVal = linkedToRaw === 'null' || linkedToRaw === undefined ? null : parseInt(linkedToRaw, 10);
 
         if (!isNaN(startVal) && !isNaN(endVal) && queryVal.length > 0) {
             results.push({
@@ -187,7 +185,6 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
                 end: endVal,
                 query: queryVal,
                 type: typeVal,
-                linkedTo: linkedToVal,
             });
         }
     }
@@ -208,11 +205,6 @@ export function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
         if (typeof obj.end !== "number") return false;
         if (typeof obj.query !== "string") return false;
 
-        // Optional linkedTo: must be number or null if present
-        if (obj.linkedTo !== undefined && obj.linkedTo !== null && typeof obj.linkedTo !== "number") {
-            return false;
-        }
-
         return true;
     });
 }
@@ -230,12 +222,10 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
         if (typeof obj.end !== "number") return false;
         if (typeof obj.sceneId !== "string") return false;
         if (typeof obj.action !== "string") return false;
-        if (!["pan", "zoom", "static"].includes(obj.type as string)) return false;
+        if (!SHOT_TYPES.includes(obj.type as typeof SHOT_TYPES[number])) return false;
 
-        // beatType validation
-        const validBeatTypes = ['establishing', 'action', 'emotional', 'dialogue', 
-                                'tension', 'climax', 'resolution', 'transition'];
-        if (!validBeatTypes.includes(obj.beatType as string)) return false;
+        // beatType validation using centralized constants
+        if (!BEAT_TYPES.includes(obj.beatType as typeof BEAT_TYPES[number])) return false;
 
         // focus object validation
         if (!obj.focus || typeof obj.focus !== 'object') return false;
@@ -246,14 +236,7 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
 
         // composition validation (can be null)
         if (obj.composition !== null && obj.composition !== undefined) {
-            const validCompositions = ['extreme-wide', 'wide', 'medium', 'close-up', 
-                                       'extreme-close-up', 'two-shot'];
-            if (!validCompositions.includes(obj.composition as string)) return false;
-        }
-
-        // Optional linkedTo: must be number or null if present
-        if (obj.linkedTo !== undefined && obj.linkedTo !== null && typeof obj.linkedTo !== "number") {
-            return false;
+            if (!COMPOSITIONS.includes(obj.composition as typeof COMPOSITIONS[number])) return false;
         }
 
         // Optional framingNote
@@ -291,19 +274,6 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
         }
         if (query.start > query.end) {
             throw new Error(`Invalid query at index ${i}: start (${query.start}) > end (${query.end})`);
-        }
-
-        if (query.linkedTo !== undefined && query.linkedTo !== null) {
-            if (typeof query.linkedTo !== "number") {
-                throw new Error(`Invalid query at index ${i}: linkedTo must be a number or null`);
-            }
-            if (query.linkedTo < 0 || query.linkedTo >= i) {
-                throw new Error(`Invalid query at index ${i}: linkedTo (${query.linkedTo}) must reference an earlier segment (0 to ${i - 1})`);
-            }
-        }
-
-        if (i === 0 && query.linkedTo !== undefined && query.linkedTo !== null) {
-            throw new Error(`Invalid query at index 0: first segment cannot have linkedTo (must be null)`);
         }
     }
 
@@ -347,20 +317,6 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
         // Validate beatType
         if (!shot.beatType) {
             throw new Error(`Invalid shot at index ${i}: beatType is required`);
-        }
-
-        // Validate linkedTo
-        if (shot.linkedTo !== undefined && shot.linkedTo !== null) {
-            if (typeof shot.linkedTo !== "number") {
-                throw new Error(`Invalid shot at index ${i}: linkedTo must be a number or null`);
-            }
-            if (shot.linkedTo < 0 || shot.linkedTo >= i) {
-                throw new Error(`Invalid shot at index ${i}: linkedTo (${shot.linkedTo}) must reference an earlier segment`);
-            }
-        }
-
-        if (i === 0 && shot.linkedTo !== undefined && shot.linkedTo !== null) {
-            throw new Error(`Invalid shot at index 0: first segment cannot have linkedTo`);
         }
     }
 

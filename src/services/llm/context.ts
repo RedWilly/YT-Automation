@@ -1,114 +1,24 @@
 /**
  * Story Context Extraction Service
- * Extracts entities (characters, locations, objects, etc.) and scenes from transcripts
- * Enables context-aware query generation across batches
+ * Phase 1: Extract entities, scenes, and narrative structure from transcripts
  */
 
 import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import * as logger from '../../utils/logger.ts';
 
-export type EntityType = 
-    | 'character' | 'group' | 'location' | 'object' | 'animal' 
-    | 'concept' | 'event' | 'comparison' | 'data' | 'step' 
-    | 'feature' | 'benefit' | 'symbol';
+// Re-export all types from centralized types.ts
+export type {
+    EntityType, ContentType, ContentStrategy, EntityImportance, EraConstraints,
+    Group, BeatType, FocusType, NarrativeBeat, NarrativeArc, Entity, Scene,
+    StoryContext, BatchState,
+} from './types.ts';
 
-export type ContentType = 
-    | 'narrative' | 'educational' | 'documentary' | 'product' 
-    | 'abstract' | 'news' | 'motivational' | 'comparison';
+import type {
+    StoryContext, BatchState, EraConstraints, BeatType,
+} from './types.ts';
 
-export interface ContentStrategy {
-    type: ContentType;
-    visualApproach: 'realistic' | 'symbolic' | 'diagrammatic' | 'metaphorical' | 'documentary';
-    entityMeaning: string;
-    typicalBeats: BeatType[];
-}
-
-export type EntityImportance = 'primary' | 'secondary' | 'background';
-
-export interface EraConstraints {
-    era: string;
-    allowedWeapons: string[];
-    prohibitedItems: string[];
-    technologyLevel: 'prehistoric' | 'ancient' | 'medieval' | 'industrial' | 'modern' | 'futuristic';
-}
-
-export interface Group {
-    id: string;
-    name: string;
-    visualAnchor: string;
-    memberIds: string[];
-    allegiance?: 'protagonist' | 'antagonist' | 'neutral';
-}
-
-export type BeatType = 
-    | 'establishing' | 'action' | 'emotional' | 'dialogue' 
-    | 'tension' | 'climax' | 'resolution' | 'transition'
-    | 'introduction' | 'explanation' | 'example' | 'demonstration' 
-    | 'comparison' | 'summary' | 'context' | 'evidence'
-    | 'testimony' | 'showcase' | 'benefit' | 'use-case';
-
-export type FocusType = 'character' | 'object' | 'setting' | 'action' | 'group';
-
-export interface NarrativeBeat {
-    segmentIndex: number;
-    beatType: BeatType;
-    importance: 'high' | 'medium' | 'low';
-    suggestedFocus: FocusType;
-}
-
-export interface NarrativeArc {
-    beats: NarrativeBeat[];
-}
-
-export interface Entity {
-    id: string;
-    type: EntityType;
-    name: string;
-    description: string;
-    importance: EntityImportance;
-    firstMention: number;
-    mentions: number[];
-    visualAnchor: string;
-    eraConstraints: EraConstraints | null;
-    groupId?: string;
-    uniqueTraits?: string;
-    role?: 'leader' | 'soldier' | 'civilian' | 'background';
-}
-
-export interface Scene {
-    id: string;
-    name: string;
-    description: string;
-    segmentRange: [number, number];
-    primaryEntities: string[];
-    secondaryEntities: string[];
-    setting: string;
-    mood: string;
-}
-
-export interface StoryContext {
-    summary: string;
-    era: string;
-    primarySetting: string;
-    tone: string;
-    contentType: ContentType;
-    contentStrategy: ContentStrategy;
-    entities: Entity[];
-    groups: Group[];
-    scenes: Scene[];
-    globalEraConstraints: EraConstraints;
-
-    narrativeArc: NarrativeArc;
-}
-
-export interface BatchState {
-    batchIndex: number;
-    lastQueries: string[];
-    activeEntities: string[];
-    currentScene: string;
-    currentMood: string;
-}
+import { BEAT_TYPES } from './types.ts';
 
 export function buildExtractionSystemPrompt(): string {
     return `You are a visual content analyst for a universal video production system. Your task is to analyze ANY type of transcript—stories, educational content, documentaries, product videos, abstract concepts—and extract structured information for visual generation.
@@ -149,14 +59,13 @@ NEWS → events, people, locations, data
 # ENTITY EXTRACTION RULES
 - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
 - Each entity MUST have a VISUAL ANCHOR: the immutable visual traits that define this entity
-  - Visual anchor is a FIXED, DETAILED description that MUST appear in EVERY image query mentioning this entity
-  - Example: "6'2\" Viking warrior with braided red beard, blue war paint on face, bare-chested, wielding a massive Dane axe with a 6-foot ash wood handle"
 - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
 - Rate importance: primary (main focus), secondary (supporting), background (minor)
-- Track which segments mention each entity using RANGE NOTATION to save space:
-  - Consecutive segments: "0-22" instead of [0,1,2,3,...,22]
-  - Gaps: ["0-5", "10-15"] for segments 0-5 and 10-15
-  - Single: ["7"] for just segment 7
+- **SEGMENT INDEXING (CRITICAL)**:
+  - The transcript has segments numbered [0] to [N-1]
+  - "firstMention" = the segment INDEX where entity first appears (e.g., 5 means segment [5])
+  - "mentions" = array of segment INDICES using range notation: ["0-5", "10-15"]
+  - **DO NOT use milliseconds or timestamps. Use ONLY segment indices.**
 - For characters, assign a role: leader, soldier, civilian, or background
 - If a character belongs to a group/faction, set groupId to the group's id
 
@@ -240,8 +149,8 @@ Return a valid JSON object with this structure:
             "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
             "eraConstraints": null,
             "importance": "primary|secondary|background",
-            "firstMention": 0,
-            "mentions": ["0-5", "8-12"],
+            "firstMention": 0,           // ← SEGMENT INDEX (0 to N-1), NOT milliseconds!
+            "mentions": ["0-5", "8-12"], // ← SEGMENT INDICES in range notation, NOT timestamps!
             "groupId": "optional_group_id (for characters in factions)",
             "uniqueTraits": "traits specific to this entity",
             "role": "leader|soldier|civilian|background (for characters)"
@@ -282,11 +191,13 @@ Return a valid JSON object with this structure:
 
 ## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
 
-1. **NEVER TRUNCATE**: Output the COMPLETE JSON or nothing. Do not cut off arrays mid-way. If you cannot fit everything, prioritize PRIMARY entities over BACKGROUND ones.
+1. **SEGMENT INDICES, NOT MILLISECONDS**: firstMention and mentions[] MUST use segment indices (0 to N-1). If transcript has 238 segments, valid values are 0-237. Values like 172650 are WRONG.
 
-2. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor. Do not write "a soldier" — write "a 25-year-old soldier with short brown hair, wearing a mud-stained olive drab uniform, carrying an M1 Garand rifle".
+2. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
 
-3. **USE RANGE NOTATION**: For mentions[], use compact ranges like ["0-22", "25-30"] instead of listing every number. Never truncate ranges mid-way.
+3. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor.
+
+4. **USE RANGE NOTATION**: For mentions[], use compact ranges like ["0-22", "25-30"] instead of listing every number.
 
 4. **VALID JSON ONLY**: No markdown code blocks. No explanations. No trailing commas. Just raw, parseable JSON.
 

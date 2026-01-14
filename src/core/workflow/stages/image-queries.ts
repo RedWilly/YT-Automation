@@ -38,9 +38,11 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
         validateQueryCount(cachedQueries.length, state.segments.length);
         validateTimestamps(cachedQueries, state.segments);
 
+        // Note: structuredShots not available from cache, will regenerate seeds
         return {
             ...state,
             imageQueries: cachedQueries,
+            structuredShots: undefined, // Will use fallback random seeds
             storyContext: cachedContext,
         };
     }
@@ -80,6 +82,7 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
     return {
         ...state,
         imageQueries,
+        structuredShots: result.structuredShots,
         storyContext: result.storyContext,
     };
 }

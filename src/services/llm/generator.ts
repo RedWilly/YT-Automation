@@ -1,10 +1,4 @@
-/**
- * Image Query Generator
- * Three-phase workflow for context-aware query generation:
- * Phase 1: Extract story context (entities, scenes) from full transcript
- * Phase 2: Generate queries in batches with context injection
- * Phase 3: Verify and auto-correct queries for consistency
- */
+/** Context-aware image query generator with story context extraction and batch processing */
 
 import { AI_TEXT, getAIConfig } from '../../config/index.ts';
 import type { ImageSearchQuery } from '../../types/index.ts';
@@ -31,16 +25,7 @@ const LLM_SEGMENTS_PER_BATCH = aiConfig.segmentsPerBatch;
 const LLM_MAX_RETRIES = aiConfig.maxRetries;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
-/**
- * Generate image search queries from formatted transcript
- * Always uses two-phase context-aware generation
- * 
- * @param formattedTranscript - Formatted transcript with timestamps
- * @param style - Resolved style configuration for style-specific prompts
- * @param cachedContext - Optional cached StoryContext to skip extraction
- * @param onContextExtracted - Optional callback called immediately after context extraction
- * @returns Object with queries and storyContext (for caching)
- */
+/** Generate image search queries from formatted transcript using context-aware extraction */
 export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle,
@@ -85,9 +70,6 @@ export async function generateImageQueries(
         );
     }
 
-    // =========================================================================
-    // PHASE 1: Extract story context (or use cached)
-    // =========================================================================
     let storyContext: StoryContext;
 
     if (cachedContext) {
@@ -105,9 +87,6 @@ export async function generateImageQueries(
         onContextExtracted?.(storyContext);
     }
 
-    // =========================================================================
-    // PHASE 2: Generate queries with context
-    // =========================================================================
     logger.step('LLM', `📝 Phase 2: Generating queries with context injection`);
 
     const { queries, structuredShots } = await generateQueriesWithContext(
@@ -121,10 +100,7 @@ export async function generateImageQueries(
     return { queries, storyContext, structuredShots };
 }
 
-/**
- * Generate queries with context injection
- * Uses context-aware prompts for all segments
- */
+/** Generate queries with context injection for all segments */
 async function generateQueriesWithContext(
     lines: string[],
     segmentCount: number,
@@ -221,8 +197,7 @@ async function generateQueriesWithContext(
         );
     }
 
-    // Convert structured shots to ImageSearchQuery format for downstream compatibility
-    const queries: ImageSearchQuery[] = allStructuredShots.map((shot) => ({
+    const queries = allStructuredShots.map((shot) => ({
         start: shot.start,
         end: shot.end,
         query: buildImagePrompt(shot, storyContext, style),
@@ -237,9 +212,7 @@ async function generateQueriesWithContext(
     return { queries, structuredShots: allStructuredShots };
 }
 
-/**
- * Find which scene contains a given segment index
- */
+/** Find which scene contains a given segment index */
 function findCurrentScene(segmentIndex: number, context: StoryContext) {
     for (const scene of context.scenes) {
         const [sceneStart, sceneEnd] = scene.segmentRange;

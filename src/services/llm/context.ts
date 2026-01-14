@@ -1,13 +1,9 @@
-/**
- * Story Context Extraction Service
- * Phase 1: Extract entities, scenes, and narrative structure from transcripts
- */
+/** Phase 1: Context extraction from transcripts (entities, scenes, and narrative structure) */
 
 import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import * as logger from '../../utils/logger.ts';
 
-// Re-export all types from centralized types.ts
 export type {
     EntityType, ContentType, ContentStrategy, EntityImportance, EraConstraints,
     Group, BeatType, FocusType, NarrativeBeat, NarrativeArc, Entity, Scene,
@@ -204,9 +200,7 @@ Return a valid JSON object with this structure:
 Return ONLY valid JSON.`;
 }
 
-/**
- * Build the user prompt for context extraction
- */
+/** Build user prompt for context extraction */
 export function buildExtractionUserPrompt(transcript: string, segmentCount: number): string {
     return `# TRANSCRIPT (${segmentCount} segments)
 ${transcript}
@@ -225,10 +219,7 @@ Return ONLY valid JSON.`;
 // Context Injection for Query Generation
 // ============================================================================
 
-/**
- * Build the context section to inject into query generation prompts
- * This provides the LLM with entity definitions and scene information
- */
+/** Build context injection for query generation prompts */
 export function buildContextInjection(
     context: StoryContext,
     batchState: BatchState | null,
@@ -319,7 +310,6 @@ export function buildContextInjection(
     }
     sceneSection += '\n';
 
-    // Build state section (continuity OR transition)
     let stateSection = '';
 
     // DETECT SCENE CUT
@@ -364,11 +354,7 @@ Example: Instead of "The Viking on the bridge", write:
 // Extraction API
 // ============================================================================
 
-/**
- * Extract story context from a transcript using LLM
- * This is Phase 1 of the two-phase query generation process
- * Retries up to 3 times on failure before throwing
- */
+/** Extract story context from transcript using LLM */
 export async function extractStoryContext(
     transcript: string,
     segmentCount: number,
@@ -420,9 +406,7 @@ export async function extractStoryContext(
     throw new Error(`Context extraction failed after ${maxRetries} attempts: ${lastError?.message}`);
 }
 
-/**
- * Single attempt at context extraction
- */
+/** Attempt single context extraction */
 async function attemptContextExtraction(
     aiConfig: ReturnType<typeof getAIConfig>,
     systemPrompt: string,
@@ -472,9 +456,7 @@ const DEFAULT_ERA_CONSTRAINTS: EraConstraints = {
     technologyLevel: 'modern',
 };
 
-/**
- * Parse the LLM response into a StoryContext object
- */
+/** Parse LLM response into StoryContext object */
 function parseStoryContext(content: string): StoryContext {
     // Clean up the response (remove markdown code blocks if present)
     let cleaned = content.trim();
@@ -504,12 +486,10 @@ function parseStoryContext(content: string): StoryContext {
         if (!parsed.primarySetting) parsed.primarySetting = '';
         if (!parsed.tone) parsed.tone = '';
 
-        // Ensure contentType exists with default
         if (!parsed.contentType) {
             parsed.contentType = 'narrative'; // Default to narrative for backward compatibility
         }
 
-        // Ensure contentStrategy exists with defaults
         if (!parsed.contentStrategy) {
             parsed.contentStrategy = {
                 type: parsed.contentType,
@@ -519,7 +499,6 @@ function parseStoryContext(content: string): StoryContext {
             };
         }
 
-        // Ensure globalEraConstraints exists with defaults
         if (!parsed.globalEraConstraints) {
             parsed.globalEraConstraints = {
                 ...DEFAULT_ERA_CONSTRAINTS,
@@ -527,7 +506,6 @@ function parseStoryContext(content: string): StoryContext {
             };
         }
 
-        // Ensure groups array exists and expand memberIds
         if (!parsed.groups || !Array.isArray(parsed.groups)) {
             parsed.groups = [];
         }
@@ -536,12 +514,10 @@ function parseStoryContext(content: string): StoryContext {
             memberIds: expandMemberIds(group.memberIds),
         }));
 
-        // Ensure narrativeArc exists with defaults
         if (!parsed.narrativeArc || !parsed.narrativeArc.beats) {
             parsed.narrativeArc = { beats: [] };
         }
 
-        // Ensure each entity has visualAnchor, eraConstraints, and expanded mentions
         parsed.entities = parsed.entities.map((entity) => ({
             ...entity,
             visualAnchor: entity.visualAnchor || entity.description || '',
@@ -557,11 +533,7 @@ function parseStoryContext(content: string): StoryContext {
     }
 }
 
-/**
- * Expand mention ranges from compact notation to full arrays
- * Handles: ["0-5", "10-15"] → [0,1,2,3,4,5,10,11,12,13,14,15]
- * Also handles: [0, 1, 2] (already expanded) or ["7"] (single)
- */
+/** Expand mention ranges from compact notation to full arrays */
 function expandMentionRanges(mentions: unknown): number[] {
     if (!mentions || !Array.isArray(mentions)) {
         return [];
@@ -596,10 +568,7 @@ function expandMentionRanges(mentions: unknown): number[] {
     return result;
 }
 
-/**
- * Expand group memberIds from range notation to full arrays
- * Handles: ["soldier_1", "soldier_2-soldier_10"] → ["soldier_1", "soldier_2", "soldier_3", ..., "soldier_10"]
- */
+/** Expand group memberIds from range notation to full arrays */
 function expandMemberIds(memberIds: unknown): string[] {
     if (!memberIds || !Array.isArray(memberIds)) {
         return [];
@@ -632,9 +601,7 @@ function expandMemberIds(memberIds: unknown): string[] {
     return result;
 }
 
-/**
- * Create initial batch state for the first batch
- */
+/** Create initial batch state */
 export function createInitialBatchState(): BatchState {
     return {
         batchIndex: 0,
@@ -645,9 +612,7 @@ export function createInitialBatchState(): BatchState {
     };
 }
 
-/**
- * Update batch state after processing a batch
- */
+/** Update batch state after processing a batch */
 export function updateBatchState(
     previousState: BatchState,
     queries: string[],

@@ -1,17 +1,10 @@
-/**
- * LLM Response Parser
- * Handles parsing, JSON extraction, and validation of LLM responses
- */
+/** Handles parsing, JSON extraction, and validation of LLM responses */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
 import { BEAT_TYPES, COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "./types.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Parse and validate image queries from LLM response
- * @param content - Raw LLM response content
- * @returns Parsed array of image search queries
- */
+/** Parse and validate image queries from LLM response */
 export function parseImageQueries(content: string): ImageSearchQuery[] {
     const jsonString = extractJsonSnippet(content);
     let parsed: unknown[] = [];
@@ -23,12 +16,10 @@ export function parseImageQueries(content: string): ImageSearchQuery[] {
             logger.warn("LLM", "Standard parse failed, attempting JSON repair...");
             parsed = JSON.parse(repairJson(jsonString));
         } catch (repairError) {
-            // Attempt 3: Brute Force Regex (The "Nuclear Option")
             logger.warn("LLM", "JSON repair failed, attempting brute force regex extraction...");
             parsed = fallbackExtraction(content);
 
             if (parsed.length === 0) {
-                // Only throw if even brute force failed
                 logger.error("LLM", "JSON extraction failed", { content: content.substring(0, 200) });
                 throw new Error(`Failed to parse JSON: ${repairError instanceof Error ? repairError.message : String(repairError)}`);
             }
@@ -42,11 +33,7 @@ export function parseImageQueries(content: string): ImageSearchQuery[] {
     return parsed;
 }
 
-/**
- * Parse structured shots from LLM response
- * @param content - Raw LLM response content
- * @returns Parsed array of structured shots
- */
+/** Parse structured shots from LLM response */
 export function parseStructuredShots(content: string): StructuredShot[] {
     const jsonString = extractJsonSnippet(content);
     let parsed: unknown[] = [];
@@ -72,7 +59,7 @@ export function parseStructuredShots(content: string): StructuredShot[] {
 
 /**
  * Extract JSON array from LLM response content
- * Handles various formats like markdown code blocks, raw JSON, etc.
+ * Handles markdown code blocks, raw JSON, etc.
  */
 export function extractJsonSnippet(content: string): string {
     const clean = content.replace(/```(?:json)?|```/g, "").trim();
@@ -133,22 +120,16 @@ export function extractJsonSnippet(content: string): string {
 
 /**
  * Repair malformed JSON from LLM responses
- * Handles common issues like unquoted keys, trailing commas, etc.
+ * Handles unquoted keys, trailing commas, etc.
  */
 export function repairJson(json: string): string {
     return json
-        // FIX 1: Aggressively clean up keys with spaces inside quotes
         .replace(/"\s*([a-zA-Z0-9_]+)\s*"\s*:/g, '"$1":')
-
-        // FIX 2: Wrap unquoted 'query' values in quotes
         .replace(/(["']?query["']?\s*:\s*)(?!["{[\]])(.*?[^,}\]\s])(?=\s*[,}\]])/gi, '$1"$2"')
-
-        // Standard Repairs
         .replace(/"\s+"\s*(\w+)":/g, '"$1":')
         .replace(/"\s+(\w+)":/g, '"$1":')
         .replace(/,(\s*})/g, '$1')
         .replace(/,(\s*])/g, '$1')
-        // Handles unquoted keys
         .replace(/(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
         .replace(/'([^']*)'\s*(?=[,}\]])/g, '"$1"')
         .replace(/^\[([#@!$%^&*]+)/, '[')
@@ -158,10 +139,7 @@ export function repairJson(json: string): string {
         .replace(/\s*,\s*/g, ',');
 }
 
-/**
- * Brute force extraction when all else fails
- * Uses regex to find query objects directly
- */
+/** Brute force extraction when JSON parsing fails */
 export function fallbackExtraction(content: string): ImageSearchQuery[] {
     const results: ImageSearchQuery[] = [];
 
@@ -192,9 +170,7 @@ export function fallbackExtraction(content: string): ImageSearchQuery[] {
     return results;
 }
 
-/**
- * Type guard to validate parsed data is an ImageSearchQuery array
- */
+/** Type guard for ImageSearchQuery[] */
 export function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
     return Array.isArray(data) && data.every(item => {
         if (!item || typeof item !== "object") return false;
@@ -209,9 +185,7 @@ export function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
     });
 }
 
-/**
- * Type guard to validate parsed data is a StructuredShot array
- */
+/** Type guard for StructuredShot[] */
 export function isValidStructuredShotArray(data: unknown): data is StructuredShot[] {
     return Array.isArray(data) && data.every(item => {
         if (!item || typeof item !== "object") return false;
@@ -248,11 +222,7 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
     });
 }
 
-/**
- * Validate image queries have required fields and valid data
- * @param queries - Array of image queries to validate
- * @returns True if valid, throws error otherwise
- */
+/** Validate image queries have required fields and valid data */
 export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     if (!Array.isArray(queries) || queries.length === 0) {
         throw new Error("No image queries generated by LLM");
@@ -280,9 +250,7 @@ export function validateImageQueries(queries: ImageSearchQuery[]): boolean {
     return true;
 }
 
-/**
- * Validate structured shots have required fields and valid data
- */
+/** Validate structured shots have required fields and valid data */
 export function validateStructuredShots(shots: StructuredShot[]): boolean {
     if (!Array.isArray(shots) || shots.length === 0) {
         throw new Error("No structured shots generated by LLM");

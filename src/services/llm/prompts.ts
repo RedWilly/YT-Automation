@@ -175,6 +175,7 @@ Schema: ${outputSchema}`;
 /**
  * Build context-aware user prompt for Phase 2 query generation
  * Includes entity registry and batch state from previous batch
+ * Uses explicit segment indexing for 1:1 mapping enforcement
  */
 export function buildContextAwareUserPrompt(
    formattedTranscript: string,
@@ -182,10 +183,27 @@ export function buildContextAwareUserPrompt(
    naturalEdit: boolean,
    storyContext: StoryContext,
    batchState: BatchState | null,
-   currentSegments: [number, number]
+   currentSegments: [number, number],
+   totalSegments?: number  // Total segments across all batches
 ): string {
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
+
+   // Calculate absolute indices for segment labeling
+   const [batchStart] = currentSegments;
+   const globalTotal = totalSegments ?? segmentCount;
+   const isPartialBatch = batchStart > 0 || segmentCount < globalTotal;
+
+   // Build indexed transcript with explicit segment markers
+   const lines = formattedTranscript.split(/\r?\n/).filter(l => l.trim().length > 0);
+   const indexedTranscript = lines.map((line, i) => {
+      const globalIndex = batchStart + i + 1;  // 1-based
+      const position = globalIndex === 1 ? '(OPENING)' :
+                       globalIndex === globalTotal ? '(CLOSING)' :
+                       globalIndex <= 3 ? '(EARLY)' :
+                       globalIndex >= globalTotal - 2 ? '(LATE)' : '';
+      return `[SEGMENT ${globalIndex} of ${globalTotal}${position ? ' ' + position : ''}]\n${line}`;
+   }).join('\n\n');
 
    const typeField = naturalEdit
       ? `- SET "beatType": narrative purpose of this shot
@@ -229,36 +247,46 @@ export function buildContextAwareUserPrompt(
   "type": "pan"
 }]`;
 
+   // Build segment range description for batch context
+   const batchRangeDesc = isPartialBatch
+      ? ` (Segments ${batchStart + 1}-${batchStart + segmentCount} of ${globalTotal})`
+      : '';
+
    return `${contextSection}
 
-# TRANSCRIPT (${segmentCount} segments)
-${formattedTranscript}
+# TRANSCRIPT${batchRangeDesc}
+Each segment is labeled with its EXACT index. Your output array MUST match these indices.
+
+${indexedTranscript}
 
 # INSTRUCTIONS
-1. Output EXACTLY ${segmentCount} structured shots — one per segment
-2. Use entity IDs from ENTITY REGISTRY (not descriptions)
-3. Use sceneId from SCENE LIST
-4. "action" field: ONLY what is happening (5-15 words), NO visual descriptions
-5. NO dialogue, NO numbers/dates, NO text references in action field
-6. FOCUS LOGIC:
+1. Output EXACTLY ${segmentCount} structured shots — one per segment above
+2. Shot 1 in your array = SEGMENT ${batchStart + 1}, Shot 2 = SEGMENT ${batchStart + 2}, etc.
+3. Use entity IDs from ENTITY REGISTRY (not descriptions)
+4. Use sceneId from SCENE LIST
+5. "action" field: ONLY what is happening (5-15 words), NO visual descriptions
+6. NO dialogue, NO numbers/dates, NO text references in action field
+7. FOCUS LOGIC:
    - "primary": What the shot is ABOUT (main visual subject, gets full detail)
    - "secondary": Supporting elements visible but not dominant (background)
    - "exclude": Entities mentioned but NOT shown (builds tension, reveals later)
-7. Match beatType to the narrative purpose of each moment
+8. Match beatType to the narrative purpose of each moment
+9. Consider segment position (OPENING/EARLY/LATE/CLOSING) for appropriate visual treatment
 ${typeField}
 
 # OUTPUT
-JSON array with EXACTLY ${segmentCount} items:
+JSON array with EXACTLY ${segmentCount} items, matching segments ${batchStart + 1}-${batchStart + segmentCount}:
 ${outputExample}
 
-# CRITICAL: COUNT VERIFICATION (ZERO TOLERANCE)
-You MUST return EXACTLY ${segmentCount} items. Not ${segmentCount - 1}. Not ${segmentCount + 1}. EXACTLY ${segmentCount}.
+# CRITICAL: INDEX VERIFICATION (ZERO TOLERANCE)
+You MUST return EXACTLY ${segmentCount} shots for segments ${batchStart + 1} through ${batchStart + segmentCount}.
 
 Before returning:
-1. COUNT your array items
-2. If count ≠ ${segmentCount}, STOP and fix it
-3. Verify each action field has NO visual descriptions (just actions)
-4. Verify all entity/scene IDs exist in the registries above
+1. COUNT your array items — must be EXACTLY ${segmentCount}
+2. VERIFY: Shot 1 matches SEGMENT ${batchStart + 1}'s content
+3. VERIFY: Shot ${segmentCount} matches SEGMENT ${batchStart + segmentCount}'s content
+4. Verify each action field has NO visual descriptions (just actions)
+5. Verify all entity/scene IDs exist in the registries above
 
-If you return fewer or more items, the entire response will be REJECTED.`;
+If your count does not match or shots don't correspond to their segments, the response will be REJECTED.`;
 }

@@ -17,6 +17,8 @@ import {
     createInitialBatchState,
     updateBatchState,
 } from './context.ts';
+import { upsertSegment, type SegmentKey } from '../storage/cache.ts';
+import { generateConsistentSeed } from './shot-builder.ts';
 
 // Get AI configuration
 const aiConfig = getAIConfig();
@@ -25,12 +27,22 @@ const LLM_SEGMENTS_PER_BATCH = aiConfig.segmentsPerBatch;
 const LLM_MAX_RETRIES = aiConfig.maxRetries;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
+/** Cache key configuration for incremental per-segment caching */
+export interface GeneratorCacheConfig {
+    audioHash: string;
+    styleId: string;
+    orientation: string;
+    naturalEdit: boolean;
+}
+
 /** Generate image search queries from formatted transcript using context-aware extraction */
 export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle,
     cachedContext?: StoryContext | null,
-    onContextExtracted?: (context: StoryContext) => void
+    onContextExtracted?: (context: StoryContext) => void,
+    cacheConfig?: GeneratorCacheConfig,
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void
 ): Promise<{
     queries: ImageSearchQuery[];
     storyContext: StoryContext;
@@ -95,7 +107,9 @@ export async function generateImageQueries(
         batchSize,
         style,
         useShotTypes,
-        storyContext
+        storyContext,
+        cacheConfig,
+        onShotGenerated
     );
     return { queries, storyContext, structuredShots };
 }
@@ -107,7 +121,9 @@ async function generateQueriesWithContext(
     batchSize: number,
     style: ResolvedStyle,
     useShotTypes: boolean,
-    storyContext: StoryContext
+    storyContext: StoryContext,
+    cacheConfig?: GeneratorCacheConfig,
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void
 ): Promise<{ queries: ImageSearchQuery[]; structuredShots: StructuredShot[] }> {
     const allStructuredShots: StructuredShot[] = [];
 
@@ -132,7 +148,7 @@ async function generateQueriesWithContext(
             );
         }
 
-        // Build context-aware prompts
+        // Build context-aware prompts with explicit segment indexing
         const systemPrompt = buildContextAwareSystemPrompt(USE_AI_IMAGE, style, storyContext);
         const userPrompt = buildContextAwareUserPrompt(
             batchFormatted,
@@ -140,7 +156,8 @@ async function generateQueriesWithContext(
             useShotTypes,
             storyContext,
             batchState,
-            [start, end - 1]
+            [start, end - 1],
+            segmentCount  // Pass total segments for global index context
         );
 
         const label = shouldBatch ? ` (batch ${batchIndex + 1})` : '';
@@ -157,29 +174,73 @@ async function generateQueriesWithContext(
                 true // Return raw response for structured shot parsing
             );
 
-            // Parse LLM response as StructuredShot[]
-            batchShots = parseStructuredShots(rawResponse);
+            // Log raw response for debugging/verification
+            logger.log('LLM', `Batch ${batchIndex + 1} raw response: ${rawResponse}`);
 
-            if (batchShots.length === expectedCount) {
-                break;
-            }
-            if (retryAttempt < maxBatchRetries) {
-                logger.warn(
-                    'LLM',
-                    `Expected ${expectedCount} shots, got ${batchShots.length}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
-                );
-                retryAttempt++;
-            } else {
-                logger.warn(
-                    'LLM',
-                    `Expected ${expectedCount} shots, got ${batchShots.length} after ${maxBatchRetries + 1} attempts${label}. Proceeding with partial results.`
-                );
-                break;
+            try {
+                // Parse LLM response as StructuredShot[]
+                batchShots = parseStructuredShots(rawResponse);
+
+                if (batchShots.length === expectedCount) {
+                    break;
+                }
+
+                if (retryAttempt < maxBatchRetries) {
+                    logger.warn(
+                        'LLM',
+                        `Expected ${expectedCount} shots, got ${batchShots.length}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
+                    );
+                    retryAttempt++;
+                } else {
+                    logger.warn(
+                        'LLM',
+                        `Expected ${expectedCount} shots, got ${batchShots.length} after ${maxBatchRetries + 1} attempts${label}. Proceeding with partial results.`
+                    );
+                    break;
+                }
+            } catch (error) {
+                if (retryAttempt < maxBatchRetries) {
+                    logger.warn(
+                        'LLM',
+                        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
+                    );
+                    retryAttempt++;
+                } else {
+                    logger.error(
+                        'LLM',
+                        `Schema validation failed after ${maxBatchRetries + 1} attempts${label}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    break;
+                }
             }
         }
 
         // Validate structured shots
         validateStructuredShots(batchShots);
+
+        // INCREMENTAL CACHING: Cache each shot immediately after successful parse
+        for (let i = 0; i < batchShots.length; i++) {
+            const shot = batchShots[i];
+            if (!shot) continue;
+
+            const globalIndex = start + i + 1;  // 1-based segment index
+            const prompt = buildImagePrompt(shot, storyContext, style);
+            const seed = generateConsistentSeed(shot, start + i);
+
+            if (cacheConfig) {
+                const key: SegmentKey = { ...cacheConfig, segmentIndex: globalIndex };
+                upsertSegment(key, {
+                    totalSegments: segmentCount,
+                    originalPrompt: prompt,
+                    currentPrompt: prompt,
+                    structuredShot: JSON.stringify(shot),
+                    seed,
+                });
+            }
+
+            onShotGenerated?.(globalIndex, shot, prompt);
+        }
+
         allStructuredShots.push(...batchShots);
 
         // Update batch state for next iteration
@@ -194,9 +255,13 @@ async function generateQueriesWithContext(
             currentScene?.id || '',
             currentMood
         );
+
+        if (cacheConfig && shouldBatch) {
+            logger.log('Cache', `📦 Cached ${batchShots.length} segment prompts (batch ${batchIndex + 1}/${totalBatches})`);
+        }
     }
 
-    const queries = allStructuredShots.map((shot) => ({
+    const queries = allStructuredShots.map((shot, i) => ({
         start: shot.start,
         end: shot.end,
         query: buildImagePrompt(shot, storyContext, style),

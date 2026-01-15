@@ -40,9 +40,19 @@ function assignSeeds(queries: ImageSearchQuery[], shots?: StructuredShot[]): Map
 }
 
 /**
+ * Callbacks for per-segment cache updates during image generation
+ * Enables incremental caching and safety rewrite persistence
+ */
+export interface SegmentCacheCallbacks {
+  onImageApproved?: (segmentIndex: number, imagePath: string, seed?: number) => void;
+  onPromptRewritten?: (segmentIndex: number, newPrompt: string, rewriteCount: number) => void;
+}
+
+/**
  * Search and download images for all queries. Supports:
  * - Resumption from partial cache (skips already-downloaded images)
  * - Incremental saving via callback to persist progress
+ * - Per-segment caching for safety rewrite persistence
  * - Retry logic with exponential backoff
  */
 export async function downloadImagesForQueries(
@@ -50,7 +60,8 @@ export async function downloadImagesForQueries(
   style: ResolvedStyle,
   existingImages?: DownloadedImage[],
   onImageDownloaded?: (images: DownloadedImage[]) => void,
-  structuredShots?: StructuredShot[]
+  structuredShots?: StructuredShot[],
+  segmentCallbacks?: SegmentCacheCallbacks
 ): Promise<DownloadedImage[]> {
   const queriesLength = queries.length;
   const startIndex = existingImages?.length ?? 0;
@@ -90,12 +101,14 @@ export async function downloadImagesForQueries(
     const queryData = queries[i];
     if (!queryData) continue;
 
+    const segmentIndex = i + 1;  // 1-based index for cache
+
     try {
       const seed = seedMap.get(i);
 
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData, style, i, seed)
+        ? await generateAIImageForQuery(queryData, style, i, seed, segmentCallbacks)
         : await downloadImageForQuery(queryData, style, i);
 
       processedImages.push(processedImage);
@@ -103,6 +116,11 @@ export async function downloadImagesForQueries(
         "Images",
         `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
+
+      // Mark segment as approved in cache (incremental)
+      if (segmentCallbacks?.onImageApproved) {
+        segmentCallbacks.onImageApproved(segmentIndex, processedImage.filePath, processedImage.seed);
+      }
 
       // Incremental save: persist after each successful download
       if (onImageDownloaded) {
@@ -137,10 +155,12 @@ async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle,
   index: number,
-  seed?: number
+  seed?: number,
+  segmentCallbacks?: SegmentCacheCallbacks
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
+  const segmentIndex = index + 1;  // 1-based for cache
 
   const aspectRatio: '16:9' | '9:16' = style.orientation === 'vertical' ? '9:16' : '16:9';
 
@@ -196,8 +216,14 @@ async function generateAIImageForQuery(
           MAX_REWRITES
         );
 
-        // Update query for next attempt
+        // Update query for next attempt and persist rewrite to cache
         queryData.query = rewrittenQuery;
+        
+        // Cache the rewritten prompt so we don't lose progress on restart
+        if (segmentCallbacks?.onPromptRewritten) {
+          segmentCallbacks.onPromptRewritten(segmentIndex, rewrittenQuery, rewriteCount);
+        }
+        
         logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
 
         attempt = 0;

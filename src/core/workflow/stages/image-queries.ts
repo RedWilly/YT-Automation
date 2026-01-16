@@ -1,54 +1,127 @@
 /**
  * Stage 4: Image Query Generation
  * Uses LLM to generate visual scene descriptions for each segment
+ * Incremental per-segment caching for resilience
+ * Supports resuming from partial completion
  */
 
-import type { WorkflowState } from "./types.ts";
-import { generateImageQueries, type StoryContext } from "../../../services/llm/index.ts";
+import type { WorkflowState } from './types.ts';
 import {
-    getCachedImageQueries,
+    generateImageQueries,
+    type StoryContext,
+    type GeneratorCacheConfig,
+    type LLMResumeState,
+} from '../../../services/llm/index.ts';
+import {
+    getImageQueries,
     getCachedStoryContext,
-    updateStyleCache,
-} from "../../../services/storage/index.ts";
-import * as logger from "../../../utils/logger.ts";
+    setJobCache,
+    getAllSegments,
+    getLLMResumeState,
+    type JobKey,
+} from '../../../services/storage/index.ts';
+import { getAIConfig } from '../../../config/index.ts';
+import * as logger from '../../../utils/logger.ts';
 
 export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowState> {
     if (!state.audioHash || !state.segments || !state.formattedTranscript) {
-        throw new Error("imageQueriesStage requires audioHash, segments, and formattedTranscript");
+        throw new Error('imageQueriesStage requires audioHash, segments, and formattedTranscript');
     }
 
-    const useSentenceSegmentation = state.style.segmentationType === "sentence";
+    const jobKey: JobKey = {
+        audioHash: state.audioHash,
+        styleId: state.style.id,
+        orientation: state.style.orientation,
+        naturalEdit: state.style.segmentationType === 'sentence',
+    };
 
-    const cachedQueries = getCachedImageQueries(
-        state.audioHash,
-        state.style.id,
-        state.style.orientation,
-        useSentenceSegmentation
-    );
-    const cachedContext = getCachedStoryContext(
-        state.audioHash,
-        state.style.id,
-        state.style.orientation,
-        useSentenceSegmentation
-    ) as StoryContext | null;
+    const cachedContext = getCachedStoryContext(jobKey) as StoryContext | null;
+    const segments = getAllSegments(jobKey);
+    const aiConfig = getAIConfig();
+    const batchSize = aiConfig.segmentsPerBatch;
 
-    if (cachedQueries) {
-        logger.log("Workflow", "📦 Using cached image queries (skipping LLM API call)");
+    // If we have all segments cached, reconstruct from them
+    if (segments.length === state.segments.length) {
+        logger.log('Workflow', '📦 Using cached segments');
 
-        validateQueryCount(cachedQueries.length, state.segments.length);
-        validateTimestamps(cachedQueries, state.segments);
+        const imageQueries = segments.map(seg => {
+            const shot = JSON.parse(seg.structured_shot);
+            return { start: shot.start, end: shot.end, query: seg.current_prompt, type: shot.type };
+        });
+        const structuredShots = segments.map(seg => JSON.parse(seg.structured_shot));
+
+        validateQueryCount(imageQueries.length, state.segments.length);
+
+        return { ...state, imageQueries, structuredShots, storyContext: cachedContext };
+    }
+
+    // Check for PARTIAL completion (resume scenario)
+    if (segments.length > 0 && segments.length < state.segments.length) {
+        const resumeState = getLLMResumeState(jobKey, batchSize);
+
+        logger.log(
+            'Workflow',
+            `📦 Resuming LLM generation from batch ${resumeState.resumeBatchIndex + 1} (${resumeState.cachedCount}/${state.segments.length} segments cached)`
+        );
+
+        // Reconstruct cached shots for pre-population
+        const cachedShots = segments
+            .sort((a, b) => a.segment_index - b.segment_index)
+            .map(seg => JSON.parse(seg.structured_shot));
+
+        await state.progress.update({
+            step: 'Generating Image Queries',
+            message: `Resuming from batch ${resumeState.resumeBatchIndex + 1}...`,
+        });
+
+        const cacheConfig: GeneratorCacheConfig = jobKey;
+        const llmResumeState: LLMResumeState = {
+            resumeBatchIndex: resumeState.resumeBatchIndex,
+            lastQueries: resumeState.lastQueries,
+            cachedShots,
+        };
+
+        const result = await generateImageQueries(
+            state.formattedTranscript,
+            state.style,
+            cachedContext,
+            (context) => {
+                if (context.entities.length > 0 || context.scenes.length > 0) {
+                    setJobCache(jobKey, { story_context: JSON.stringify(context) });
+                    logger.log('Workflow', '📦 Cached story context');
+                }
+            },
+            cacheConfig,
+            undefined,
+            llmResumeState
+        );
+
+        validateQueryCount(result.queries.length, state.segments.length);
+        logger.step('Workflow', `Completed ${result.queries.length} image queries (resumed)`);
 
         return {
             ...state,
-            imageQueries: cachedQueries,
-            storyContext: cachedContext,
+            imageQueries: result.queries,
+            structuredShots: result.structuredShots,
+            storyContext: result.storyContext,
         };
     }
 
+    // Check legacy cache (getImageQueries reconstructs from segments, but also handles migration)
+    const cachedQueries = getImageQueries(jobKey);
+    if (cachedQueries && cachedQueries.length === state.segments.length) {
+        logger.log('Workflow', '📦 Using cached image queries');
+        validateQueryCount(cachedQueries.length, state.segments.length);
+        return { ...state, imageQueries: cachedQueries, structuredShots: undefined, storyContext: cachedContext };
+    }
+
+    // Full generation from scratch
     await state.progress.update({
-        step: "Generating Image Queries",
-        message: "Using AI to generate visual scene descriptions...",
+        step: 'Generating Image Queries',
+        message: 'Using AI to generate visual scene descriptions...',
     });
+
+    const cacheConfig: GeneratorCacheConfig = jobKey;
 
     const result = await generateImageQueries(
         state.formattedTranscript,
@@ -56,59 +129,27 @@ export async function imageQueriesStage(state: WorkflowState): Promise<WorkflowS
         cachedContext,
         (context) => {
             if (context.entities.length > 0 || context.scenes.length > 0) {
-                updateStyleCache(state.audioHash!, state.style.id, state.style.orientation, useSentenceSegmentation, {
-                    story_context: JSON.stringify(context),
-                });
-                logger.log("Workflow", "📦 Cached story context immediately after extraction");
-            } else {
-                logger.log("Workflow", "⚠️ No entities/scenes extracted, skipping context cache");
+                setJobCache(jobKey, { story_context: JSON.stringify(context) });
+                logger.log('Workflow', '📦 Cached story context');
             }
-        }
+        },
+        cacheConfig
     );
 
-    const imageQueries = result.queries;
-
-    updateStyleCache(state.audioHash, state.style.id, state.style.orientation, useSentenceSegmentation, {
-        image_queries: JSON.stringify(imageQueries),
-    });
-
-    validateQueryCount(imageQueries.length, state.segments.length);
-    validateTimestamps(imageQueries, state.segments);
-
-    logger.step("Workflow", `Generated ${imageQueries.length} image queries and cached`);
+    validateQueryCount(result.queries.length, state.segments.length);
+    logger.step('Workflow', `Generated ${result.queries.length} image queries`);
 
     return {
         ...state,
-        imageQueries,
+        imageQueries: result.queries,
+        structuredShots: result.structuredShots,
         storyContext: result.storyContext,
     };
 }
 
 function validateQueryCount(queryCount: number, segmentCount: number): void {
     if (queryCount !== segmentCount) {
-        throw new Error(
-            `Mismatch: Expected ${segmentCount} queries (one per segment), but got ${queryCount} queries from LLM`
-        );
-    }
-    logger.success("Workflow", `Query count matches segment count (${segmentCount})`);
-}
-
-function validateTimestamps(
-    queries: { start: number; end: number }[],
-    segments: { start: number; end: number }[]
-): void {
-    for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        const query = queries[i];
-        if (!segment || !query) continue;
-
-        if (query.start !== segment.start || query.end !== segment.end) {
-            logger.warn(
-                "Workflow",
-                `Timestamp mismatch at segment ${i + 1}: ` +
-                `Expected [${segment.start}-${segment.end}ms], ` +
-                `Got [${query.start}-${query.end}ms]`
-            );
-        }
+        throw new Error(`Mismatch: Expected ${segmentCount} queries, got ${queryCount}`);
     }
 }
+

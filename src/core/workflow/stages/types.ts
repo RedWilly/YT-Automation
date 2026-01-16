@@ -7,7 +7,7 @@ import type {
     DownloadedImage,
     WorkflowResult,
 } from "../../../types/index.ts";
-import type { StoryContext } from "../../../services/llm/index.ts";
+import type { StoryContext, StructuredShot } from "../../../services/llm/index.ts";
 
 /**
  * Shared state passed through all workflow stages
@@ -33,6 +33,7 @@ export interface WorkflowState {
 
     // Stage 4: Image Queries
     imageQueries?: ImageSearchQuery[];
+    structuredShots?: StructuredShot[];
     storyContext?: StoryContext | null;
 
     // Stage 5: Image Download

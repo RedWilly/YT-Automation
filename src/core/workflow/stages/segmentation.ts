@@ -5,7 +5,7 @@
 
 import type { WorkflowState } from "./types.ts";
 import { processTranscript } from "../../../services/transcription/index.ts";
-import { getCachedSegments, updateStyleCache } from "../../../services/storage/index.ts";
+import { getCachedSegments, setJobCache, type JobKey } from "../../../services/storage/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 export async function segmentationStage(state: WorkflowState): Promise<WorkflowState> {
@@ -13,17 +13,17 @@ export async function segmentationStage(state: WorkflowState): Promise<WorkflowS
         throw new Error("segmentationStage requires audioHash and transcriptWords from previous stages");
     }
 
-    const useSentenceSegmentation = state.style.segmentationType === "sentence";
-    const cachedSegments = getCachedSegments(
-        state.audioHash,
-        state.style.id,
-        state.style.orientation,
-        useSentenceSegmentation
-    );
+    const jobKey: JobKey = {
+        audioHash: state.audioHash,
+        styleId: state.style.id,
+        orientation: state.style.orientation,
+        naturalEdit: state.style.segmentationType === "sentence",
+    };
+
+    const cachedSegments = getCachedSegments(jobKey);
 
     if (cachedSegments) {
-        logger.log("Workflow", "📦 Using cached segments (same style)");
-
+        logger.log("Workflow", "📦 Using cached segments");
         return {
             ...state,
             segments: cachedSegments.segments,
@@ -43,16 +43,12 @@ export async function segmentationStage(state: WorkflowState): Promise<WorkflowS
         .map(seg => `[${seg.start}–${seg.end}ms]: ${seg.text}`)
         .join("\n");
 
-    updateStyleCache(state.audioHash, state.style.id, state.style.orientation, useSentenceSegmentation, {
+    setJobCache(jobKey, {
         segments: JSON.stringify(segments),
         formatted_transcript: formattedTranscript,
     });
 
-    logger.step("Workflow", `Created ${segments.length} segments and cached`);
+    logger.step("Workflow", `Created ${segments.length} segments`);
 
-    return {
-        ...state,
-        segments,
-        formattedTranscript,
-    };
+    return { ...state, segments, formattedTranscript };
 }

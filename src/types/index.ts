@@ -8,13 +8,47 @@ export type {
   SegmentProcessingResult,
 } from "./transcription.ts";
 
-// LLM types
+// LLM types - comprehensive exports
 export type {
   ShotType,
   ImageSearchQuery,
   LLMMessage,
   LLMRequest,
   LLMResponse,
+  BeatType,
+  Composition,
+  EntityType,
+  ContentType,
+  VisualApproach,
+  TechnologyLevel,
+  EntityImportance,
+  FocusType,
+  StructuredShot,
+  EraConstraints,
+  ContentStrategy,
+  Group,
+  NarrativeBeat,
+  NarrativeArc,
+  Entity,
+  Scene,
+  StoryContext,
+  BatchState,
+} from "./llm.ts";
+
+// LLM const arrays for schema generation
+export {
+  BEAT_TYPES,
+  BEAT_TYPE_SCHEMA,
+  COMPOSITIONS,
+  COMPOSITION_SCHEMA,
+  SHOT_TYPES,
+  SHOT_TYPE_SCHEMA,
+  ENTITY_TYPES,
+  CONTENT_TYPES,
+  VISUAL_APPROACHES,
+  TECHNOLOGY_LEVELS,
+  ENTITY_IMPORTANCE,
+  FOCUS_TYPES,
 } from "./llm.ts";
 
 // Video types

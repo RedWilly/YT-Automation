@@ -6,7 +6,8 @@
  */
 
 import type { ResolvedStyle } from '../../styles/types.ts';
-import type { StoryContext, BatchState } from './context.ts';
+import type { StoryContext, BatchState } from '../../types/llm.ts';
+import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -19,20 +20,27 @@ export function buildContextAwareSystemPrompt(
    storyContext: StoryContext
 ): string {
    // --- PERSONA ---
-   const persona = `You are a Lead Storyboard Artist for a high-end animation studio. Your job is to translate a script into a cohesive, frame-by-frame visual narrative.
+   const persona = `You are a Visual Director. Your job is to guide the viewer's eye and emotion, shot by shot.
 
-   CORE RESPONSIBILITIES:
-   1. VISUAL CONTINUITY: Every shot must look like it belongs to the same film. Lighting, color palette, and art style must stay locked.
-   2. SPATIAL CONSISTENCY: If a character is on the left in one shot, they shouldn't magically teleport to the right unless there's a reason.
-   3. ASSET FIDELITY: You must use the EXACT defined assets (characters, locations, objects) without altering their appearance.`;
+THE DIRECTOR'S MINDSET:
+1. SHOW, DON'T TELL: Let your imagery carry meaning. Trust the audience to interpret the scene.
+   - A cluttered room tells a different story than a sterile one, regardless of dialogue.
+   - Visuals should speak for themselves. Avoid over-explaining.
+2. MISE-EN-SCÈNE: Everything visible in the frame—settings, props, lighting, positioning—IS storytelling.
+   - Establishes tone before a word is spoken.
+   - Guides viewer attention through deliberate placement.
+3. EMOTIONAL CONNECTION: Without an emotional hook, the story falls flat.
+   - Engage through expressive faces, compelling moments, dynamic contrast.
+4. ONE IDEA PER SHOT: If the viewer has to search for the subject, the shot failed.
+5. DEPTH, NOT WIDTH: Foreground (tension) → Midground (action) → Background (context/threat).`;
 
    // --- TASK ---
-   const task = `Create a sequence of detailed image prompts for an AI generation pipeline. 
+   const task = `Output STRUCTURED SHOT METADATA for each segment. You do NOT write image prompts—those are generated automatically from your structured output.
    
-   GOAL: transform the script into a contiguous visual flow.
-   - Treat this as an ANIMATION or FILM production.
-   - Each prompt is one keyframe.
-   - Maintain the "Director's Vision" found in the Scene and Global Context.`;
+   YOUR JOB: Identify WHO is in the shot, WHERE it takes place, and WHAT ACTION is happening.
+   - Reference entities by their ID from the ENTITY REGISTRY
+   - Reference scenes by their ID from the SCENE LIST
+   - Describe only the ACTION, not visual appearances (handled automatically)`;
 
    // --- CONTEXT: STORY OVERVIEW ---
    const storyOverview = `PRODUCTION CONTEXT:
@@ -51,62 +59,127 @@ export function buildContextAwareSystemPrompt(
    // --- SHOT TYPES ---
    const useShotTypes = style.segmentationType === 'sentence';
    const outputSchema = useShotTypes
-      ? `{"start": number, "end": number, "query": "string", "type": "pan"|"zoom"|"static", "linkedTo": number|null}`
-      : `{"start": number, "end": number, "query": "string"}`;
+      ? `{
+  "start": number,
+  "end": number,
+  "sceneId": "scene_id_from_context",
+  "beatType": ${BEAT_TYPE_SCHEMA},
+  "focus": {
+    "primary": ["entity_id"],
+    "secondary": ["entity_id"],
+    "exclude": ["entity_id"]
+  },
+  "action": "what is physically happening",
+  "composition": ${COMPOSITION_SCHEMA} | null,
+  "framingNote": "optional specific framing guidance",
+  "type": ${SHOT_TYPE_SCHEMA}
+}`
+      : `{
+  "start": number,
+  "end": number,
+  "sceneId": "scene_id",
+  "beatType": ${BEAT_TYPE_SCHEMA},
+  "focus": {
+    "primary": ["entity_id"],
+    "secondary": [],
+    "exclude": []
+  },
+  "action": "what is happening",
+  "composition": null,
+  "type": "pan"
+}`;
 
    const shotTypeInstructions = useShotTypes
       ? `
-CINEMATOGRAPHY RULES (The 'type' field):
-- "pan": Use for establishing shots, wide environments, or following movement.
-- "zoom": Use for emotional beats, realizations, or focusing on specific details.
-- "static": The RAREST type. Only use for intimate dialogue close-ups or deliberate pauses. Default to pan/zoom.
+## CINEMATOGRAPHY: THE DIRECTOR'S TOOLKIT
 
-EDITING FLOW:
-- Vary your shot types to create rhythm.
-- Do not stick on "static" for too long.
-- SEQUENCE your shots: Wide -> Medium -> Close-up is a classic pattern.
+CAMERA MOVEMENT (The 'type' field):
+- "pan": DEFAULT. Use for most shots. Exploration, revealing space, following movement, establishing geography.
+- "zoom": EMPHASIS. Psychological pressure, realization, focusing on a detail that MATTERS. Use for ~30% of shots.
+- "static": RARE (~10%). Reserved for deliberate pauses, intimate close-ups, or when stillness IS the statement.
 
-VISUAL LINKING ('linkedTo'):
-- This is crucial for consistency.
-- If a shot relates to a previous one (e.g., same conversation, same room), LINK IT.
-- This tells the renderer "Keep the visual data from that previous frame".`
+DISTRIBUTION TARGET:
+- pan: ~44% of shots (the workhorse)
+- zoom: ~46% of shots (emphasis moments)
+- static: ~10% of shots (rare, deliberate stillness)
+
+WHEN TO USE EACH:
+- pan: Establishing shots, action sequences, transitions, wide shots
+- zoom: Revelations, emotional beats, close-ups on faces/objects
+- static: Only when the scene demands STILLNESS (death, contemplation, shock freeze)
+
+ANGLE PSYCHOLOGY (Use in 'framingNote'):
+- LOW ANGLE: Suggests power, dominance, or threat. Subject looks imposing.
+- HIGH ANGLE: Implies vulnerability, objectivity, or diminishment. Subject looks small.
+- DUTCH ANGLE (tilted): Signals disorientation, unease, or instability. Use sparingly.
+- EYE LEVEL: Neutral, relatable. Default for dialogue and connection.
+
+MISE-EN-SCÈNE CHECKLIST (What's in the frame?):
+- SETTING: Location details that establish tone (cluttered vs. sterile, warm vs. cold light)
+- PROPS: Objects that carry meaning (a weapon, a letter, an empty chair)
+- POSITIONING: Where characters stand relative to each other (dominance, isolation, intimacy)
+- LIGHTING: Harsh shadows = tension. Soft light = warmth. Silhouettes = mystery.
+
+DEPTH STAGING (MANDATORY):
+- FOREGROUND: Elements that create tension, frame the shot, or add intimacy
+- MIDGROUND: Where the action lives
+- BACKGROUND: Context, threat, or environmental storytelling`
       : '';
 
-   // --- CRITICAL RULES ---
+   // --- CRITICAL RULES (Condensed for token efficiency) ---
+   const typicalBeats = storyContext.contentStrategy?.typicalBeats?.join(', ');
+   const contentType = storyContext.contentStrategy?.type || storyContext.contentType;
+
    const criticalRules = `
-## QUERY CONTENT RULES (CRITICAL)
+## HARD CONSTRAINTS (INSTANT REJECTION)
+1. NO text/numbers/dates in action field (no "1944", no dialogue quotes)
+2. NO diagrams/maps/montages/split screens—describe ONE moment
+3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
+4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
+5. **beatType MUST be EXACTLY one of**: ${BEAT_TYPE_SCHEMA}
+6. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
+7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
 
-WHAT TO INCLUDE:
-- SUFFUSE every query with the "Setting" and "Atmosphere" defined in the current scene.
-- COPY & PASTE the "VISUAL ANCHOR" for any entity present. Do not summarize it.
-- Action: What is happening in this frozen moment.
+## CONTENT STRATEGY (From Phase 1 Analysis)
+Content Type: ${contentType}
+Visual Approach: ${storyContext.contentStrategy?.visualApproach}
+Typical Beats: ${typicalBeats}
 
-## SPATIAL & ENVIRONMENTAL CONSISTENCY
-- The BACKGROUND must remain consistent. If they are in a "muddy trench with gray sky," EVERY shot in that scene must mention "muddy trench" and "gray sky".
-- LIGHTING CONTINUITY: If it's "dawn" in shot 1, it generally shouldn't be "midnight" in shot 2 unless time passes.
-- OBJECT PERMANENCE: If a table has a "red vase" on it in the wide shot, the close-up of the table must also have the "red vase" (or at least not contradict it).
+## FOCUS LOGIC (Visual Hierarchy)
+- PRIMARY: THE subject. If everything is primary, nothing is. Pick ONE focus per shot.
+- SECONDARY: Visible but not dominant. Background elements. Set dressing.
+- EXCLUDE: Entities mentioned in audio but NOT shown. Builds tension, saves reveals.
 
-## VISUAL SELF-CONTAINMENT
-- The AI has NO MEMORY of previous images. 
-- You MUST repeat the full visual description every time an entity appears.
-- BAD: "The soldier looks tired."
-- GOOD: "Close up of the 18-year-old Venetian soldier with a weary face, mud-stained woolen coat, and unkempt hair, looking exhausted against the backdrop of a rainy trench."
+## THE "BLOCKING FIRST" RULE
+Before choosing your shot, mentally stage the scene:
+- Where do characters stand?
+- Who dominates space?
+- Who is trapped, isolated, or exposed?
+THEN choose composition and camera to REVEAL that truth.
 
-## NEGATIVE CONSTRAINTS (INSTANT FAIL IF VIOLATED)
-1. ZERO TEXT/SYMBOLS. Never include: signs, labels, subtitles, speech bubbles, numbers, dates, years, letters, watermarks, logos, titles, captions, annotations, UI elements, or any readable characters. If you need to show a document, show "a weathered paper with illegible writing" — never actual text.
-2. NO DIAGRAMS OR MAPS. Do not use "cross-section", "diagrammatic", "schematic", "map view", or "arrows". show the REALITY (e.g., the tunnel itself, not a drawing of it).
-3. NO MONTAGES OR SPLIT SCREENS. Do not use "flashback montage", "split image", or "superimposed". Show ONE cohesive moment in time.
-4. NO CAMERA TERMS in the query string. Do not use "zoom", "pan", "camera", "drone shot". Use the separate 'type' field for that.
-5. NO META DESCRIPTIONS. Do not say "A historical painting of..." or "A realistic photo of...". Just describe the scene.
-6. ABSOLUTELY NO LAZINESS. If a character is in the scene, their full visual anchor must be in the prompt.
+## COMPOSITION GUIDANCE (Framing for Clarity)
+- "extreme-wide": Establishes geography, shows isolation or scale
+- "wide": Full body, shows action in environment
+- "medium": Waist up, balances character and context
+- "close-up": Face/detail, emotional emphasis
+- "extreme-close-up": Hands, eyes, objects—maximum intimacy
 
-## FINAL CONSISTENCY CHECK
-Before outputting, verify:
-1. Did I copy the VISUAL ANCHOR exactly?
-2. Did I include the SETTING details (mud, gray sky, star-shaped walls)?
-3. Does this shot visually match the previous one?
-4. Is there any forbidden text (labels, dates, "concept")?
-5. Is this a single, real scene (not a montage or map)?`;
+Match composition to intent:
+- Tension? Close-up, tight framing, low angle.
+- Power? Low angle, wide shot, subject dominates frame.
+- Vulnerability? High angle, isolating composition, empty space around subject.
+- Disorientation? Dutch angle, off-center framing.
+
+## SYMBOLISM CONSISTENCY
+- Use consistent visual metaphors. If swords represent honor, maintain that meaning.
+- Don't dilute symbols. A recurring prop should carry the same emotional weight each time.
+
+## ACTION FIELD RULES (SHOW, DON'T TELL)
+- Describe physical action + environment interaction (10-20 words)
+- NO visual appearance (handled by entity anchors)
+- NO dialogue (convert "He says X" to physical gesture or reaction)
+- Let the imagery carry the meaning. Trust the audience to interpret.
+- Examples: "clutching the letter, silhouetted against the rain-streaked window" ✓ | "reading the sad letter" ✗`;
 
    return `# PERSONA
 ${persona}
@@ -131,53 +204,116 @@ Schema: ${outputSchema}`;
 /**
  * Build context-aware user prompt for Phase 2 query generation
  * Includes entity registry and batch state from previous batch
+ * Uses explicit segment indexing for 1:1 mapping enforcement
  */
 export function buildContextAwareUserPrompt(
    formattedTranscript: string,
    segmentCount: number,
-   useAiImage: boolean,
    naturalEdit: boolean,
    storyContext: StoryContext,
    batchState: BatchState | null,
-   currentSegments: [number, number]
+   currentSegments: [number, number],
+   totalSegments?: number  // Total segments across all batches
 ): string {
-   const wordCount = useAiImage ? '80-100' : '8-15';
-
    // Build the context injection with entity definitions
    const contextSection = buildContextInjection(storyContext, batchState, currentSegments);
 
+   // Calculate absolute indices for segment labeling
+   const [batchStart] = currentSegments;
+   const globalTotal = totalSegments ?? segmentCount;
+   const isPartialBatch = batchStart > 0 || segmentCount < globalTotal;
+
+   // Build indexed transcript with explicit segment markers
+   const lines = formattedTranscript.split(/\r?\n/).filter(l => l.trim().length > 0);
+   const indexedTranscript = lines.map((line, i) => {
+      const globalIndex = batchStart + i + 1;  // 1-based
+      const position = globalIndex === 1 ? '(OPENING)' :
+         globalIndex === globalTotal ? '(CLOSING)' :
+            globalIndex <= 3 ? '(EARLY)' :
+               globalIndex >= globalTotal - 2 ? '(LATE)' : '';
+      return `[SEGMENT ${globalIndex} of ${globalTotal}${position ? ' ' + position : ''}]\n${line}`;
+   }).join('\n\n');
+
    const typeField = naturalEdit
-      ? `- SET "type": "pan", "zoom", or "static" (for video editing, NOT in query text)
-- SET "linkedTo": index of related segment (< current index), or null`
-      : '';
+      ? `- SET "beatType": narrative purpose of this shot
+- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
+- SET "type": "pan", "zoom", or "static" (for video editing)
+- SET "composition": framing guidance or null
+- SET "framingNote": optional specific framing details`
+      : `- SET "beatType": purpose of this shot (action, explanation, establishing, etc.)
+- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
+- SET "type": "pan" (default)
+- SET "composition": null`;
 
    const outputExample = naturalEdit
-      ? `[{"start": 0, "end": 5000, "query": "a lone Viking warrior...", "type": "pan", "linkedTo": null}, ...]`
-      : `[{"start": 0, "end": 5000, "query": "..."}, ...]`;
+      ? `[{
+  "start": 0,
+  "end": 5000,
+  "sceneId": "battlefield",
+  "beatType": "emotional",
+  "focus": {
+    "primary": ["fathers_sword"],
+    "secondary": ["marcus"],
+    "exclude": ["enemy_soldiers"]
+  },
+  "action": "hands gripping the hilt tightly, rain dripping onto the muddy trench floor",
+  "composition": "extreme-close-up",
+  "framingNote": "sword fills foreground, blurred soldier silhouettes in background",
+  "type": "static"
+}, ...]`
+      : `[{
+  "start": 0,
+  "end": 5000,
+  "sceneId": "main_scene",
+  "beatType": "action",
+  "focus": {
+    "primary": ["main_entity"],
+    "secondary": [],
+    "exclude": []
+  },
+  "action": "walking across the cobblestone square, market stalls blurred in background",
+  "composition": null,
+  "type": "pan"
+}]`;
+
+   // Build segment range description for batch context
+   const batchRangeDesc = isPartialBatch
+      ? ` (Segments ${batchStart + 1}-${batchStart + segmentCount} of ${globalTotal})`
+      : '';
 
    return `${contextSection}
 
-# TRANSCRIPT (${segmentCount} segments)
-${formattedTranscript}
+# TRANSCRIPT${batchRangeDesc}
+Each segment is labeled with its EXACT index. Your output array MUST match these indices.
 
-# INSTRUCTIONS
-1. Write EXACTLY ${segmentCount} image prompts — one per segment, no more, no less.
-2. Use EXACT entity descriptions from registry above
-3. Each query: ${wordCount} words, complete visual description
-4. NO camera language in queries (camera movement goes in "type" field only)
+${indexedTranscript}
+
+# INSTRUCTIONS (THE DIRECTOR'S WORKFLOW)
+1. FOR EACH SEGMENT, ask: "What should the audience FEEL or UNDERSTAND?"
+2. THEN decide: Who is primary focus? Where are they in the scene?
+3. THEN choose: composition and camera type to REVEAL that truth.
+4. Output EXACTLY ${segmentCount} structured shots — one per segment above.
+5. Shot 1 = SEGMENT ${batchStart + 1}, Shot 2 = SEGMENT ${batchStart + 2}, etc.
+6. Use entity IDs from ENTITY REGISTRY (not descriptions).
+7. Use sceneId from SCENE LIST.
+8. "action" field: Physical action + environment (10-20 words). Characters must be GROUNDED.
+9. DEPTH: Every shot should have foreground/midground/background awareness.
+10. FOCUS: ONE primary focus per shot. If everything is important, nothing is.
 ${typeField}
 
 # OUTPUT
-JSON array with EXACTLY ${segmentCount} items:
+JSON array with EXACTLY ${segmentCount} items, matching segments ${batchStart + 1}-${batchStart + segmentCount}:
 ${outputExample}
 
-# CRITICAL: COUNT VERIFICATION (ZERO TOLERANCE)
-You MUST return EXACTLY ${segmentCount} items. Not ${segmentCount - 1}. Not ${segmentCount + 1}. EXACTLY ${segmentCount}.
+# CRITICAL: INDEX VERIFICATION (ZERO TOLERANCE)
+You MUST return EXACTLY ${segmentCount} shots for segments ${batchStart + 1} through ${batchStart + segmentCount}.
 
 Before returning:
-1. COUNT your array items
-2. If count ≠ ${segmentCount}, you have FAILED — go back and fix it
-3. DO NOT BE LAZY — every segment needs its own unique, detailed query
+1. COUNT your array items — must be EXACTLY ${segmentCount}
+2. VERIFY: Shot 1 matches SEGMENT ${batchStart + 1}'s content
+3. VERIFY: Shot ${segmentCount} matches SEGMENT ${batchStart + segmentCount}'s content
+4. Verify each action field has NO visual descriptions (just actions)
+5. Verify all entity/scene IDs exist in the registries above
 
-If you return fewer or more, the entire response will be REJECTED and you must retry.`;
+If your count does not match or shots don't correspond to their segments, the response will be REJECTED.`;
 }

@@ -1,148 +1,130 @@
-/**
- * Story Context Extraction Service
- * Extracts entities (characters, locations, objects, etc.) and scenes from transcripts
- * Enables context-aware query generation across batches
- */
+/** Phase 1: Context extraction from transcripts (entities, scenes, and narrative structure) */
 
 import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
+import type { StoryContext, BatchState, EraConstraints } from '../../types/llm.ts';
+import {
+    BEAT_TYPE_SCHEMA,
+    CONTENT_TYPE_SCHEMA,
+    VISUAL_APPROACH_SCHEMA,
+    ENTITY_TYPE_SCHEMA,
+    TECHNOLOGY_LEVEL_SCHEMA,
+    CAMERA_ANGLE_SCHEMA,
+} from '../../types/llm.ts';
 import * as logger from '../../utils/logger.ts';
 
-// ============================================================================
-// Types
-// ============================================================================
-
-/**
- * Entity types that can appear in a script
- */
-export type EntityType = 'character' | 'location' | 'object' | 'animal' | 'concept' | 'group';
-
-/**
- * Importance level for entities
- * - primary: Main focus of the story, appears frequently
- * - secondary: Supporting role, appears multiple times
- * - background: Mentioned once or twice, not central
- */
-export type EntityImportance = 'primary' | 'secondary' | 'background';
-
-/**
- * Era-appropriate constraints for consistency validation
- * Defines what items are allowed/prohibited in a given historical era
- */
-export interface EraConstraints {
-    /** Era identifier: "medieval", "ww2", "modern", "ancient", "futuristic", etc. */
-    era: string;
-    /** Weapons appropriate for this era */
-    allowedWeapons: string[];
-    /** Items that should NOT appear in this era (anachronisms) */
-    prohibitedItems: string[];
-    /** Technology level descriptor */
-    technologyLevel: 'prehistoric' | 'ancient' | 'medieval' | 'industrial' | 'modern' | 'futuristic';
-}
-
-/**
- * An entity extracted from the transcript
- * Can be a character, location, object, animal, concept, or group
- */
-export interface Entity {
-    id: string;
-    type: EntityType;
-    name: string;
-    description: string;  // Visual description for image generation
-    importance: EntityImportance;
-    firstMention: number; // Segment index where first mentioned
-    mentions: number[];   // All segment indices that reference this entity
-    /** 
-     * Immutable visual traits that MUST appear in every query mentioning this entity.
-     * This is the "anchor" description that ensures visual consistency across segments.
-     * Example: "6'2\" Viking warrior with braided red beard, bare-chested, wielding a massive Dane axe"
-     */
-    visualAnchor: string;
-    /**
-     * Era-specific constraints for this entity (optional, overrides global)
-     * Use for entities that don't fit the main era (e.g., a time traveler)
-     */
-    eraConstraints: EraConstraints | null;
-}
-
-/**
- * A scene groups related segments together
- * Segments in a scene share the same location/context
- */
-export interface Scene {
-    id: string;
-    name: string;
-    description: string;
-    segmentRange: [number, number]; // [start, end] indices
-    primaryEntities: string[];      // Entity IDs that are main focus
-    secondaryEntities: string[];    // Entity IDs in supporting role
-    setting: string;                // Where/when this happens
-    mood: string;                   // Tone/atmosphere
-}
-
-/**
- * Complete story context extracted from transcript
- * Used to maintain consistency across batched query generation
- */
-export interface StoryContext {
-    // Overall story metadata
-    summary: string;
-    era: string;
-    primarySetting: string;
-    tone: string;
-
-    // Entity registry
-    entities: Entity[];
-
-    // Scene graph
-    scenes: Scene[];
-
-    /**
-     * Global era constraints for the entire story
-     * Used by verifier to detect anachronistic items
-     */
-    globalEraConstraints: EraConstraints;
-}
-
-/**
- * State passed between batches for continuity
- */
-export interface BatchState {
-    batchIndex: number;
-    lastQueries: string[];     // Last N queries from previous batch
-    activeEntities: string[];  // Entity IDs that were on screen
-    currentScene: string;      // Scene ID
-    currentMood: string;       // Current mood/atmosphere
-}
-
-// ============================================================================
-// Extraction Prompt
-// ============================================================================
-
-/**
- * Build the system prompt for context extraction
- */
 export function buildExtractionSystemPrompt(): string {
-    return `You are a script analyst specializing in visual storytelling. Your task is to analyze a transcript and extract structured information about entities, scenes, narrative flow, and era-appropriate constraints.
+    return `You are a PRE-PRODUCTION DIRECTOR preparing visual assets for a video production. Your job is to analyze the transcript and extract everything a director needs to shoot compelling visuals.
+
+# THE DIRECTOR'S MINDSET
+You are NOT just cataloging content. You are answering:
+1. What should the audience FEEL or UNDERSTAND at each moment?
+2. What visual elements (characters, objects, settings) carry emotional weight?
+3. How do power dynamics and spatial relationships tell the story?
+4. What should be SHOWN vs. what should be IMPLIED (referenced but not seen)?
 
 # TASK
 Analyze the transcript and extract:
-1. ENTITIES: All characters, locations, objects, animals, concepts, or groups that appear
-2. SCENES: How segments group together into coherent scenes
-3. METADATA: Era, setting, tone, summary
-4. ERA CONSTRAINTS: What items are appropriate/prohibited for this era
+1. CONTENT TYPE: What kind of content is this?
+2. ENTITIES: All VISUALIZABLE elements (characters, locations, objects, concepts)
+3. GROUPS: Shared visual identities
+4. SCENES: Locations with directorial information (tone, lighting, power dynamics)
+5. NARRATIVE BEATS: The emotional intent for each segment
+6. METADATA: Setting, tone, summary
+7. ERA CONSTRAINTS: Time period appropriateness
 
-# ENTITY EXTRACTION RULES
-- Each entity needs a clear VISUAL DESCRIPTION (for image generation)
-- Each entity MUST have a VISUAL ANCHOR: the immutable visual traits that define this entity
-  - Visual anchor is a FIXED, DETAILED description that MUST appear in EVERY image query mentioning this entity
-  - Example: "6'2\" Viking warrior with braided red beard, blue war paint on face, bare-chested, wielding a massive Dane axe with a 6-foot ash wood handle"
-- Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
-- Rate importance: primary (main focus), secondary (supporting), background (minor)
-- Track which segments mention each entity using RANGE NOTATION to save space:
-  - Consecutive segments: "0-22" instead of [0,1,2,3,...,22]
-  - Gaps: ["0-5", "10-15"] for segments 0-5 and 10-15
-  - Single: ["7"] for just segment 7
+# CONTENT TYPE DETECTION (FIRST STEP)
+Before extracting entities, identify the content type:
+- "narrative": Stories with characters, plot, conflict, story arc
+- "educational": Explains concepts, teaches, how-to, tutorials
+- "documentary": Real events, history, nature, places, biographies
+- "product": Showcases items, features, benefits, demos
+- "abstract": Conceptual, artistic, metaphorical, philosophical
+- "motivational": Inspirational, life lessons, quotes, self-improvement
+- "comparison": Compares alternatives, pros/cons, vs videos
+- "news": Current events, reports, announcements
+
+# ENTITY EXTRACTION BY CONTENT TYPE
+Adapt entity types based on detected content:
+
+NARRATIVE → characters, groups, locations, objects, animals
+EDUCATIONAL → concepts, steps, examples, comparisons, processes, data
+DOCUMENTARY → subjects, events, locations, evidence, people
+PRODUCT → features, benefits, use-cases, the product, competitors
+ABSTRACT → symbols, themes, metaphors, emotions
+MOTIVATIONAL → themes, examples, outcomes, quotes (as concepts)
+COMPARISON → alternatives, criteria, outcomes, pros, cons
+NEWS → events, people, locations, data
+
+- **ENTITY EXTRACTION RULES (STRICT VISUALS)**:
+  - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
+  - Each entity MUST have a **VISUAL ANCHOR**: immutable visual traits that define this entity.
+  - **CRITICAL**: Use ONLY physical, visual adjectives (colors, textures, lighting, shapes).
+  - **AVOID**: Abstract adjectives ("brave", "corrupt", "mysterious"). Instead use visual cues: "scarred face, tattered cloak, flickering torchlight".
+  - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
+  - Rate importance: primary (main focus), secondary (supporting), background (minor)
+  - **SEGMENT INDEXING (CRITICAL)**:
+  - The transcript has segments numbered [0] to [N-1] where N = total segments
+  - "firstMention" = segment INDEX (0 to N-1). Example: if 238 segments, valid values are 0-237
+  - "mentions" = segment INDICES in range notation. MUST be within [0, N-1].
+  - **GAPS ARE MEANINGFUL**: The ranges indicate WHERE the entity IS PRESENT. Segments NOT in ranges = entity is ABSENT.
+    - ["0-50"] → Entity appears in ALL 51 segments (continuous presence)
+    - ["0-10", "17-40", "42-49"] → Entity is ABSENT in segments 11-16 and 41 (gaps = not mentioned)
+  - This helps determine which entities to include when generating visuals for each segment
+  - **VALUES OUTSIDE SEGMENT RANGE WILL BE REJECTED**
+  - **DO NOT use milliseconds or timestamps. Use ONLY segment indices.**
+- For characters, assign a role: leader, soldier, civilian, or background
+- If a character belongs to a group/faction, set groupId to the group's id
+
+# GROUP EXTRACTION RULES
+- Identify factions, armies, teams, or any collection of characters with shared visual identity
+- Each group has a visualAnchor describing shared appearance (e.g., "red cloaks, bronze armor, plumed helmets")
+- memberIds lists all character entity IDs that belong to this group (use range notation like "soldier_1-soldier_10")
+- allegiance: protagonist (heroes), antagonist (enemies), or neutral
+
+# BEAT RULES (UNIVERSAL - ADAPT TO CONTENT TYPE)
+Analyze EACH segment for its beat type. Use beats appropriate to the content:
+
+NARRATIVE BEATS:
+- establishing: Setting the scene, location focus
+- action: Movement, conflict, physical activity
+- emotional: Character feelings, reactions, intimate moments
+- dialogue: Conversation between characters
+- tension: Building suspense, anticipation
+- climax: Peak moment, payoff
+- resolution: Aftermath, calm after storm
+- transition: Moving between scenes/moments
+
+EDUCATIONAL BEATS:
+- introduction: Presenting a topic, overview
+- explanation: Describing how/why something works
+- example: Showing a specific case or illustration
+- demonstration: Showing how to do something
+- comparison: Contrasting two or more things
+- summary: Recap, key takeaways
+
+DOCUMENTARY BEATS:
+- context: Historical/factual background
+- evidence: Data, facts, proof
+- testimony: Quotes, statements
+
+PRODUCT BEATS:
+- showcase: Highlighting a feature
+- benefit: Showing advantage/outcome
+- use-case: Demonstrating application
+
+Rate importance: high (key moment), medium (supporting), low (filler)
+suggestedFocus: what should be primary focus (character, object, setting, action, group, concept)
+
+# DIRECTOR'S BEAT ANALYSIS (CRITICAL)
+For EACH beat, answer:
+- emotionalIntent: "What should the audience FEEL or UNDERSTAND?" (e.g., "dread", "hope", "confusion", "revelation")
+- suggestedAngle: Camera psychology ("low" = power/threat, "high" = vulnerability, "eye" = neutral, "dutch" = disorientation)
+
+EXAMPLE:
+- Segment about a king's decree → emotionalIntent: "authority", suggestedAngle: "low" (looking up at power)
+- Segment about a child lost → emotionalIntent: "vulnerability", suggestedAngle: "high" (looking down, small)
+- Segment about chaos/battle → emotionalIntent: "disorientation", suggestedAngle: "dutch" (off-kilter)
 
 # ERA CONSTRAINTS RULES
 Identify the historical/fictional era and determine:
@@ -150,69 +132,133 @@ Identify the historical/fictional era and determine:
 - prohibitedItems: What items would be anachronistic (no guns in medieval, no smartphones in 1800s)
 - technologyLevel: prehistoric, ancient, medieval, industrial, modern, futuristic
 
-# SCENE GROUPING RULES
+# SCENE GROUPING RULES (DIRECTORIAL)
 - Group consecutive segments that share the same location/context
 - A new scene starts when location changes OR there's a significant time jump
 - Each scene should list which entities are present
 
+FOR EACH SCENE, ADD DIRECTORIAL INFORMATION:
+- visualTone: How should this scene FEEL? ("claustrophobic", "expansive", "intimate", "chaotic", "sterile")
+- powerDynamic: Who dominates space? Who is vulnerable? ("hero isolated", "villain looms", "equals face off")
+- keyProps: Symbolic objects that carry emotional weight in this scene ("the sword", "the letter", "the empty chair")
+- lightingCue: Lighting direction ("harsh overhead shadows", "warm golden hour", "silhouette against light", "cold blue")
+
 # OUTPUT FORMAT
 Return a valid JSON object with this structure:
 {
-    "summary": "Brief overview of the story",
-    "era": "Time period or setting type",
-    "primarySetting": "Main location/environment",
+    "summary": "Brief overview of the content",
+    "contentType": ${CONTENT_TYPE_SCHEMA},
+    "contentStrategy": {
+        "type": "same as contentType",
+        "visualApproach": ${VISUAL_APPROACH_SCHEMA},
+        "entityMeaning": "What entities represent in this content type",
+        "typicalBeats": ["list", "of", "common", "beats"]
+    },
+    "era": "Time period or setting type (if applicable, else 'modern' or 'timeless')",
+    "primarySetting": "Main location/environment/context",
     "tone": "Overall mood/atmosphere",
     "globalEraConstraints": {
         "era": "medieval|ww2|modern|ancient|futuristic|etc",
         "allowedWeapons": ["sword", "spear", "bow"],
         "prohibitedItems": ["gun", "car", "phone", "computer"],
-        "technologyLevel": "prehistoric|ancient|medieval|industrial|modern|futuristic"
+        "technologyLevel": ${TECHNOLOGY_LEVEL_SCHEMA}
     },
     "entities": [
         {
             "id": "unique_snake_case_id",
-            "type": "character|location|object|animal|concept|group",
+            "type": ${ENTITY_TYPE_SCHEMA},
             "name": "Display Name",
             "description": "Detailed visual description for image generation",
             "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
             "eraConstraints": null,
             "importance": "primary|secondary|background",
-            "firstMention": 0,
-            "mentions": ["0-5", "8-12"]
+            "firstMention": 0,           // ← SEGMENT INDEX (0 to N-1). If 238 segments → valid: 0-237
+            "mentions": ["0-5", "8-12"], // ← SEGMENT INDICES. MUST be within [0, N-1]. "0-500" when N=238 is WRONG!
+            "groupId": "optional_group_id (for characters in factions)",
+            "uniqueTraits": "traits specific to this entity",
+            "role": "leader|soldier|civilian|background (for characters)"
+        }
+    ],
+    "groups": [
+        {
+            "id": "group_id",
+            "name": "Group Name",
+            "visualAnchor": "Shared appearance for ALL members",
+            "memberIds": ["member_1", "member_2-member_10"],
+            "allegiance": "protagonist|antagonist|neutral"
         }
     ],
     "scenes": [
         {
             "id": "scene_id",
-            "name": "Scene Name",
-            "description": "What happens in this scene",
+            "name": "Scene/Section Name",
+            "description": "What happens in this section",
             "segmentRange": [0, 15],
             "primaryEntities": ["entity_id1"],
             "secondaryEntities": ["entity_id2"],
-            "setting": "Where/when this happens",
-            "mood": "Tone of this scene"
+            "setting": "Where/when this happens or context",
+            "mood": "Tone of this section",
+            "visualTone": "claustrophobic|expansive|intimate|chaotic|etc",
+            "powerDynamic": "Who dominates? Who is vulnerable?",
+            "keyProps": ["symbolic_object_1", "symbolic_object_2"],
+            "lightingCue": "harsh shadows|soft warmth|silhouette|cold blue|etc"
         }
-    ]
+    ],
+    "narrativeArc": {
+        "beats": [
+            {
+                "segmentIndex": 0,
+                "beatType": ${BEAT_TYPE_SCHEMA},
+                "importance": "high|medium|low",
+                "suggestedFocus": "character|object|setting|action|group|concept",
+                "emotionalIntent": "What should the audience FEEL? (dread, hope, confusion, revelation, etc.)",
+                "suggestedAngle": ${CAMERA_ANGLE_SCHEMA} | null
+            }
+        ]
+    }
 }
 
 ## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
 
-1. **NEVER TRUNCATE**: Output the COMPLETE JSON or nothing. Do not cut off arrays mid-way. If you cannot fit everything, prioritize PRIMARY entities over BACKGROUND ones.
+1. **SEGMENT INDICES, NOT MILLISECONDS**: firstMention and mentions[] MUST use segment indices (0 to N-1). If transcript has 238 segments, valid values are 0-237. Values like 172650 are WRONG.
 
-2. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor. Do not write "a soldier" — write "a 25-year-old soldier with short brown hair, wearing a mud-stained olive drab uniform, carrying an M1 Garand rifle".
+2. **BOUNDS CHECK**: All segment indices MUST be within [0, N-1] where N = segment count.
+   - 238 segments → valid range: 0-237
+   - CORRECT: ["0-50", "60-100", "150-237"] (gaps show entity is ABSENT in segments 51-59, 101-149)
+   - WRONG: ["0-500"] when N=238 (500 > 237 is out of bounds)
+   - Any value >= N will be REJECTED
 
-3. **USE RANGE NOTATION**: For mentions[], use compact ranges like ["0-22", "25-30"] instead of listing every number. Never truncate ranges mid-way.
+3. **VISUAL COHERENCE**: Entities must have VISUAL descriptions. NO abstraction.
+   - "A mysterious man" → WRONG
+   - "A man in a shadowed fedora with a jagged scar over his left eye" → RIGHT
 
-4. **VALID JSON ONLY**: No markdown code blocks. No explanations. No trailing commas. Just raw, parseable JSON.
+4. **ANTI-PATTERNS (DO NOT DO THESE)**:
+   - DO NOT list "The Narrator" as a character unless they are VISUALLY present on screen.
+   - DO NOT invent "Locations" that aren't mentioned or clearly implied.
+   - DO NOT use generic descriptions for Primary Entities. Every Main Character needs a distinct look.
+
+5. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
+
+6. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor.
+
+7. **USE RANGE NOTATION**: For mentions[], use compact ranges. Gaps indicate segments where entity is NOT present.
+   - ["0-237"] = entity appears in ALL segments (continuous)
+   - ["0-50", "80-120", "200-237"] = entity ABSENT in segments 51-79 and 121-199
+
+8. **VALID JSON ONLY**: No markdown code blocks. No explanations. Just raw, parseable JSON.
 
 Return ONLY valid JSON.`;
 }
 
-/**
- * Build the user prompt for context extraction
- */
+/** Build user prompt for context extraction */
 export function buildExtractionUserPrompt(transcript: string, segmentCount: number): string {
-    return `# TRANSCRIPT (${segmentCount} segments)
+    return `# TRANSCRIPT
+Total Segments: ${segmentCount}
+Valid Segment Index Range: 0 to ${segmentCount - 1}
+
+CRITICAL: All "firstMention" and "mentions" values MUST be within 0-${segmentCount - 1}.
+Any value >= ${segmentCount} is INVALID and will be REJECTED.
+
 ${transcript}
 
 # EXECUTE
@@ -220,7 +266,8 @@ ${transcript}
 2. IDENTIFY all entities (characters, locations, objects, animals, concepts, groups)
 3. GROUP segments into scenes based on location/context changes
 4. EXTRACT metadata (era, setting, tone)
-5. RETURN structured JSON
+5. VERIFY all segment indices are within 0-${segmentCount - 1}
+6. RETURN structured JSON
 
 Return ONLY valid JSON.`;
 }
@@ -229,10 +276,7 @@ Return ONLY valid JSON.`;
 // Context Injection for Query Generation
 // ============================================================================
 
-/**
- * Build the context section to inject into query generation prompts
- * This provides the LLM with entity definitions and scene information
- */
+/** Build context injection for query generation prompts */
 export function buildContextInjection(
     context: StoryContext,
     batchState: BatchState | null,
@@ -307,23 +351,37 @@ export function buildContextInjection(
         entitySection += '\n';
     }
 
-    // Build scene section
-    let sceneSection = '== CURRENT SCENE ==\n';
+    // Build scene section with directorial information
+    let sceneSection = '== CURRENT SCENE (DIRECTORIAL CONTEXT) ==\n';
     let currentSceneId = '';
 
     if (relevantScenes.length > 0) {
         const scene = relevantScenes[0];
         if (scene) {
             currentSceneId = scene.id;
-            sceneSection += `Name: ${scene.name}\n`;
-            sceneSection += `Setting: ${scene.setting}\n`;
-            sceneSection += `Mood: ${scene.mood}\n`;
+            sceneSection += `LOCATION: ${scene.name}\n`;
+            sceneSection += `SETTING: ${scene.setting}\n`;
+            sceneSection += `MOOD: ${scene.mood}\n`;
+
+            // Directorial fields
+            if (scene.visualTone) {
+                sceneSection += `VISUAL TONE: ${scene.visualTone}\n`;
+            }
+            if (scene.powerDynamic) {
+                sceneSection += `POWER DYNAMIC: ${scene.powerDynamic}\n`;
+            }
+            if (scene.keyProps && scene.keyProps.length > 0) {
+                sceneSection += `KEY PROPS (symbolic): ${scene.keyProps.join(', ')}\n`;
+            }
+            if (scene.lightingCue) {
+                sceneSection += `LIGHTING: ${scene.lightingCue}\n`;
+            }
+
             sceneSection += `Segments: ${scene.segmentRange[0] + 1}-${scene.segmentRange[1] + 1}\n`;
         }
     }
     sceneSection += '\n';
 
-    // Build state section (continuity OR transition)
     let stateSection = '';
 
     // DETECT SCENE CUT
@@ -347,18 +405,28 @@ export function buildContextInjection(
         }
     }
 
-    // Build instruction section
-    const instructionSection = `== INSTRUCTION (CRITICAL) ==
-    Generate image queries for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
+    // Build instruction section with directorial focus
+    const instructionSection = `== DIRECTOR'S INSTRUCTIONS ==
+Generate structured shots for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
+
+THE DIRECTOR'S QUESTION (ask for EACH segment):
+"What should the audience FEEL or UNDERSTAND right now?"
+- If the answer is about a CHARACTER's emotion → focus on character, use close-up
+- If the answer is about POWER/THREAT → use low angle, show dominance
+- If the answer is about VULNERABILITY → use high angle, isolate the subject
+- If the answer is about a LOCATION/SETTING → use wide shot, establish the space
+- If the answer is about an OBJECT → focus on the object, use the scene as background
+
+REFERENCED ≠ MUST BE SHOWN:
+Just because a character is MENTIONED in the audio does NOT mean they should be in the shot.
+Use "focus.exclude" for entities that are referenced but should NOT be visualized.
+Show what serves the EMOTIONAL INTENT, not just what is literally mentioned.
 
 MANDATORY RULES:
-1. NEVER use shorthand like "the Viking", "the bridge", "the axe", "the spear"
-2. ALWAYS copy-paste the FULL description from the ESTABLISHED ENTITIES above
-3. Each query must be a COMPLETE, SELF-CONTAINED visual description
-4. Include ALL identifying details: weapons, clothing, location names, physical features
-
-Example: Instead of "The Viking on the bridge", write:
-"The lone, bare-chested Viking warrior, muscular and battle-hardened, wielding a massive Dane axe, standing on the narrow wooden Stamford Bridge spanning the River Derwent"
+1. Use entity IDs from the VISUAL ASSETS REGISTRY above
+2. Each shot must have depth: foreground/midground/background awareness
+3. Use the LIGHTING and VISUAL TONE from the scene context above
+4. Symbolic props (keyProps) should appear when emotionally relevant
 `;
 
     return `${entitySection}${sceneSection}${stateSection}${instructionSection}`;
@@ -368,11 +436,7 @@ Example: Instead of "The Viking on the bridge", write:
 // Extraction API
 // ============================================================================
 
-/**
- * Extract story context from a transcript using LLM
- * This is Phase 1 of the two-phase query generation process
- * Retries up to 3 times on failure before throwing
- */
+/** Extract story context from transcript using LLM */
 export async function extractStoryContext(
     transcript: string,
     segmentCount: number,
@@ -393,7 +457,8 @@ export async function extractStoryContext(
             const context = await attemptContextExtraction(
                 aiConfig,
                 systemPrompt,
-                userPrompt
+                userPrompt,
+                segmentCount
             );
 
             // Validate we got meaningful results
@@ -424,13 +489,12 @@ export async function extractStoryContext(
     throw new Error(`Context extraction failed after ${maxRetries} attempts: ${lastError?.message}`);
 }
 
-/**
- * Single attempt at context extraction
- */
+/** Attempt single context extraction */
 async function attemptContextExtraction(
     aiConfig: ReturnType<typeof getAIConfig>,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    segmentCount: number
 ): Promise<StoryContext> {
     const response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -463,7 +527,7 @@ async function attemptContextExtraction(
         throw new Error('Empty response from context extraction');
     }
 
-    return parseStoryContext(content);
+    return parseStoryContext(content, segmentCount);
 }
 
 /**
@@ -476,10 +540,8 @@ const DEFAULT_ERA_CONSTRAINTS: EraConstraints = {
     technologyLevel: 'modern',
 };
 
-/**
- * Parse the LLM response into a StoryContext object
- */
-function parseStoryContext(content: string): StoryContext {
+/** Parse LLM response into StoryContext object */
+function parseStoryContext(content: string, segmentCount?: number): StoryContext {
     // Clean up the response (remove markdown code blocks if present)
     let cleaned = content.trim();
     // logger.log('Context', `Raw context extraction response: ${cleaned}`);
@@ -508,7 +570,19 @@ function parseStoryContext(content: string): StoryContext {
         if (!parsed.primarySetting) parsed.primarySetting = '';
         if (!parsed.tone) parsed.tone = '';
 
-        // Ensure globalEraConstraints exists with defaults
+        if (!parsed.contentType) {
+            parsed.contentType = 'narrative'; // Default to narrative for backward compatibility
+        }
+
+        if (!parsed.contentStrategy) {
+            parsed.contentStrategy = {
+                type: parsed.contentType,
+                visualApproach: 'realistic',
+                entityMeaning: 'Visual elements in the content',
+                typicalBeats: ['establishing', 'action', 'resolution'],
+            };
+        }
+
         if (!parsed.globalEraConstraints) {
             parsed.globalEraConstraints = {
                 ...DEFAULT_ERA_CONSTRAINTS,
@@ -516,13 +590,36 @@ function parseStoryContext(content: string): StoryContext {
             };
         }
 
-        // Ensure each entity has visualAnchor, eraConstraints, and expanded mentions
+        if (!parsed.groups || !Array.isArray(parsed.groups)) {
+            parsed.groups = [];
+        }
+        parsed.groups = parsed.groups.map((group) => ({
+            ...group,
+            memberIds: expandMemberIds(group.memberIds),
+        }));
+
+        if (!parsed.narrativeArc || !parsed.narrativeArc.beats) {
+            parsed.narrativeArc = { beats: [] };
+        }
+
         parsed.entities = parsed.entities.map((entity) => ({
             ...entity,
             visualAnchor: entity.visualAnchor || entity.description || '',
             eraConstraints: entity.eraConstraints ?? null,
-            mentions: expandMentionRanges(entity.mentions),
+            mentions: expandMentionRanges(entity.mentions, segmentCount),
+            firstMention: validateSegmentIndex(entity.firstMention, segmentCount),
         }));
+
+        // Validate scene segment ranges
+        if (segmentCount) {
+            parsed.scenes = parsed.scenes.map(scene => ({
+                ...scene,
+                segmentRange: [
+                    Math.max(0, Math.min(scene.segmentRange[0], segmentCount - 1)),
+                    Math.max(0, Math.min(scene.segmentRange[1], segmentCount - 1)),
+                ] as [number, number],
+            }));
+        }
 
         return parsed as StoryContext;
     } catch (error) {
@@ -532,28 +629,32 @@ function parseStoryContext(content: string): StoryContext {
     }
 }
 
-/**
- * Expand mention ranges from compact notation to full arrays
- * Handles: ["0-5", "10-15"] → [0,1,2,3,4,5,10,11,12,13,14,15]
- * Also handles: [0, 1, 2] (already expanded) or ["7"] (single)
- */
-function expandMentionRanges(mentions: unknown): number[] {
+/** Validate segment index is within bounds */
+function validateSegmentIndex(index: unknown, maxSegments?: number): number {
+    const num = typeof index === 'number' ? index : 0;
+    if (!maxSegments) return Math.max(0, num);
+    return Math.max(0, Math.min(num, maxSegments - 1));
+}
+
+/** Expand mention ranges from compact notation to full arrays, bounded by segment count */
+function expandMentionRanges(mentions: unknown, maxSegments?: number): number[] {
     if (!mentions || !Array.isArray(mentions)) {
         return [];
     }
 
     const result: number[] = [];
+    const maxIndex = maxSegments ? maxSegments - 1 : Infinity;
 
     for (const item of mentions) {
         if (typeof item === 'number') {
-            // Already a number, just add it
-            result.push(item);
+            if (item >= 0 && item <= maxIndex) {
+                result.push(item);
+            }
         } else if (typeof item === 'string') {
-            // Could be "5" or "0-22"
             if (item.includes('-')) {
                 const [startStr, endStr] = item.split('-');
-                const start = parseInt(startStr ?? '', 10);
-                const end = parseInt(endStr ?? '', 10);
+                const start = Math.max(0, parseInt(startStr ?? '', 10));
+                const end = Math.min(maxIndex, parseInt(endStr ?? '', 10));
                 if (!isNaN(start) && !isNaN(end) && start <= end) {
                     for (let i = start; i <= end; i++) {
                         result.push(i);
@@ -561,7 +662,7 @@ function expandMentionRanges(mentions: unknown): number[] {
                 }
             } else {
                 const num = parseInt(item, 10);
-                if (!isNaN(num)) {
+                if (!isNaN(num) && num >= 0 && num <= maxIndex) {
                     result.push(num);
                 }
             }
@@ -571,9 +672,40 @@ function expandMentionRanges(mentions: unknown): number[] {
     return result;
 }
 
-/**
- * Create initial batch state for the first batch
- */
+/** Expand group memberIds from range notation to full arrays */
+function expandMemberIds(memberIds: unknown): string[] {
+    if (!memberIds || !Array.isArray(memberIds)) {
+        return [];
+    }
+
+    const result: string[] = [];
+
+    for (const item of memberIds) {
+        if (typeof item !== 'string') {
+            continue;
+        }
+
+        // Check for range notation like "soldier_2-soldier_10"
+        const rangeMatch = item.match(/^(.+?)(\d+)-\1(\d+)$/);
+        if (rangeMatch) {
+            const prefix = rangeMatch[1];
+            const start = parseInt(rangeMatch[2] ?? '', 10);
+            const end = parseInt(rangeMatch[3] ?? '', 10);
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+                for (let i = start; i <= end; i++) {
+                    result.push(`${prefix}${i}`);
+                }
+            }
+        } else {
+            // Regular ID, just add it
+            result.push(item);
+        }
+    }
+
+    return result;
+}
+
+/** Create initial batch state */
 export function createInitialBatchState(): BatchState {
     return {
         batchIndex: 0,
@@ -584,9 +716,7 @@ export function createInitialBatchState(): BatchState {
     };
 }
 
-/**
- * Update batch state after processing a batch
- */
+/** Update batch state after processing a batch */
 export function updateBatchState(
     previousState: BatchState,
     queries: string[],

@@ -1,14 +1,19 @@
 /**
  * Stage 5: Image Download
- * Downloads or generates images for each segment query
+ * Downloads or generates images for each segment
+ * Uses per-segment caching for incremental progress
  */
 
 import type { WorkflowState } from "./types.ts";
+import { downloadImagesForQueries, validateDownloadedImages } from "../../../services/image/index.ts";
 import {
-    downloadImagesForQueries,
-    validateDownloadedImages,
-} from "../../../services/image/index.ts";
-import { getCachedImages, updateStyleCache } from "../../../services/storage/index.ts";
+    getDownloadedImages,
+    getResumeState,
+    updateSegmentStatus,
+    updateSegmentRewrite,
+    type JobKey,
+    type SegmentKey,
+} from "../../../services/storage/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 export async function imageDownloadStage(state: WorkflowState): Promise<WorkflowState> {
@@ -16,68 +21,58 @@ export async function imageDownloadStage(state: WorkflowState): Promise<Workflow
         throw new Error("imageDownloadStage requires audioHash and imageQueries");
     }
 
-    const useSentenceSegmentation = state.style.segmentationType === "sentence";
+    const jobKey: JobKey = {
+        audioHash: state.audioHash,
+        styleId: state.style.id,
+        orientation: state.style.orientation,
+        naturalEdit: state.style.segmentationType === "sentence",
+    };
 
-    const cachedImages = getCachedImages(
-        state.audioHash,
-        state.style.id,
-        state.style.orientation,
-        useSentenceSegmentation
-    );
+    const totalSegments = state.imageQueries.length;
+    const resumeState = getResumeState(jobKey);
 
-    if (cachedImages && cachedImages.length === state.imageQueries.length) {
-        logger.log("Workflow", "📦 Using cached images (all files verified to exist)");
-
-        return {
-            ...state,
-            downloadedImages: cachedImages,
-        };
+    // Check if all images are already cached
+    if (resumeState.isComplete) {
+        const cachedImages = getDownloadedImages(jobKey);
+        if (cachedImages && cachedImages.length === totalSegments) {
+            logger.log("Workflow", "📦 Using cached images");
+            return { ...state, downloadedImages: cachedImages };
+        }
     }
 
-    const existingCount = cachedImages?.length ?? 0;
-    const remainingCount = state.imageQueries.length - existingCount;
+    const existingCount = resumeState.completedCount;
+    const remainingCount = totalSegments - existingCount;
 
     await state.progress.update({
         step: "Downloading Images",
         message: existingCount > 0
-            ? `Resuming download: ${remainingCount} remaining of ${state.imageQueries.length} images...`
-            : `Downloading ${state.imageQueries.length} images...`,
+            ? `Resuming: ${remainingCount} remaining of ${totalSegments}...`
+            : `Generating ${totalSegments} images...`,
         current: existingCount,
-        total: state.imageQueries.length,
+        total: totalSegments,
     });
+
+    // Helper to build segment key
+    const segmentKey = (index: number): SegmentKey => ({ ...jobKey, segmentIndex: index });
 
     const downloadedImages = await downloadImagesForQueries(
         state.imageQueries,
         state.style,
-        cachedImages ?? undefined,
-        (images) => {
-            updateStyleCache(
-                state.audioHash!,
-                state.style.id,
-                state.style.orientation,
-                useSentenceSegmentation,
-                { downloaded_images: JSON.stringify(images) }
-            );
+        undefined,  // No legacy cache, use segment cache
+        undefined,  // No legacy callback
+        state.structuredShots,
+        {
+            onImageApproved: (segmentIndex, imagePath, seed) => {
+                updateSegmentStatus(segmentKey(segmentIndex), 'approved', imagePath, seed);
+            },
+            onPromptRewritten: (segmentIndex, newPrompt, rewriteCount) => {
+                updateSegmentRewrite(segmentKey(segmentIndex), newPrompt, rewriteCount);
+            },
         }
     );
 
     validateDownloadedImages(downloadedImages);
+    logger.step("Workflow", `Downloaded ${downloadedImages.length} images`);
 
-    updateStyleCache(
-        state.audioHash,
-        state.style.id,
-        state.style.orientation,
-        useSentenceSegmentation,
-        {
-            image_queries: JSON.stringify(state.imageQueries),
-            downloaded_images: JSON.stringify(downloadedImages),
-        }
-    );
-
-    logger.step("Workflow", `Downloaded ${downloadedImages.length} images and cached`);
-
-    return {
-        ...state,
-        downloadedImages,
-    };
+    return { ...state, downloadedImages };
 }

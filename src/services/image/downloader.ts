@@ -1,8 +1,9 @@
 import { duckDuckGoImageSearch } from "../../utils/dim.ts";
 import { DEFAULT_PATHS, DEFAULT_IMAGE_SETTINGS } from "../../config/defaults.ts";
 import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
-import type { ImageSearchQuery, DownloadedImage } from "../../types/index.ts";
+import type { ImageSearchQuery, DownloadedImage, StructuredShot } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
+import { generateConsistentSeed } from "../llm/index.ts";
 import { getProvider, getFallbackProvider } from "./providers/index.ts";
 import { calculateBackoffDelay, sleep } from "./providers/retry.ts";
 import { isUnsafePromptError } from "./providers/errors.ts";
@@ -17,25 +18,21 @@ const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
 const WATERMARKED_DOMAINS = DEFAULT_IMAGE_SETTINGS.watermarkedDomains;
 
-function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
+function assignSeeds(queries: ImageSearchQuery[], shots?: StructuredShot[]): Map<number, number> {
   const seedMap = new Map<number, number>();
 
   for (let i = 0; i < queries.length; i++) {
-    const query = queries[i];
-    if (!query) continue;
-
-    const linkedTo = query.linkedTo;
-
-    // If linked to a previous segment, inherit its seed
-    if (linkedTo !== null && linkedTo !== undefined && linkedTo < i && seedMap.has(linkedTo)) {
-      const inheritedSeed = seedMap.get(linkedTo)!;
-      seedMap.set(i, inheritedSeed);
-      logger.debug('Seeds', `Segment ${i} linked to ${linkedTo}, inheriting seed: ${inheritedSeed}`);
+    const shot = shots?.[i];
+    if (shot) {
+      // Use deterministic entity-based seed
+      const seed = generateConsistentSeed(shot, i);
+      seedMap.set(i, seed);
+      logger.debug('Seeds', `Segment ${i}: seed ${seed} (based on ${shot.sceneId}, entities: ${[...shot.focus.primary, ...shot.focus.secondary].join(',')})`);
     } else {
-      // Generate new random seed (1 to 2147483647)
-      const newSeed = Math.floor(Math.random() * 2147483646) + 1;
-      seedMap.set(i, newSeed);
-      logger.debug('Seeds', `Segment ${i} is new scene, assigned seed: ${newSeed}`);
+      // Fallback to random seed if no structured shot
+      const seed = Math.floor(Math.random() * 2147483646) + 1;
+      seedMap.set(i, seed);
+      logger.debug('Seeds', `Segment ${i}: random seed ${seed} (no structured shot)`);
     }
   }
 
@@ -43,16 +40,28 @@ function assignSeeds(queries: ImageSearchQuery[]): Map<number, number> {
 }
 
 /**
+ * Callbacks for per-segment cache updates during image generation
+ * Enables incremental caching and safety rewrite persistence
+ */
+export interface SegmentCacheCallbacks {
+  onImageApproved?: (segmentIndex: number, imagePath: string, seed?: number) => void;
+  onPromptRewritten?: (segmentIndex: number, newPrompt: string, rewriteCount: number) => void;
+}
+
+/**
  * Search and download images for all queries. Supports:
  * - Resumption from partial cache (skips already-downloaded images)
  * - Incremental saving via callback to persist progress
+ * - Per-segment caching for safety rewrite persistence
  * - Retry logic with exponential backoff
  */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
   style: ResolvedStyle,
   existingImages?: DownloadedImage[],
-  onImageDownloaded?: (images: DownloadedImage[]) => void
+  onImageDownloaded?: (images: DownloadedImage[]) => void,
+  structuredShots?: StructuredShot[],
+  segmentCallbacks?: SegmentCacheCallbacks
 ): Promise<DownloadedImage[]> {
   const queriesLength = queries.length;
   const startIndex = existingImages?.length ?? 0;
@@ -78,8 +87,8 @@ export async function downloadImagesForQueries(
     logger.step("Images", `🔍 Web Search Mode: Downloading images from DuckDuckGo for ${queriesLength - startIndex} queries`);
   }
 
-  // Assign seeds based on linkedTo relationships (only for AI image generation)
-  const seedMap = USE_AI_IMAGE ? assignSeeds(queries) : new Map<number, number>();
+  // Assign seeds based on entity composition (only for AI image generation)
+  const seedMap = USE_AI_IMAGE ? assignSeeds(queries, structuredShots) : new Map<number, number>();
 
   if (USE_AI_IMAGE && seedMap.size > 0) {
     // Count unique seeds to show how many "scene groups" we have
@@ -92,12 +101,14 @@ export async function downloadImagesForQueries(
     const queryData = queries[i];
     if (!queryData) continue;
 
+    const segmentIndex = i + 1;  // 1-based index for cache
+
     try {
       const seed = seedMap.get(i);
 
       // Use AI generation or web search based on USE_AI_IMAGE flag
       const processedImage = USE_AI_IMAGE
-        ? await generateAIImageForQuery(queryData, style, i, seed)
+        ? await generateAIImageForQuery(queryData, style, i, seed, segmentCallbacks)
         : await downloadImageForQuery(queryData, style, i);
 
       processedImages.push(processedImage);
@@ -105,6 +116,11 @@ export async function downloadImagesForQueries(
         "Images",
         `Progress: ${i + 1}/${queriesLength} - ${USE_AI_IMAGE ? "Generated" : "Downloaded"}: ${processedImage.filePath}`
       );
+
+      // Mark segment as approved in cache (incremental)
+      if (segmentCallbacks?.onImageApproved) {
+        segmentCallbacks.onImageApproved(segmentIndex, processedImage.filePath, processedImage.seed);
+      }
 
       // Incremental save: persist after each successful download
       if (onImageDownloaded) {
@@ -139,10 +155,12 @@ async function generateAIImageForQuery(
   queryData: ImageSearchQuery,
   style: ResolvedStyle,
   index: number,
-  seed?: number
+  seed?: number,
+  segmentCallbacks?: SegmentCacheCallbacks
 ): Promise<DownloadedImage> {
   const { start, end } = queryData;
   const provider = getProvider();
+  const segmentIndex = index + 1;  // 1-based for cache
 
   const aspectRatio: '16:9' | '9:16' = style.orientation === 'vertical' ? '9:16' : '16:9';
 
@@ -198,8 +216,14 @@ async function generateAIImageForQuery(
           MAX_REWRITES
         );
 
-        // Update query for next attempt
+        // Update query for next attempt and persist rewrite to cache
         queryData.query = rewrittenQuery;
+        
+        // Cache the rewritten prompt so we don't lose progress on restart
+        if (segmentCallbacks?.onPromptRewritten) {
+          segmentCallbacks.onPromptRewritten(segmentIndex, rewrittenQuery, rewriteCount);
+        }
+        
         logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
 
         attempt = 0;

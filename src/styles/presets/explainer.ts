@@ -24,7 +24,7 @@ export const explainerStyle: VideoStyle = {
 
     // === Image Generation ===
     imageStyle: "modern animation, smooth shapes, soft shading, muted professional colors, clean minimal, friendly stylized",
-    negativePrompt: "no text, no words, no letters, no numbers, no labels, no 3D, no photograph, no cartoon, no anime, no harsh outlines, no watermark, no deformed, no border, no frame, no white border, no margin, no edges, no vignette",
+    negativePrompt: "text, words, letters, numbers, writing, handwriting, subtitles, captions, lower thirds, title cards, labels, signs, posters, logos, watermarks, signatures, calligraphy, diagrams, charts, infographics, UI, interface, overlays, speech bubbles, comics, memes, annotations, timestamps, dates, years, quotes, dialogue boxes, credits, headlines, typography, 3D, photograph, cartoon, anime, harsh outlines, deformed, border, frame, white border, margin, edges, vignette",
 
     // === Segmentation ===
     segmentationType: "sentence",

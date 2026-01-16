@@ -5,7 +5,7 @@
 
 import path from "node:path";
 import type { WorkflowState } from "./types.ts";
-import { hashAudioFile, updateAudioCache } from "../../../services/storage/index.ts";
+import { hashAudioFile, setAudioCache } from "../../../services/storage/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 export async function cacheInitStage(state: WorkflowState): Promise<WorkflowState> {
@@ -17,7 +17,7 @@ export async function cacheInitStage(state: WorkflowState): Promise<WorkflowStat
     const audioHash = await hashAudioFile(state.audioFilePath);
     const filename = path.basename(state.audioFilePath);
 
-    updateAudioCache(audioHash, {
+    setAudioCache(audioHash, {
         audio_filename: filename,
         audio_path: state.audioFilePath,
     });

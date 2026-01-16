@@ -1,10 +1,4 @@
-/**
- * Image Query Generator
- * Three-phase workflow for context-aware query generation:
- * Phase 1: Extract story context (entities, scenes) from full transcript
- * Phase 2: Generate queries in batches with context injection
- * Phase 3: Verify and auto-correct queries for consistency
- */
+/** Context-aware image query generator with story context extraction and batch processing */
 
 import { AI_TEXT, getAIConfig } from '../../config/index.ts';
 import type { ImageSearchQuery } from '../../types/index.ts';
@@ -15,14 +9,16 @@ import {
     buildContextAwareUserPrompt,
 } from './prompts.ts';
 import { callLLMWithRetry } from './client.ts';
-import { validateImageQueries } from './parser.ts';
+import { parseStructuredShots, validateStructuredShots } from './parser.ts';
+import { buildImagePrompt } from './shot-builder.ts';
+import type { StructuredShot, StoryContext, BatchState } from '../../types/llm.ts';
 import {
     extractStoryContext,
     createInitialBatchState,
     updateBatchState,
-    type StoryContext,
-    type BatchState,
 } from './context.ts';
+import { upsertSegment, type SegmentKey } from '../storage/cache.ts';
+import { generateConsistentSeed } from './shot-builder.ts';
 
 // Get AI configuration
 const aiConfig = getAIConfig();
@@ -31,22 +27,35 @@ const LLM_SEGMENTS_PER_BATCH = aiConfig.segmentsPerBatch;
 const LLM_MAX_RETRIES = aiConfig.maxRetries;
 const USE_AI_IMAGE = AI_TEXT.useAiImage;
 
-/**
- * Generate image search queries from formatted transcript
- * Always uses two-phase context-aware generation
- * 
- * @param formattedTranscript - Formatted transcript with timestamps
- * @param style - Resolved style configuration for style-specific prompts
- * @param cachedContext - Optional cached StoryContext to skip extraction
- * @param onContextExtracted - Optional callback called immediately after context extraction
- * @returns Object with queries and storyContext (for caching)
- */
+/** Cache key configuration for incremental per-segment caching */
+export interface GeneratorCacheConfig {
+    audioHash: string;
+    styleId: string;
+    orientation: string;
+    naturalEdit: boolean;
+}
+
+/** Resume state for continuing from a previous partial run */
+export interface LLMResumeState {
+    resumeBatchIndex: number;
+    lastQueries: string[];
+    cachedShots: StructuredShot[];
+}
+
+/** Generate image search queries from formatted transcript using context-aware extraction */
 export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle,
     cachedContext?: StoryContext | null,
-    onContextExtracted?: (context: StoryContext) => void
-): Promise<{ queries: ImageSearchQuery[]; storyContext: StoryContext }> {
+    onContextExtracted?: (context: StoryContext) => void,
+    cacheConfig?: GeneratorCacheConfig,
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void,
+    resumeState?: LLMResumeState
+): Promise<{
+    queries: ImageSearchQuery[];
+    storyContext: StoryContext;
+    structuredShots: StructuredShot[];
+}> {
     const lines = formattedTranscript
         .split(/\r?\n/)
         .map((l) => l.trim())
@@ -81,9 +90,6 @@ export async function generateImageQueries(
         );
     }
 
-    // =========================================================================
-    // PHASE 1: Extract story context (or use cached)
-    // =========================================================================
     let storyContext: StoryContext;
 
     if (cachedContext) {
@@ -101,43 +107,55 @@ export async function generateImageQueries(
         onContextExtracted?.(storyContext);
     }
 
-    // =========================================================================
-    // PHASE 2: Generate queries with context
-    // =========================================================================
     logger.step('LLM', `📝 Phase 2: Generating queries with context injection`);
 
-    const queries = await generateQueriesWithContext(
+    const { queries, structuredShots } = await generateQueriesWithContext(
         lines,
         segmentCount,
         batchSize,
         style,
         useShotTypes,
-        storyContext
+        storyContext,
+        cacheConfig,
+        onShotGenerated,
+        resumeState
     );
-   return { queries, storyContext };
+    return { queries, storyContext, structuredShots };
 }
 
-/**
- * Generate queries with context injection
- * Uses context-aware prompts for all segments
- */
+/** Generate queries with context injection for all segments */
 async function generateQueriesWithContext(
     lines: string[],
     segmentCount: number,
     batchSize: number,
     style: ResolvedStyle,
     useShotTypes: boolean,
-    storyContext: StoryContext
-): Promise<ImageSearchQuery[]> {
-    const allQueries: ImageSearchQuery[] = [];
+    storyContext: StoryContext,
+    cacheConfig?: GeneratorCacheConfig,
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void,
+    resumeState?: LLMResumeState
+): Promise<{ queries: ImageSearchQuery[]; structuredShots: StructuredShot[] }> {
+    // If resuming, pre-populate with cached shots
+    const allStructuredShots: StructuredShot[] = resumeState?.cachedShots ? [...resumeState.cachedShots] : [];
 
     // Determine if we need batching
     const shouldBatch = batchSize > 0 && segmentCount > batchSize;
     const totalBatches = shouldBatch ? Math.ceil(segmentCount / batchSize) : 1;
 
+    // Initialize batch state with resume data if available
     let batchState = createInitialBatchState();
+    const startBatch = resumeState?.resumeBatchIndex ?? 0;
 
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    if (resumeState && resumeState.lastQueries.length > 0) {
+        batchState = {
+            ...batchState,
+            batchIndex: startBatch,
+            lastQueries: resumeState.lastQueries,
+        };
+        logger.log('LLM', `📦 Resuming from batch ${startBatch + 1}/${totalBatches} with ${resumeState.lastQueries.length} context queries`);
+    }
+
+    for (let batchIndex = startBatch; batchIndex < totalBatches; batchIndex++) {
         const start = shouldBatch ? batchIndex * batchSize : 0;
         const end = shouldBatch ? Math.min(start + batchSize, segmentCount) : segmentCount;
         const batchLines = lines.slice(start, end);
@@ -152,136 +170,135 @@ async function generateQueriesWithContext(
             );
         }
 
-        // Build context-aware prompts
+        // Build context-aware prompts with explicit segment indexing
         const systemPrompt = buildContextAwareSystemPrompt(USE_AI_IMAGE, style, storyContext);
         const userPrompt = buildContextAwareUserPrompt(
             batchFormatted,
             expectedCount,
-            USE_AI_IMAGE,
             useShotTypes,
             storyContext,
             batchState,
-            [start, end - 1]
+            [start, end - 1],
+            segmentCount  // Pass total segments for global index context
         );
 
         const label = shouldBatch ? ` (batch ${batchIndex + 1})` : '';
-        let queries: ImageSearchQuery[] = [];
+        let batchShots: StructuredShot[] = [];
         let retryAttempt = 0;
         const maxBatchRetries = LLM_MAX_RETRIES;
 
         while (retryAttempt <= maxBatchRetries) {
-            queries = await callLLMWithRetry(
+            const rawResponse = await callLLMWithRetry(
                 systemPrompt,
                 userPrompt,
                 label,
-                1
+                1,
+                true // Return raw response for structured shot parsing
             );
 
-            if (queries.length === expectedCount) {
-                break;
-            }
-            if (retryAttempt < maxBatchRetries) {
-                logger.warn(
-                    'LLM',
-                    `Expected ${expectedCount} queries, got ${queries.length}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
-                );
-                retryAttempt++;
-            } else {
-                logger.warn(
-                    'LLM',
-                    `Expected ${expectedCount} queries, got ${queries.length} after ${maxBatchRetries + 1} attempts${label}. Proceeding with partial results.`
-                );
-                break;
+            // Log raw response for debugging/verification
+            logger.log('LLM', `Batch ${batchIndex + 1} raw response: ${rawResponse}`);
+
+            try {
+                // Parse LLM response as StructuredShot[]
+                batchShots = parseStructuredShots(rawResponse);
+
+                if (batchShots.length === expectedCount) {
+                    break;
+                }
+
+                if (retryAttempt < maxBatchRetries) {
+                    logger.warn(
+                        'LLM',
+                        `Expected ${expectedCount} shots, got ${batchShots.length}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
+                    );
+                    retryAttempt++;
+                } else {
+                    logger.warn(
+                        'LLM',
+                        `Expected ${expectedCount} shots, got ${batchShots.length} after ${maxBatchRetries + 1} attempts${label}. Proceeding with partial results.`
+                    );
+                    break;
+                }
+            } catch (error) {
+                if (retryAttempt < maxBatchRetries) {
+                    logger.warn(
+                        'LLM',
+                        `Schema validation failed: ${error instanceof Error ? error.message : String(error)}. Retrying${label} (attempt ${retryAttempt + 2}/${maxBatchRetries + 1})...`
+                    );
+                    retryAttempt++;
+                } else {
+                    logger.error(
+                        'LLM',
+                        `Schema validation failed after ${maxBatchRetries + 1} attempts${label}: ${error instanceof Error ? error.message : String(error)}`
+                    );
+                    break;
+                }
             }
         }
 
-        // Sanitize linkedTo values before validation
-        // LLM sometimes returns invalid references (e.g., linkedTo >= current index)
-        const sanitizedQueries = queries.map((q, i) => {
-            if (q.linkedTo !== null && q.linkedTo !== undefined) {
-                // linkedTo must be < current batch index and >= 0
-                if (q.linkedTo >= i || q.linkedTo < 0) {
-                    logger.debug('LLM', `Sanitized invalid linkedTo=${q.linkedTo} at index ${i} → null`);
-                    return { ...q, linkedTo: null };
-                }
-            }
-            return q;
-        });
+        // Validate structured shots
+        validateStructuredShots(batchShots);
 
-        // Validate with batch-relative indices (as returned by LLM)
-        validateImageQueries(sanitizedQueries);
-        // Then adjust linkedTo values from batch-relative to global indices
-        const adjustedQueries = adjustLinkedToForBatch(sanitizedQueries, start);
-        allQueries.push(...adjustedQueries);
+        // INCREMENTAL CACHING: Cache each shot immediately after successful parse
+        for (let i = 0; i < batchShots.length; i++) {
+            const shot = batchShots[i];
+            if (!shot) continue;
+
+            const globalIndex = start + i + 1;  // 1-based segment index
+            const prompt = buildImagePrompt(shot, storyContext, style);
+            const seed = generateConsistentSeed(shot, start + i);
+
+            if (cacheConfig) {
+                const key: SegmentKey = { ...cacheConfig, segmentIndex: globalIndex };
+                upsertSegment(key, {
+                    totalSegments: segmentCount,
+                    originalPrompt: prompt,
+                    currentPrompt: prompt,
+                    structuredShot: JSON.stringify(shot),
+                    seed,
+                });
+            }
+
+            onShotGenerated?.(globalIndex, shot, prompt);
+        }
+
+        allStructuredShots.push(...batchShots);
 
         // Update batch state for next iteration
-        const queryStrings = queries.map(q => q.query);
-        const activeEntities = findActiveEntities(queries, storyContext);
+        const activeEntities = batchShots.flatMap(s => [...s.focus.primary, ...s.focus.secondary]);
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;
 
         batchState = updateBatchState(
             batchState,
-            queryStrings,
-            activeEntities,
+            batchShots.map(s => s.action),
+            [...new Set(activeEntities)],
             currentScene?.id || '',
             currentMood
         );
+
+        if (cacheConfig && shouldBatch) {
+            logger.log('Cache', `📦 Cached ${batchShots.length} segment prompts (batch ${batchIndex + 1}/${totalBatches})`);
+        }
     }
+
+    const queries = allStructuredShots.map((shot, i) => ({
+        start: shot.start,
+        end: shot.end,
+        query: buildImagePrompt(shot, storyContext, style),
+        type: shot.type,
+    }));
 
     logger.success(
         'LLM',
-        `Generated ${allQueries.length} image search queries${totalBatches > 1 ? ` across ${totalBatches} batches` : ''}`
+        `Generated ${queries.length} image search queries${totalBatches > 1 ? ` across ${totalBatches} batches` : ''}`
     );
 
-    return allQueries;
+    return { queries, structuredShots: allStructuredShots };
 }
 
-/**
- * Adjust linkedTo values from batch-relative to global indices
- * LLM returns linkedTo values relative to the current batch (0-based),
- * but validation expects global indices across all batches
- */
-function adjustLinkedToForBatch(queries: ImageSearchQuery[], batchStart: number): ImageSearchQuery[] {
-    return queries.map((query, batchIndex) => {
-        if (query.linkedTo !== undefined && query.linkedTo !== null) {
-            // linkedTo is relative to the batch, adjust to global index
-            const globalLinkedTo = query.linkedTo + batchStart;
-            // Ensure the adjusted linkedTo still references an earlier segment
-            const globalIndex = batchStart + batchIndex;
-            if (globalLinkedTo >= globalIndex) {
-                // Invalid reference - set to null to avoid validation error
-                return { ...query, linkedTo: null };
-            }
-            return { ...query, linkedTo: globalLinkedTo };
-        }
-        return query;
-    });
-}
-
-/**
- * Find which entities are likely referenced in the queries
- */
-function findActiveEntities(queries: ImageSearchQuery[], context: StoryContext): string[] {
-    const active: string[] = [];
-    const queryText = queries.map(q => q.query.toLowerCase()).join(' ');
-
-    for (const entity of context.entities) {
-        // Check if entity name or parts of description appear in queries
-        const nameLower = entity.name.toLowerCase();
-        const descWords = (entity.description || entity.visualAnchor || '').toLowerCase().split(' ').slice(0, 5);
-
-        if (queryText.includes(nameLower) || descWords.some(w => queryText.includes(w))) {
-            active.push(entity.id);
-        }
-    }
-
-    return active;
-}
-
-/**
- * Find which scene contains a given segment index
- */
+/** Find which scene contains a given segment index */
 function findCurrentScene(segmentIndex: number, context: StoryContext) {
     for (const scene of context.scenes) {
         const [sceneStart, sceneEnd] = scene.segmentRange;

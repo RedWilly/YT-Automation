@@ -23,7 +23,7 @@ export const historyStyle: VideoStyle = {
 
   // === Image Generation ===
   imageStyle: "period-appropriate details, artistic interpretation, rich color palette, painterly quality, atmospheric lighting, creative composition, semi-realistic with stylized elements",
-  negativePrompt: "text, words, letters, numbers, labels, captions, typography, photograph, 3d render, vector art, neon colors, watermark, deformed, border, frame, margin",
+  negativePrompt: "text, words, letters, numbers, writing, handwriting, subtitles, captions, lower thirds, title cards, labels, signs, posters, logos, watermarks, signatures, calligraphy, diagrams, charts, infographics, UI, interface, overlays, speech bubbles, comics, memes, annotations, timestamps, dates, years, quotes, dialogue boxes, credits, headlines, typography, photograph, 3d render, vector art, neon colors, deformed, border, frame, margin",
 
   // === Segmentation ===
   segmentationType: "sentence",

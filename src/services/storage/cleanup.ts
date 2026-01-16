@@ -43,7 +43,7 @@ export async function cleanupTempFiles(
     // Log summary
     const totalSizeMB = (totalSize / 1024 / 1024).toFixed(2);
     logger.success("Cleanup", `Deleted ${deletedFiles.length} files (${totalSizeMB} MB freed)`);
-    logger.success("Cleanup", `Cleared ${cacheResult.audioCount} audio + ${cacheResult.styleCount} style cache entries`);
+    logger.success("Cleanup", `Cleared ${cacheResult.audioCount} audio + ${cacheResult.jobCount} job + ${cacheResult.segmentCount} segment cache entries`);
 
     if (failedFiles.length > 0) {
         logger.warn("Cleanup", `Failed to delete ${failedFiles.length} files`);

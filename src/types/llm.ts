@@ -54,6 +54,7 @@ export const ENTITY_TYPES = [
 ] as const;
 
 export type EntityType = typeof ENTITY_TYPES[number];
+export const ENTITY_TYPE_SCHEMA = ENTITY_TYPES.map(t => `"${t}"`).join(' | ');
 
 // =============================================================================
 // CONTENT TYPES
@@ -65,6 +66,7 @@ export const CONTENT_TYPES = [
 ] as const;
 
 export type ContentType = typeof CONTENT_TYPES[number];
+export const CONTENT_TYPE_SCHEMA = CONTENT_TYPES.map(t => `"${t}"`).join(' | ');
 
 // =============================================================================
 // VISUAL APPROACHES
@@ -75,6 +77,7 @@ export const VISUAL_APPROACHES = [
 ] as const;
 
 export type VisualApproach = typeof VISUAL_APPROACHES[number];
+export const VISUAL_APPROACH_SCHEMA = VISUAL_APPROACHES.map(t => `"${t}"`).join(' | ');
 
 // =============================================================================
 // TECHNOLOGY LEVELS
@@ -85,6 +88,7 @@ export const TECHNOLOGY_LEVELS = [
 ] as const;
 
 export type TechnologyLevel = typeof TECHNOLOGY_LEVELS[number];
+export const TECHNOLOGY_LEVEL_SCHEMA = TECHNOLOGY_LEVELS.map(t => `"${t}"`).join(' | ');
 
 // =============================================================================
 // ENTITY IMPORTANCE
@@ -99,6 +103,14 @@ export type EntityImportance = typeof ENTITY_IMPORTANCE[number];
 
 export const FOCUS_TYPES = ['character', 'object', 'setting', 'action', 'group', 'concept'] as const;
 export type FocusType = typeof FOCUS_TYPES[number];
+
+// =============================================================================
+// CAMERA ANGLES (Directorial Psychology)
+// =============================================================================
+
+export const CAMERA_ANGLES = ['low', 'high', 'eye', 'dutch'] as const;
+export type CameraAngle = typeof CAMERA_ANGLES[number];
+export const CAMERA_ANGLE_SCHEMA = CAMERA_ANGLES.map(t => `"${t}"`).join(' | ');
 
 // =============================================================================
 // IMAGE SEARCH QUERY
@@ -211,6 +223,10 @@ export interface NarrativeBeat {
   beatType: BeatType;
   importance: 'high' | 'medium' | 'low';
   suggestedFocus: FocusType;
+  /** Director's intent: What should the audience FEEL or UNDERSTAND? */
+  emotionalIntent?: string;
+  /** Suggested camera angle for psychological effect */
+  suggestedAngle?: CameraAngle;
 }
 
 export interface NarrativeArc {
@@ -249,6 +265,14 @@ export interface Scene {
   secondaryEntities: string[];
   setting: string;
   mood: string;
+  /** Director's visual tone: "claustrophobic", "expansive", "intimate", etc. */
+  visualTone?: string;
+  /** Power dynamics: Who dominates space? Who is vulnerable? */
+  powerDynamic?: string;
+  /** Symbolic objects/props that carry emotional weight in this scene */
+  keyProps?: string[];
+  /** Lighting direction: "harsh shadows", "soft warmth", "silhouette", etc. */
+  lightingCue?: string;
 }
 
 // =============================================================================

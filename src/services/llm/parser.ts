@@ -54,7 +54,49 @@ export function parseStructuredShots(content: string): StructuredShot[] {
         throw new Error("Response parsed successfully but does not match StructuredShot[] schema");
     }
 
-    return parsed;
+    // Enforce shot type distribution: static should be ~10% max
+    return enforceShootTypeDistribution(parsed);
+}
+
+/**
+ * Enforce shot type distribution: static should be ~10% max
+ * If too many static shots, convert excess to pan/zoom based on context
+ */
+function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[] {
+    const total = shots.length;
+    const maxStatic = Math.max(1, Math.ceil(total * 0.1)); // At least 1, max 10%
+
+    const staticShots = shots.filter(s => s.type === 'static');
+    const staticCount = staticShots.length;
+
+    if (staticCount <= maxStatic) {
+        return shots; // Already within limit
+    }
+
+    logger.debug("LLM", `Enforcing shot type distribution: ${staticCount} static shots exceeds ${maxStatic} max, converting ${staticCount - maxStatic} to pan/zoom`);
+
+    // Convert excess static shots to pan/zoom
+    let converted = 0;
+    const excess = staticCount - maxStatic;
+
+    return shots.map((shot, index) => {
+        if (shot.type !== 'static' || converted >= excess) {
+            return shot;
+        }
+
+        converted++;
+
+        // Choose pan or zoom based on composition and beat type
+        const isEmotional = ['emotional', 'climax', 'tension', 'revelation'].includes(shot.beatType);
+        const isCloseUp = shot.composition === 'close-up' || shot.composition === 'extreme-close-up';
+
+        // Zoom for emotional close-ups, pan for everything else
+        const newType = (isEmotional && isCloseUp) ? 'zoom' : 'pan';
+
+        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.beatType}, ${shot.composition})`);
+
+        return { ...shot, type: newType };
+    });
 }
 
 /**

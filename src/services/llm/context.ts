@@ -3,21 +3,35 @@
 import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import type { StoryContext, BatchState, EraConstraints } from '../../types/llm.ts';
-import { BEAT_TYPES } from '../../types/llm.ts';
+import {
+    BEAT_TYPE_SCHEMA,
+    CONTENT_TYPE_SCHEMA,
+    VISUAL_APPROACH_SCHEMA,
+    ENTITY_TYPE_SCHEMA,
+    TECHNOLOGY_LEVEL_SCHEMA,
+    CAMERA_ANGLE_SCHEMA,
+} from '../../types/llm.ts';
 import * as logger from '../../utils/logger.ts';
 
 export function buildExtractionSystemPrompt(): string {
-    return `You are a visual content analyst for a universal video production system. Your task is to analyze ANY type of transcript—stories, educational content, documentaries, product videos, abstract concepts—and extract structured information for visual generation.
+    return `You are a PRE-PRODUCTION DIRECTOR preparing visual assets for a video production. Your job is to analyze the transcript and extract everything a director needs to shoot compelling visuals.
+
+# THE DIRECTOR'S MINDSET
+You are NOT just cataloging content. You are answering:
+1. What should the audience FEEL or UNDERSTAND at each moment?
+2. What visual elements (characters, objects, settings) carry emotional weight?
+3. How do power dynamics and spatial relationships tell the story?
+4. What should be SHOWN vs. what should be IMPLIED (referenced but not seen)?
 
 # TASK
 Analyze the transcript and extract:
-1. CONTENT TYPE: What kind of content is this? (narrative, educational, documentary, product, abstract, motivational, comparison, news)
-2. ENTITIES: All visual elements appropriate to the content type
-3. GROUPS: Shared visual identities (factions for narrative, categories for educational, etc.)
-4. SCENES: How segments group together
-5. NARRATIVE BEATS: The purpose/beat for each segment
+1. CONTENT TYPE: What kind of content is this?
+2. ENTITIES: All VISUALIZABLE elements (characters, locations, objects, concepts)
+3. GROUPS: Shared visual identities
+4. SCENES: Locations with directorial information (tone, lighting, power dynamics)
+5. NARRATIVE BEATS: The emotional intent for each segment
 6. METADATA: Setting, tone, summary
-7. ERA CONSTRAINTS: Time period appropriateness (if applicable)
+7. ERA CONSTRAINTS: Time period appropriateness
 
 # CONTENT TYPE DETECTION (FIRST STEP)
 Before extracting entities, identify the content type:
@@ -102,25 +116,41 @@ PRODUCT BEATS:
 Rate importance: high (key moment), medium (supporting), low (filler)
 suggestedFocus: what should be primary focus (character, object, setting, action, group, concept)
 
+# DIRECTOR'S BEAT ANALYSIS (CRITICAL)
+For EACH beat, answer:
+- emotionalIntent: "What should the audience FEEL or UNDERSTAND?" (e.g., "dread", "hope", "confusion", "revelation")
+- suggestedAngle: Camera psychology ("low" = power/threat, "high" = vulnerability, "eye" = neutral, "dutch" = disorientation)
+
+EXAMPLE:
+- Segment about a king's decree → emotionalIntent: "authority", suggestedAngle: "low" (looking up at power)
+- Segment about a child lost → emotionalIntent: "vulnerability", suggestedAngle: "high" (looking down, small)
+- Segment about chaos/battle → emotionalIntent: "disorientation", suggestedAngle: "dutch" (off-kilter)
+
 # ERA CONSTRAINTS RULES
 Identify the historical/fictional era and determine:
 - allowedWeapons: What weapons are appropriate (swords in medieval, rifles in WW2)
 - prohibitedItems: What items would be anachronistic (no guns in medieval, no smartphones in 1800s)
 - technologyLevel: prehistoric, ancient, medieval, industrial, modern, futuristic
 
-# SCENE GROUPING RULES
+# SCENE GROUPING RULES (DIRECTORIAL)
 - Group consecutive segments that share the same location/context
 - A new scene starts when location changes OR there's a significant time jump
 - Each scene should list which entities are present
+
+FOR EACH SCENE, ADD DIRECTORIAL INFORMATION:
+- visualTone: How should this scene FEEL? ("claustrophobic", "expansive", "intimate", "chaotic", "sterile")
+- powerDynamic: Who dominates space? Who is vulnerable? ("hero isolated", "villain looms", "equals face off")
+- keyProps: Symbolic objects that carry emotional weight in this scene ("the sword", "the letter", "the empty chair")
+- lightingCue: Lighting direction ("harsh overhead shadows", "warm golden hour", "silhouette against light", "cold blue")
 
 # OUTPUT FORMAT
 Return a valid JSON object with this structure:
 {
     "summary": "Brief overview of the content",
-    "contentType": "narrative|educational|documentary|product|abstract|motivational|comparison|news",
+    "contentType": ${CONTENT_TYPE_SCHEMA},
     "contentStrategy": {
         "type": "same as contentType",
-        "visualApproach": "realistic|symbolic|diagrammatic|metaphorical|documentary",
+        "visualApproach": ${VISUAL_APPROACH_SCHEMA},
         "entityMeaning": "What entities represent in this content type",
         "typicalBeats": ["list", "of", "common", "beats"]
     },
@@ -131,12 +161,12 @@ Return a valid JSON object with this structure:
         "era": "medieval|ww2|modern|ancient|futuristic|etc",
         "allowedWeapons": ["sword", "spear", "bow"],
         "prohibitedItems": ["gun", "car", "phone", "computer"],
-        "technologyLevel": "prehistoric|ancient|medieval|industrial|modern|futuristic"
+        "technologyLevel": ${TECHNOLOGY_LEVEL_SCHEMA}
     },
     "entities": [
         {
             "id": "unique_snake_case_id",
-            "type": "character|location|object|animal|concept|event|step|feature|benefit|symbol|data|comparison",
+            "type": ${ENTITY_TYPE_SCHEMA},
             "name": "Display Name",
             "description": "Detailed visual description for image generation",
             "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
@@ -167,16 +197,22 @@ Return a valid JSON object with this structure:
             "primaryEntities": ["entity_id1"],
             "secondaryEntities": ["entity_id2"],
             "setting": "Where/when this happens or context",
-            "mood": "Tone of this section"
+            "mood": "Tone of this section",
+            "visualTone": "claustrophobic|expansive|intimate|chaotic|etc",
+            "powerDynamic": "Who dominates? Who is vulnerable?",
+            "keyProps": ["symbolic_object_1", "symbolic_object_2"],
+            "lightingCue": "harsh shadows|soft warmth|silhouette|cold blue|etc"
         }
     ],
     "narrativeArc": {
         "beats": [
             {
                 "segmentIndex": 0,
-                "beatType": "establishing|action|emotional|dialogue|tension|climax|resolution|transition|introduction|explanation|example|demonstration|comparison|summary|context|evidence|testimony|showcase|benefit|use-case",
+                "beatType": ${BEAT_TYPE_SCHEMA},
                 "importance": "high|medium|low",
-                "suggestedFocus": "character|object|setting|action|group|concept"
+                "suggestedFocus": "character|object|setting|action|group|concept",
+                "emotionalIntent": "What should the audience FEEL? (dread, hope, confusion, revelation, etc.)",
+                "suggestedAngle": ${CAMERA_ANGLE_SCHEMA} | null
             }
         ]
     }
@@ -315,17 +351,32 @@ export function buildContextInjection(
         entitySection += '\n';
     }
 
-    // Build scene section
-    let sceneSection = '== CURRENT SCENE ==\n';
+    // Build scene section with directorial information
+    let sceneSection = '== CURRENT SCENE (DIRECTORIAL CONTEXT) ==\n';
     let currentSceneId = '';
 
     if (relevantScenes.length > 0) {
         const scene = relevantScenes[0];
         if (scene) {
             currentSceneId = scene.id;
-            sceneSection += `Name: ${scene.name}\n`;
-            sceneSection += `Setting: ${scene.setting}\n`;
-            sceneSection += `Mood: ${scene.mood}\n`;
+            sceneSection += `LOCATION: ${scene.name}\n`;
+            sceneSection += `SETTING: ${scene.setting}\n`;
+            sceneSection += `MOOD: ${scene.mood}\n`;
+
+            // Directorial fields
+            if (scene.visualTone) {
+                sceneSection += `VISUAL TONE: ${scene.visualTone}\n`;
+            }
+            if (scene.powerDynamic) {
+                sceneSection += `POWER DYNAMIC: ${scene.powerDynamic}\n`;
+            }
+            if (scene.keyProps && scene.keyProps.length > 0) {
+                sceneSection += `KEY PROPS (symbolic): ${scene.keyProps.join(', ')}\n`;
+            }
+            if (scene.lightingCue) {
+                sceneSection += `LIGHTING: ${scene.lightingCue}\n`;
+            }
+
             sceneSection += `Segments: ${scene.segmentRange[0] + 1}-${scene.segmentRange[1] + 1}\n`;
         }
     }
@@ -354,18 +405,28 @@ export function buildContextInjection(
         }
     }
 
-    // Build instruction section
-    const instructionSection = `== INSTRUCTION (CRITICAL) ==
-    Generate image queries for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
+    // Build instruction section with directorial focus
+    const instructionSection = `== DIRECTOR'S INSTRUCTIONS ==
+Generate structured shots for segments ${currentSegments[0] + 1}-${currentSegments[1] + 1}.
+
+THE DIRECTOR'S QUESTION (ask for EACH segment):
+"What should the audience FEEL or UNDERSTAND right now?"
+- If the answer is about a CHARACTER's emotion → focus on character, use close-up
+- If the answer is about POWER/THREAT → use low angle, show dominance
+- If the answer is about VULNERABILITY → use high angle, isolate the subject
+- If the answer is about a LOCATION/SETTING → use wide shot, establish the space
+- If the answer is about an OBJECT → focus on the object, use the scene as background
+
+REFERENCED ≠ MUST BE SHOWN:
+Just because a character is MENTIONED in the audio does NOT mean they should be in the shot.
+Use "focus.exclude" for entities that are referenced but should NOT be visualized.
+Show what serves the EMOTIONAL INTENT, not just what is literally mentioned.
 
 MANDATORY RULES:
-1. NEVER use shorthand like "the Viking", "the bridge", "the axe", "the spear"
-2. ALWAYS copy-paste the FULL description from the ESTABLISHED ENTITIES above
-3. Each query must be a COMPLETE, SELF-CONTAINED visual description
-4. Include ALL identifying details: weapons, clothing, location names, physical features
-
-Example: Instead of "The Viking on the bridge", write:
-"The lone, bare-chested Viking warrior, muscular and battle-hardened, wielding a massive Dane axe, standing on the narrow wooden Stamford Bridge spanning the River Derwent"
+1. Use entity IDs from the VISUAL ASSETS REGISTRY above
+2. Each shot must have depth: foreground/midground/background awareness
+3. Use the LIGHTING and VISUAL TONE from the scene context above
+4. Symbolic props (keyProps) should appear when emotionally relevant
 `;
 
     return `${entitySection}${sceneSection}${stateSection}${instructionSection}`;

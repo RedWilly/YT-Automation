@@ -35,6 +35,13 @@ export interface GeneratorCacheConfig {
     naturalEdit: boolean;
 }
 
+/** Resume state for continuing from a previous partial run */
+export interface LLMResumeState {
+    resumeBatchIndex: number;
+    lastQueries: string[];
+    cachedShots: StructuredShot[];
+}
+
 /** Generate image search queries from formatted transcript using context-aware extraction */
 export async function generateImageQueries(
     formattedTranscript: string,
@@ -42,7 +49,8 @@ export async function generateImageQueries(
     cachedContext?: StoryContext | null,
     onContextExtracted?: (context: StoryContext) => void,
     cacheConfig?: GeneratorCacheConfig,
-    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void,
+    resumeState?: LLMResumeState
 ): Promise<{
     queries: ImageSearchQuery[];
     storyContext: StoryContext;
@@ -109,7 +117,8 @@ export async function generateImageQueries(
         useShotTypes,
         storyContext,
         cacheConfig,
-        onShotGenerated
+        onShotGenerated,
+        resumeState
     );
     return { queries, storyContext, structuredShots };
 }
@@ -123,17 +132,30 @@ async function generateQueriesWithContext(
     useShotTypes: boolean,
     storyContext: StoryContext,
     cacheConfig?: GeneratorCacheConfig,
-    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void
+    onShotGenerated?: (index: number, shot: StructuredShot, prompt: string) => void,
+    resumeState?: LLMResumeState
 ): Promise<{ queries: ImageSearchQuery[]; structuredShots: StructuredShot[] }> {
-    const allStructuredShots: StructuredShot[] = [];
+    // If resuming, pre-populate with cached shots
+    const allStructuredShots: StructuredShot[] = resumeState?.cachedShots ? [...resumeState.cachedShots] : [];
 
     // Determine if we need batching
     const shouldBatch = batchSize > 0 && segmentCount > batchSize;
     const totalBatches = shouldBatch ? Math.ceil(segmentCount / batchSize) : 1;
 
+    // Initialize batch state with resume data if available
     let batchState = createInitialBatchState();
+    const startBatch = resumeState?.resumeBatchIndex ?? 0;
 
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    if (resumeState && resumeState.lastQueries.length > 0) {
+        batchState = {
+            ...batchState,
+            batchIndex: startBatch,
+            lastQueries: resumeState.lastQueries,
+        };
+        logger.log('LLM', `📦 Resuming from batch ${startBatch + 1}/${totalBatches} with ${resumeState.lastQueries.length} context queries`);
+    }
+
+    for (let batchIndex = startBatch; batchIndex < totalBatches; batchIndex++) {
         const start = shouldBatch ? batchIndex * batchSize : 0;
         const end = shouldBatch ? Math.min(start + batchSize, segmentCount) : segmentCount;
         const batchLines = lines.slice(start, end);

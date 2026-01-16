@@ -267,6 +267,9 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
         if (typeof shot.sceneId !== "string" || shot.sceneId.trim().length === 0) {
             throw new Error(`Invalid shot at index ${i}: sceneId is required`);
         }
+        if (shot.sceneId === "default") {
+            logger.warn("LLM", `Shot ${i} uses "default" sceneId - LLM ignored story context`);
+        }
         if (typeof shot.action !== "string" || shot.action.trim().length === 0) {
             throw new Error(`Invalid shot at index ${i}: action is required`);
         }

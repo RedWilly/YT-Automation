@@ -1,6 +1,6 @@
 export { parseImageQueries, validateImageQueries } from './parser.ts';
 export { callLLMWithRetry, rewriteUnsafePrompt } from './client.ts';
-export { generateImageQueries, type GeneratorCacheConfig } from './generator.ts';
+export { generateImageQueries, type GeneratorCacheConfig, type LLMResumeState } from './generator.ts';
 export { extractStoryContext } from './context.ts';
 export { buildImagePrompt, generateConsistentSeed } from './shot-builder.ts';
 

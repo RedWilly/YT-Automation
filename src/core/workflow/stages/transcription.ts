@@ -5,7 +5,7 @@
 
 import type { WorkflowState } from "./types.ts";
 import { transcribeAudio, validateTranscriptData } from "../../../services/transcription/index.ts";
-import { getCachedTranscript, updateAudioCache } from "../../../services/storage/index.ts";
+import { getCachedTranscript, setAudioCache } from "../../../services/storage/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 export async function transcriptionStage(state: WorkflowState): Promise<WorkflowState> {
@@ -34,7 +34,7 @@ export async function transcriptionStage(state: WorkflowState): Promise<Workflow
 
     const transcript = await transcribeAudio(state.audioFilePath);
 
-    updateAudioCache(state.audioHash, {
+    setAudioCache(state.audioHash, {
         transcript_id: transcript.id,
         transcript_words: JSON.stringify(transcript.words),
         audio_duration: transcript.audio_duration ?? undefined,

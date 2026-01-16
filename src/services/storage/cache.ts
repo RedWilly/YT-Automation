@@ -87,6 +87,11 @@ function getDb(): Database {
             Bun.spawnSync(["mkdir", "-p", dbDir]);
         }
         db = new Database(CACHE_DB_PATH);
+
+        // Enable WAL mode for better concurrency (prevents "database is locked")
+        db.run("PRAGMA journal_mode = WAL");
+        db.run("PRAGMA busy_timeout = 5000");
+
         initSchema();
     }
     return db;
@@ -192,24 +197,35 @@ export function getAudioCache(audioHash: string): AudioCache | null {
 
 export function setAudioCache(audioHash: string, data: Partial<Omit<AudioCache, 'audio_hash'>>): void {
     const database = getDb();
-    const existing = getAudioCache(audioHash);
 
-    if (existing) {
-        const updates = Object.entries(data)
-            .filter(([_, v]) => v !== undefined)
-            .map(([k]) => `${k} = @${k}`)
-            .join(", ");
-        if (updates) {
-            database.prepare(`UPDATE audio_cache SET ${updates}, updated_at = strftime('%s', 'now') WHERE audio_hash = @audio_hash`)
-                .run({ audio_hash: audioHash, ...data });
-        }
-    } else {
-        database.prepare(`INSERT INTO audio_cache (audio_hash, audio_filename) VALUES (?, ?)`)
-            .run(audioHash, data.audio_filename || "unknown");
-        if (Object.keys(data).length > 1 || !data.audio_filename) {
-            setAudioCache(audioHash, data);
-        }
-    }
+    // Use UPSERT pattern: INSERT or UPDATE in a single atomic operation
+    database.prepare(`
+        INSERT INTO audio_cache (
+            audio_hash, 
+            audio_filename, 
+            audio_path, 
+            upload_url, 
+            transcript_id, 
+            transcript_words, 
+            audio_duration
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(audio_hash) DO UPDATE SET
+            audio_filename = COALESCE(excluded.audio_filename, audio_filename),
+            audio_path = COALESCE(excluded.audio_path, audio_path),
+            upload_url = COALESCE(excluded.upload_url, upload_url),
+            transcript_id = COALESCE(excluded.transcript_id, transcript_id),
+            transcript_words = COALESCE(excluded.transcript_words, transcript_words),
+            audio_duration = COALESCE(excluded.audio_duration, audio_duration),
+            updated_at = strftime('%s', 'now')
+    `).run(
+        audioHash,
+        data.audio_filename ?? 'unknown',  // NOT NULL column - use fallback
+        data.audio_path ?? null,
+        data.upload_url ?? null,
+        data.transcript_id ?? null,
+        data.transcript_words ?? null,
+        data.audio_duration ?? null
+    );
 }
 
 // Convenience accessors
@@ -273,7 +289,7 @@ export function getCachedStoryContext(keyOrHash: JobKey | string, styleId?: stri
     const key: JobKey = typeof keyOrHash === 'string'
         ? { audioHash: keyOrHash, styleId: styleId!, orientation: orientation!, naturalEdit: naturalEdit! }
         : keyOrHash;
-    
+
     const cache = getJobCache(key);
     if (!cache?.story_context) return null;
     try {
@@ -429,6 +445,46 @@ export function getResumeState(key: JobKey): {
     };
 }
 
+/**
+ * Get LLM batch resume state - determines which batch to resume from
+ * and provides the last queries for visual continuity (BatchState).
+ */
+export function getLLMResumeState(key: JobKey, batchSize: number): {
+    cachedCount: number;
+    totalSegments: number;
+    resumeBatchIndex: number;
+    lastQueries: string[];  // Last 3 queries for BatchState continuity
+    isComplete: boolean;
+} {
+    const segments = getAllSegments(key);
+    if (segments.length === 0) {
+        return { cachedCount: 0, totalSegments: 0, resumeBatchIndex: 0, lastQueries: [], isComplete: false };
+    }
+
+    const total = segments[0]?.total_segments || 0;
+    const cachedCount = segments.length;
+
+    // Calculate which batch to resume from (0-indexed)
+    // If we have 180 segments and batch size is 60, we've completed batches 0,1,2 → resume from 3
+    const resumeBatchIndex = Math.floor(cachedCount / batchSize);
+
+    // Get last 3 queries for visual continuity (BatchState.lastQueries)
+    // These are passed to the LLM to maintain visual flow
+    const sortedSegments = [...segments].sort((a, b) => b.segment_index - a.segment_index);
+    const lastQueries = sortedSegments
+        .slice(0, 3)
+        .reverse()
+        .map(s => s.current_prompt);
+
+    return {
+        cachedCount,
+        totalSegments: total,
+        resumeBatchIndex,
+        lastQueries,
+        isComplete: cachedCount >= total,
+    };
+}
+
 // ============================================================
 // CACHE MANAGEMENT
 // ============================================================
@@ -462,64 +518,8 @@ export function closeDatabase(): void {
     }
 }
 
-// ============================================================
-// LEGACY COMPATIBILITY - Thin wrappers for gradual migration
-// ============================================================
-
-/** @deprecated Use setJobCache with JobKey */
-export function updateStyleCache(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean, data: {
-    segments?: string;
-    formatted_transcript?: string;
-    story_context?: string;
-    image_queries?: string;      // Ignored - now derived from segments
-    downloaded_images?: string;  // Ignored - now derived from segments
-}): void {
-    setJobCache({ audioHash, styleId, orientation, naturalEdit }, {
-        segments: data.segments,
-        formatted_transcript: data.formatted_transcript,
-        story_context: data.story_context,
-    });
-}
-
-/** @deprecated Use getJobCache with JobKey */
-export function getStyleCache(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean): JobCache | null {
-    return getJobCache({ audioHash, styleId, orientation, naturalEdit });
-}
-
-/** @deprecated Use getImageQueries */
-export function getCachedImageQueries(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean): ImageSearchQuery[] | null {
-    return getImageQueries({ audioHash, styleId, orientation, naturalEdit });
-}
-
-/** @deprecated Use getDownloadedImages */
-export function getCachedImages(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean): DownloadedImage[] | null {
-    return getDownloadedImages({ audioHash, styleId, orientation, naturalEdit });
-}
-
-/** @deprecated Use setAudioCache */
-export function updateAudioCache(audioHash: string, data: Partial<Omit<AudioCache, 'audio_hash'>>): void {
-    setAudioCache(audioHash, data);
-}
-
-// Re-export types for backward compatibility during migration
-export type AudioCacheEntry = AudioCache;
-export type StyleCacheEntry = JobCache;
-export type SegmentPromptEntry = SegmentCache;
-export type SegmentPromptKey = SegmentKey;
-
-/** @deprecated Use getAllSegments */
-export function getAllSegmentPrompts(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean): SegmentCache[] {
-    return getAllSegments({ audioHash, styleId, orientation, naturalEdit });
-}
-
-// Overloaded getCachedSegments for backward compatibility
-export function getCachedSegments(key: JobKey): { segments: TranscriptSegment[]; formattedTranscript: string } | null;
-export function getCachedSegments(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean): { segments: TranscriptSegment[]; formattedTranscript: string } | null;
-export function getCachedSegments(keyOrHash: JobKey | string, styleId?: string, orientation?: string, naturalEdit?: boolean): { segments: TranscriptSegment[]; formattedTranscript: string } | null {
-    const key: JobKey = typeof keyOrHash === 'string'
-        ? { audioHash: keyOrHash, styleId: styleId!, orientation: orientation!, naturalEdit: naturalEdit! }
-        : keyOrHash;
-    
+// getCachedSegments - Single signature (no overload, uses JobKey only)
+export function getCachedSegments(key: JobKey): { segments: TranscriptSegment[]; formattedTranscript: string } | null {
     const cache = getJobCache(key);
     if (!cache?.segments || !cache?.formatted_transcript) return null;
     try {
@@ -527,29 +527,4 @@ export function getCachedSegments(keyOrHash: JobKey | string, styleId?: string, 
     } catch {
         return null;
     }
-}
-
-/** @deprecated Database is auto-initialized on first access */
-export function initDatabase(): void {
-    getDb();
-}
-
-/** @deprecated Use getResumeState */
-export function getSegmentResumeState(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean) {
-    return getResumeState({ audioHash, styleId, orientation, naturalEdit });
-}
-
-/** @deprecated Use upsertSegment */
-export function upsertSegmentPrompt(key: SegmentKey, data: { originalPrompt: string; currentPrompt: string; structuredShot: string; totalSegments: number; seed?: number }): void {
-    upsertSegment(key, data);
-}
-
-/** @deprecated Use updateSegmentStatus */
-export function markSegmentApproved(key: SegmentKey, imagePath: string, seed?: number): void {
-    updateSegmentStatus(key, 'approved', imagePath, seed);
-}
-
-/** @deprecated Use updateSegmentStatus */
-export function markSegmentFailed(key: SegmentKey): void {
-    updateSegmentStatus(key, 'failed');
 }

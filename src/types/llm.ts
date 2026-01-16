@@ -23,7 +23,7 @@ export const BEAT_TYPE_SCHEMA = BEAT_TYPES.map(b => `"${b}"`).join(' | ');
 // =============================================================================
 
 export const COMPOSITIONS = [
-  'extreme-wide', 'wide', 'medium', 'close-up', 'extreme-close-up', 'two-shot',
+  'extreme-wide', 'wide', 'medium', 'close-up', 'extreme-close-up'
 ] as const;
 
 export type Composition = typeof COMPOSITIONS[number];

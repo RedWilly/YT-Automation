@@ -42,15 +42,22 @@ MOTIVATIONAL → themes, examples, outcomes, quotes (as concepts)
 COMPARISON → alternatives, criteria, outcomes, pros, cons
 NEWS → events, people, locations, data
 
-# ENTITY EXTRACTION RULES
-- Each entity needs a clear VISUAL DESCRIPTION (for image generation)
-- Each entity MUST have a VISUAL ANCHOR: the immutable visual traits that define this entity
-- Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
-- Rate importance: primary (main focus), secondary (supporting), background (minor)
-- **SEGMENT INDEXING (CRITICAL)**:
-  - The transcript has segments numbered [0] to [N-1]
-  - "firstMention" = the segment INDEX where entity first appears (e.g., 5 means segment [5])
-  - "mentions" = array of segment INDICES using range notation: ["0-5", "10-15"]
+- **ENTITY EXTRACTION RULES (STRICT VISUALS)**:
+  - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
+  - Each entity MUST have a **VISUAL ANCHOR**: immutable visual traits that define this entity.
+  - **CRITICAL**: Use ONLY physical, visual adjectives (colors, textures, lighting, shapes).
+  - **AVOID**: Abstract adjectives ("brave", "corrupt", "mysterious"). Instead use visual cues: "scarred face, tattered cloak, flickering torchlight".
+  - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
+  - Rate importance: primary (main focus), secondary (supporting), background (minor)
+  - **SEGMENT INDEXING (CRITICAL)**:
+  - The transcript has segments numbered [0] to [N-1] where N = total segments
+  - "firstMention" = segment INDEX (0 to N-1). Example: if 238 segments, valid values are 0-237
+  - "mentions" = segment INDICES in range notation. MUST be within [0, N-1].
+  - **GAPS ARE MEANINGFUL**: The ranges indicate WHERE the entity IS PRESENT. Segments NOT in ranges = entity is ABSENT.
+    - ["0-50"] → Entity appears in ALL 51 segments (continuous presence)
+    - ["0-10", "17-40", "42-49"] → Entity is ABSENT in segments 11-16 and 41 (gaps = not mentioned)
+  - This helps determine which entities to include when generating visuals for each segment
+  - **VALUES OUTSIDE SEGMENT RANGE WILL BE REJECTED**
   - **DO NOT use milliseconds or timestamps. Use ONLY segment indices.**
 - For characters, assign a role: leader, soldier, civilian, or background
 - If a character belongs to a group/faction, set groupId to the group's id
@@ -135,8 +142,8 @@ Return a valid JSON object with this structure:
             "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
             "eraConstraints": null,
             "importance": "primary|secondary|background",
-            "firstMention": 0,           // ← SEGMENT INDEX (0 to N-1), NOT milliseconds!
-            "mentions": ["0-5", "8-12"], // ← SEGMENT INDICES in range notation, NOT timestamps!
+            "firstMention": 0,           // ← SEGMENT INDEX (0 to N-1). If 238 segments → valid: 0-237
+            "mentions": ["0-5", "8-12"], // ← SEGMENT INDICES. MUST be within [0, N-1]. "0-500" when N=238 is WRONG!
             "groupId": "optional_group_id (for characters in factions)",
             "uniqueTraits": "traits specific to this entity",
             "role": "leader|soldier|civilian|background (for characters)"
@@ -179,20 +186,43 @@ Return a valid JSON object with this structure:
 
 1. **SEGMENT INDICES, NOT MILLISECONDS**: firstMention and mentions[] MUST use segment indices (0 to N-1). If transcript has 238 segments, valid values are 0-237. Values like 172650 are WRONG.
 
-2. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
+2. **BOUNDS CHECK**: All segment indices MUST be within [0, N-1] where N = segment count.
+   - 238 segments → valid range: 0-237
+   - CORRECT: ["0-50", "60-100", "150-237"] (gaps show entity is ABSENT in segments 51-59, 101-149)
+   - WRONG: ["0-500"] when N=238 (500 > 237 is out of bounds)
+   - Any value >= N will be REJECTED
 
-3. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor.
+3. **VISUAL COHERENCE**: Entities must have VISUAL descriptions. NO abstraction.
+   - "A mysterious man" → WRONG
+   - "A man in a shadowed fedora with a jagged scar over his left eye" → RIGHT
 
-4. **USE RANGE NOTATION**: For mentions[], use compact ranges like ["0-22", "25-30"] instead of listing every number.
+4. **ANTI-PATTERNS (DO NOT DO THESE)**:
+   - DO NOT list "The Narrator" as a character unless they are VISUALLY present on screen.
+   - DO NOT invent "Locations" that aren't mentioned or clearly implied.
+   - DO NOT use generic descriptions for Primary Entities. Every Main Character needs a distinct look.
 
-4. **VALID JSON ONLY**: No markdown code blocks. No explanations. No trailing commas. Just raw, parseable JSON.
+5. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
+
+6. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor.
+
+7. **USE RANGE NOTATION**: For mentions[], use compact ranges. Gaps indicate segments where entity is NOT present.
+   - ["0-237"] = entity appears in ALL segments (continuous)
+   - ["0-50", "80-120", "200-237"] = entity ABSENT in segments 51-79 and 121-199
+
+8. **VALID JSON ONLY**: No markdown code blocks. No explanations. Just raw, parseable JSON.
 
 Return ONLY valid JSON.`;
 }
 
 /** Build user prompt for context extraction */
 export function buildExtractionUserPrompt(transcript: string, segmentCount: number): string {
-    return `# TRANSCRIPT (${segmentCount} segments)
+    return `# TRANSCRIPT
+Total Segments: ${segmentCount}
+Valid Segment Index Range: 0 to ${segmentCount - 1}
+
+CRITICAL: All "firstMention" and "mentions" values MUST be within 0-${segmentCount - 1}.
+Any value >= ${segmentCount} is INVALID and will be REJECTED.
+
 ${transcript}
 
 # EXECUTE
@@ -200,7 +230,8 @@ ${transcript}
 2. IDENTIFY all entities (characters, locations, objects, animals, concepts, groups)
 3. GROUP segments into scenes based on location/context changes
 4. EXTRACT metadata (era, setting, tone)
-5. RETURN structured JSON
+5. VERIFY all segment indices are within 0-${segmentCount - 1}
+6. RETURN structured JSON
 
 Return ONLY valid JSON.`;
 }
@@ -365,7 +396,8 @@ export async function extractStoryContext(
             const context = await attemptContextExtraction(
                 aiConfig,
                 systemPrompt,
-                userPrompt
+                userPrompt,
+                segmentCount
             );
 
             // Validate we got meaningful results
@@ -400,7 +432,8 @@ export async function extractStoryContext(
 async function attemptContextExtraction(
     aiConfig: ReturnType<typeof getAIConfig>,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    segmentCount: number
 ): Promise<StoryContext> {
     const response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -433,7 +466,7 @@ async function attemptContextExtraction(
         throw new Error('Empty response from context extraction');
     }
 
-    return parseStoryContext(content);
+    return parseStoryContext(content, segmentCount);
 }
 
 /**
@@ -447,7 +480,7 @@ const DEFAULT_ERA_CONSTRAINTS: EraConstraints = {
 };
 
 /** Parse LLM response into StoryContext object */
-function parseStoryContext(content: string): StoryContext {
+function parseStoryContext(content: string, segmentCount?: number): StoryContext {
     // Clean up the response (remove markdown code blocks if present)
     let cleaned = content.trim();
     // logger.log('Context', `Raw context extraction response: ${cleaned}`);
@@ -512,8 +545,20 @@ function parseStoryContext(content: string): StoryContext {
             ...entity,
             visualAnchor: entity.visualAnchor || entity.description || '',
             eraConstraints: entity.eraConstraints ?? null,
-            mentions: expandMentionRanges(entity.mentions),
+            mentions: expandMentionRanges(entity.mentions, segmentCount),
+            firstMention: validateSegmentIndex(entity.firstMention, segmentCount),
         }));
+
+        // Validate scene segment ranges
+        if (segmentCount) {
+            parsed.scenes = parsed.scenes.map(scene => ({
+                ...scene,
+                segmentRange: [
+                    Math.max(0, Math.min(scene.segmentRange[0], segmentCount - 1)),
+                    Math.max(0, Math.min(scene.segmentRange[1], segmentCount - 1)),
+                ] as [number, number],
+            }));
+        }
 
         return parsed as StoryContext;
     } catch (error) {
@@ -523,24 +568,32 @@ function parseStoryContext(content: string): StoryContext {
     }
 }
 
-/** Expand mention ranges from compact notation to full arrays */
-function expandMentionRanges(mentions: unknown): number[] {
+/** Validate segment index is within bounds */
+function validateSegmentIndex(index: unknown, maxSegments?: number): number {
+    const num = typeof index === 'number' ? index : 0;
+    if (!maxSegments) return Math.max(0, num);
+    return Math.max(0, Math.min(num, maxSegments - 1));
+}
+
+/** Expand mention ranges from compact notation to full arrays, bounded by segment count */
+function expandMentionRanges(mentions: unknown, maxSegments?: number): number[] {
     if (!mentions || !Array.isArray(mentions)) {
         return [];
     }
 
     const result: number[] = [];
+    const maxIndex = maxSegments ? maxSegments - 1 : Infinity;
 
     for (const item of mentions) {
         if (typeof item === 'number') {
-            // Already a number, just add it
-            result.push(item);
+            if (item >= 0 && item <= maxIndex) {
+                result.push(item);
+            }
         } else if (typeof item === 'string') {
-            // Could be "5" or "0-22"
             if (item.includes('-')) {
                 const [startStr, endStr] = item.split('-');
-                const start = parseInt(startStr ?? '', 10);
-                const end = parseInt(endStr ?? '', 10);
+                const start = Math.max(0, parseInt(startStr ?? '', 10));
+                const end = Math.min(maxIndex, parseInt(endStr ?? '', 10));
                 if (!isNaN(start) && !isNaN(end) && start <= end) {
                     for (let i = start; i <= end; i++) {
                         result.push(i);
@@ -548,7 +601,7 @@ function expandMentionRanges(mentions: unknown): number[] {
                 }
             } else {
                 const num = parseInt(item, 10);
-                if (!isNaN(num)) {
+                if (!isNaN(num) && num >= 0 && num <= maxIndex) {
                     result.push(num);
                 }
             }

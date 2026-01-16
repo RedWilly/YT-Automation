@@ -106,6 +106,12 @@ EDITING FLOW:
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. Action field = 5-15 words, physical description only, NO appearances
 4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
+5. **beatType MUST be EXACTLY one of**: ${BEAT_TYPE_SCHEMA}
+   **DO NOT INVENT NEW VALUES. USE ONLY THE EXACT VALUES LISTED ABOVE.**
+6. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
+   **DO NOT INVENT NEW VALUES. USE ONLY THE EXACT VALUES LISTED ABOVE.**
+7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
+   **DO NOT INVENT NEW VALUES. USE ONLY THE EXACT VALUES LISTED ABOVE.**
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
@@ -127,14 +133,14 @@ Create VARIETY in composition:
 Good rhythm: WIDE → MEDIUM → CLOSE-UP → EXTREME-CLOSE-UP → WIDE
 Bad rhythm: MEDIUM → MEDIUM → MEDIUM → MEDIUM
 
-## SCENE CONSISTENCY
-- Use sceneId from the SCENE LIST to maintain setting consistency
-- All shots within a scene automatically inherit the scene's backdrop
-- When the narrative moves to a new location, switch to the appropriate sceneId
-- If no scene matches, use the most relevant one or "default"
+## SCENE CONSISTENCY (CRITICAL)
+- You MUST use sceneId from the SCENE LIST provided above
+- Look at the segment index and find which scene's segmentRange contains it
+- "default" is NEVER acceptable - always pick the closest matching scene
+- If a segment falls between scenes, use the scene it's closest to
 
 ## COMPOSITION GUIDANCE
-- Use "composition" to suggest framing: "extreme-wide", "wide", "medium", "close-up", "extreme-close-up", "two-shot"
+- Use "composition" to suggest framing: "extreme-wide", "wide", "medium", "close-up", "extreme-close-up"
 - Use "framingNote" for specific guidance (e.g., "sword fills frame, knuckles white")
 - Match composition to beatType for maximum impact
 - Leave null if no specific framing is needed
@@ -199,9 +205,9 @@ export function buildContextAwareUserPrompt(
    const indexedTranscript = lines.map((line, i) => {
       const globalIndex = batchStart + i + 1;  // 1-based
       const position = globalIndex === 1 ? '(OPENING)' :
-                       globalIndex === globalTotal ? '(CLOSING)' :
-                       globalIndex <= 3 ? '(EARLY)' :
-                       globalIndex >= globalTotal - 2 ? '(LATE)' : '';
+         globalIndex === globalTotal ? '(CLOSING)' :
+            globalIndex <= 3 ? '(EARLY)' :
+               globalIndex >= globalTotal - 2 ? '(LATE)' : '';
       return `[SEGMENT ${globalIndex} of ${globalTotal}${position ? ' ' + position : ''}]\n${line}`;
    }).join('\n\n');
 

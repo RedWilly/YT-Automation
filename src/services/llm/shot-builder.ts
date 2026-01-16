@@ -8,8 +8,7 @@ const COMPOSITION_PREFIXES: Record<Composition, string> = {
     'wide': 'Wide shot,',
     'medium': 'Medium shot,',
     'close-up': 'Close-up,',
-    'extreme-close-up': 'Extreme close-up,',
-    'two-shot': 'Two-shot,',
+    'extreme-close-up': 'Extreme close-up,'
 };
 
 function getCompositionPrefix(composition: StructuredShot['composition']): string {

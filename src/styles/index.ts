@@ -1,7 +1,3 @@
-/**
- * Style system - Central registry for video generation styles
- */
-
 import type { VideoStyle, StyleOptions, ResolvedStyle } from "./types.ts";
 import { HIGHLIGHT_COLORS } from "./types.ts";
 import { historyStyle } from "./presets/history.ts";
@@ -15,9 +11,6 @@ import { pixelStyle } from "./presets/pixel.ts";
 // Re-export types
 export * from "./types.ts";
 
-/**
- * Registry of all available styles
- */
 export const STYLES: Record<string, VideoStyle> = {
   history: historyStyle,
   ww2: ww2Style,
@@ -28,53 +21,24 @@ export const STYLES: Record<string, VideoStyle> = {
   pixel: pixelStyle,
 };
 
-/**
- * Default style ID when no style is specified
- */
 export const DEFAULT_STYLE_ID = "history";
 
-/**
- * Get a style by ID
- * @param styleId - Style identifier (e.g., "history", "ww2")
- * @returns VideoStyle or undefined if not found
- */
 export function getStyle(styleId: string): VideoStyle | undefined {
   return STYLES[styleId.toLowerCase()];
 }
 
-/**
- * Get the default style
- * @returns Default VideoStyle
- */
 export function getDefaultStyle(): VideoStyle {
   return STYLES[DEFAULT_STYLE_ID]!;
 }
 
-/**
- * Get all available style IDs
- * @returns Array of style IDs
- */
 export function getStyleIds(): string[] {
   return Object.keys(STYLES);
 }
 
-/**
- * Check if a style exists
- * @param styleId - Style identifier to check
- * @returns True if style exists
- */
 export function styleExists(styleId: string): boolean {
   return styleId.toLowerCase() in STYLES;
 }
 
-/**
- * Resolve a style with runtime options applied
- * Creates a new object with options merged into the style defaults
- * 
- * @param style - Base video style
- * @param options - Runtime options to apply
- * @returns ResolvedStyle with options applied
- */
 export function resolveStyle(style: VideoStyle, options: StyleOptions = {}): ResolvedStyle {
   // Determine orientation (default: horizontal)
   const orientation = options.orientation || "horizontal";
@@ -125,18 +89,6 @@ export function resolveStyle(style: VideoStyle, options: StyleOptions = {}): Res
   return resolved;
 }
 
-/**
- * Parse style ID and options from a message text
- * Looks for #hashtags for style and --flags for options
- * 
- * Format examples:
- *   "#ww2 --pan --karaoke"
- *   "#history --highlight=yellow"
- *   "#ww2 --pan --highlight=red --box"
- * 
- * @param text - Message text to parse
- * @returns Object with styleId and options
- */
 export function parseStyleFromMessage(text: string): { styleId: string; options: StyleOptions } {
   const options: StyleOptions = {};
   let styleId = DEFAULT_STYLE_ID;

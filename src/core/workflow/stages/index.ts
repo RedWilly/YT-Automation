@@ -1,8 +1,3 @@
-/**
- * Workflow stages index
- * Re-exports all stage functions and types
- */
-
 export * from "./types.ts";
 export { cacheInitStage } from "./cache-init.ts";
 export { transcriptionStage } from "./transcription.ts";

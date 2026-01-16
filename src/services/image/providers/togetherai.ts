@@ -5,7 +5,7 @@
  */
 
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
-import { AI_IMAGE } from "../../../config/environment.ts";
+import { AI_IMAGE } from "../../../config/index.ts";
 import * as logger from "../../../utils/logger.ts";
 
 const TOGETHER_API_KEY = AI_IMAGE.togetherApiKey;

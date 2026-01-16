@@ -6,7 +6,7 @@
  * Phase 3: Verify and auto-correct queries for consistency
  */
 
-import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
+import { AI_TEXT, getAIConfig } from '../../config/index.ts';
 import type { ImageSearchQuery } from '../../types/index.ts';
 import type { ResolvedStyle } from '../../styles/types.ts';
 import * as logger from '../../utils/logger.ts';
@@ -269,7 +269,7 @@ function findActiveEntities(queries: ImageSearchQuery[], context: StoryContext):
     for (const entity of context.entities) {
         // Check if entity name or parts of description appear in queries
         const nameLower = entity.name.toLowerCase();
-        const descWords = entity.description.toLowerCase().split(' ').slice(0, 5);
+        const descWords = (entity.description || entity.visualAnchor || '').toLowerCase().split(' ').slice(0, 5);
 
         if (queryText.includes(nameLower) || descWords.some(w => queryText.includes(w))) {
             active.push(entity.id);

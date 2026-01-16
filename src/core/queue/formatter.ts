@@ -1,24 +1,9 @@
-/**
- * Queue Formatter
- * Formatting utilities for job queue display in Telegram
- */
-
 import type { Job } from "./types.ts";
 
-/**
- * Escape special Markdown characters for Telegram
- * @param text - Text to escape
- * @returns Escaped text safe for Markdown
- */
 export function escapeMarkdown(text: string): string {
     return text.replace(/([_*\[\]()~`>#+=|{}.!\\-])/g, "\\$1");
 }
 
-/**
- * Format duration in human-readable format
- * @param seconds - Duration in seconds
- * @returns Formatted duration string
- */
 export function formatDuration(seconds: number): string {
     if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
@@ -26,11 +11,6 @@ export function formatDuration(seconds: number): string {
     return `${minutes}m ${remainingSeconds}s`;
 }
 
-/**
- * Format job information for display
- * @param job - Job to format
- * @returns Formatted job string
- */
 export function formatJobInfo(job: Job): string {
     const styleTag = job.style ? ` \\[${escapeMarkdown(job.style.name)}\\]` : "";
 
@@ -45,12 +25,6 @@ export function formatJobInfo(job: Job): string {
     return `URL: ${escapeMarkdown(urlRaw)}${styleTag}`;
 }
 
-/**
- * Format queue status for display
- * @param status - Queue status object
- * @param chatId - Optional: filter to show only jobs for this chat
- * @returns Formatted status string
- */
 export function formatQueueStatus(
     status: { pending: Job[]; processing: Job | null; completed: Job[]; total: number },
     chatId?: number | string

@@ -1,8 +1,3 @@
-/**
- * Workflow Orchestrator
- * The stage enforcer that runs each stage in sequence
- */
-
 import type { ProgressTracker } from "../progress.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import type { WorkflowResult } from "../../types/index.ts";
@@ -19,9 +14,6 @@ import {
 } from "./stages/index.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Ordered pipeline of workflow stages
- */
 const STAGES: WorkflowStage[] = [
     cacheInitStage,
     transcriptionStage,
@@ -32,15 +24,6 @@ const STAGES: WorkflowStage[] = [
     uploadStage,
 ];
 
-/**
- * Run the core workflow through all stages sequentially
- * Each stage receives the accumulated state and returns updated state
- *
- * @param audioFilePath - Path to the audio file
- * @param progress - Progress tracker for status updates
- * @param style - Resolved style configuration
- * @returns Final workflow result
- */
 export async function runCoreWorkflow(
     audioFilePath: string,
     progress: ProgressTracker,

@@ -1,9 +1,3 @@
-/**
- * Caption service for generating word-by-word highlighted captions
- * Uses ASS (Advanced SubStation Alpha) format for karaoke-style highlighting
- * Supports configurable caption styles, karaoke on/off, and highlight colors
- */
-
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import * as logger from "../../utils/logger.ts";
@@ -40,13 +34,6 @@ export interface CaptionResult {
   assFilePath: string;
 }
 
-/**
- * Generate caption groups from transcript segments and word-level data
- * @param segments - Sentence-based segments from transcript processing
- * @param words - Word-level data from AssemblyAI with precise timestamps
- * @param style - Resolved style configuration for caption settings
- * @returns Caption groups with word-level timing
- */
 export function generateCaptionGroups(
   segments: TranscriptSegment[],
   words: AssemblyAIWord[],
@@ -92,13 +79,6 @@ export function generateCaptionGroups(
   return groups;
 }
 
-/**
- * Split words into groups with configurable word count
- * @param words - Array of caption words
- * @param minWords - Minimum words per group (default: 3)
- * @param maxWords - Maximum words per group (default: 6)
- * @returns Array of caption groups
- */
 function splitIntoGroups(
   words: CaptionWord[],
   minWords: number = 3,
@@ -150,11 +130,7 @@ function splitIntoGroups(
   return groups;
 }
 
-/**
- * Convert milliseconds to ASS timestamp format (H:MM:SS.CC)
- * @param ms - Milliseconds
- * @returns ASS timestamp string
- */
+/** Convert milliseconds to ASS timestamp format (H:MM:SS.CC) */
 function msToAssTime(ms: number): string {
   const totalSeconds = ms / 1000;
   const hours = Math.floor(totalSeconds / 3600);
@@ -167,15 +143,6 @@ function msToAssTime(ms: number): string {
     .padStart(2, "0")}.${centiseconds.toString().padStart(2, "0")}`;
 }
 
-/**
- * Generate ASS subtitle file with configurable styling
- * Supports karaoke highlighting on/off, custom colors, and box/outline styles
- *
- * @param groups - Caption groups with word-level timing
- * @param style - Resolved style configuration
- * @param outputFileName - Output filename (without path)
- * @returns Path to generated ASS file
- */
 export async function generateAssSubtitles(
   groups: CaptionGroup[],
   style: ResolvedStyle,
@@ -300,14 +267,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return assFilePath;
 }
 
-/**
- * Generate captions and ASS subtitle file from transcript data
- * @param segments - Sentence-based segments from transcript processing
- * @param words - Word-level data from AssemblyAI
- * @param style - Resolved style configuration
- * @param outputFileName - Output filename for ASS file
- * @returns Caption result with groups and ASS file path
- */
 export async function generateCaptions(
   segments: TranscriptSegment[],
   words: AssemblyAIWord[],

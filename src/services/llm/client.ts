@@ -1,9 +1,4 @@
-/**
- * LLM Client
- * Handles API communication with LLM providers (DeepSeek, Kimi, etc.)
- */
-
-import { AI_TEXT, getAIConfig } from '../../config/environment.ts';
+import { AI_TEXT, getAIConfig } from '../../config/index.ts';
 import type {
     LLMRequest,
     LLMResponse,
@@ -23,12 +18,6 @@ const AI_PROVIDER = AI_TEXT.provider;
 /**
  * Call LLM chat API with retry logic and parse the image queries.
  * Retries are useful when the model returns malformed or noisy JSON.
- * 
- * @param systemPrompt - System-level prompt for LLM
- * @param userPrompt - User-level prompt with transcript
- * @param label - Label for logging (e.g., batch number)
- * @param maxRetries - Maximum number of additional retry attempts
- * @returns Parsed image search queries from LLM
  */
 export async function callLLMWithRetry(
     systemPrompt: string,
@@ -69,12 +58,6 @@ export async function callLLMWithRetry(
     throw lastError ?? new Error("Unknown LLM error");
 }
 
-/**
- * Call the LLM API
- * @param systemPrompt - System prompt
- * @param userPrompt - User prompt
- * @returns LLM response
- */
 async function callLLM(
     systemPrompt: string,
     userPrompt: string
@@ -109,17 +92,6 @@ async function callLLM(
 }
 
 
-/**
- * Rewrite an unsafe image prompt to make it safe for AI image generation
- * Enhanced with retry awareness and name anonymization
- * 
- * @param currentPrompt - The prompt that was just rejected
- * @param style - Resolved style configuration for context
- * @param originalPrompt - The very first/original prompt (for context)
- * @param rewriteCount - Current rewrite attempt number
- * @param maxRewrites - Maximum allowed rewrites
- * @returns Rewritten safe prompt
- */
 export async function rewriteUnsafePrompt(
     currentPrompt: string,
     style: ResolvedStyle,

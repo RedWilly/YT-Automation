@@ -1,13 +1,8 @@
-/**
- * MinIO object storage service for uploading finished videos
- * Uses Bun's built-in S3Client for S3-compatible storage
- */
-
 import { S3Client } from "bun";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import * as logger from "../../utils/logger.ts";
-import { MINIO } from "../../config/environment.ts";
+import { MINIO } from "../../config/index.ts";
 
 // Get MinIO config
 const MINIO_ENDPOINT = MINIO.endpoint;
@@ -28,10 +23,6 @@ export interface MinIOUploadResult {
   error?: string;
 }
 
-/**
- * Create S3Client instance with MinIO credentials
- * @returns Configured S3Client instance
- */
 function createS3Client(): S3Client {
   return new S3Client({
     accessKeyId: MINIO_ACCESS_KEY,
@@ -42,10 +33,6 @@ function createS3Client(): S3Client {
   });
 }
 
-/**
- * Ensure the MinIO bucket exists, create if it doesn't
- * @returns True if bucket exists or was created successfully
- */
 export async function ensureBucketExists(): Promise<boolean> {
   try {
     logger.debug("MinIO", `Checking if bucket '${MINIO_BUCKET}' exists...`);
@@ -75,11 +62,6 @@ export async function ensureBucketExists(): Promise<boolean> {
   }
 }
 
-/**
- * Upload a video file to MinIO
- * @param videoFilePath - Local path to the video file
- * @returns Upload result with object URL and metadata
- */
 export async function uploadVideoToMinIO(
   videoFilePath: string
 ): Promise<MinIOUploadResult> {

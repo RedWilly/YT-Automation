@@ -1,11 +1,6 @@
 /**
- * Sentence-based segmentation service for intelligent transcript chunking
- * 
- * This module provides smart sentence-based segmentation that:
- * - Detects sentence boundaries using punctuation (.!?)
- * - Handles common abbreviations (U.S., Dr., Mrs., Mr., etc.)
- * - Merges very short consecutive sentences for better flow
- * - Preserves word timing information from the original transcript
+ * Sentence-based segmentation using punctuation detection with abbreviation handling.
+ * Merges short sentences and preserves word timing from the original transcript.
  */
 
 import type { AssemblyAIWord } from "../../types/index.ts";
@@ -63,9 +58,6 @@ const MAX_MERGED_WORDS = 30;
 /** Maximum splits per segment */
 const MAX_SPLITS_PER_SEGMENT = 2;
 
-/**
- * Represents a detected sentence with its word indices
- */
 export interface SentenceDetection {
   text: string;
   startWordIndex: number;
@@ -73,12 +65,6 @@ export interface SentenceDetection {
   wordCount: number;
 }
 
-/**
- * Segment transcript words into intelligent sentence-based chunks
- * 
- * @param words - Array of words from AssemblyAI transcription with timing info
- * @returns Array of sentence detections with word indices
- */
 export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[] {
   logger.step("Segmentation", `Segmenting ${words.length} words into sentences`);
 
@@ -161,20 +147,6 @@ export function segmentBySentences(words: AssemblyAIWord[]): SentenceDetection[]
   return balancedSegments;
 }
 
-/**
- * Balance segments by both word count and duration
- * 
- * This unified function handles both merging short segments and splitting long ones.
- * It considers BOTH word count AND duration to avoid conflicts.
- * 
- * Rules:
- * - MERGE: if words < MIN_SEGMENT_WORDS OR duration < MIN_SEGMENT_DURATION_MS
- * - SPLIT: if words > MAX_SEGMENT_WORDS OR duration > MAX_SEGMENT_DURATION_MS
- * 
- * @param sentences - Array of detected sentences
- * @param words - Array of words with timing information (for duration calculation)
- * @returns Array of balanced segments
- */
 function balanceSegments(
   sentences: SentenceDetection[],
   words: AssemblyAIWord[]
@@ -333,14 +305,6 @@ function balanceSegments(
 }
 
 
-/**
- * Get timestamp range for a sentence based on word indices
- *
- * @param words - Array of words with timing information
- * @param startWordIndex - Starting word index for the sentence
- * @param endWordIndex - Ending word index for the sentence
- * @returns Object with start and end timestamps in milliseconds
- */
 export function getSentenceTimestamps(
   words: AssemblyAIWord[],
   startWordIndex: number,
@@ -361,14 +325,6 @@ export function getSentenceTimestamps(
   };
 }
 
-/**
- * Segment transcript words into fixed word-count chunks
- * Used for styles like WW2 that need consistent segment sizes
- *
- * @param words - Array of words from AssemblyAI transcription with timing info
- * @param wordsPerSegment - Number of words per segment (e.g., 100)
- * @returns Array of sentence detections with word indices
- */
 export function segmentByWordCount(
   words: AssemblyAIWord[],
   wordsPerSegment: number

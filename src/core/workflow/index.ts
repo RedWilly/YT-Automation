@@ -1,15 +1,10 @@
-/**
- * Workflow module public API
- * Entry points for Telegram bot handlers
- */
-
 import {
     downloadTelegramFile,
     downloadAudioFromUrl,
     type Context,
 } from "../../utils/telegram/index.ts";
 import { DEFAULT_PATHS } from "../../config/defaults.ts";
-import { MINIO } from "../../config/environment.ts";
+import { MINIO } from "../../config/index.ts";
 import type { WorkflowResult } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { getDefaultStyle, resolveStyle } from "../../styles/index.ts";
@@ -19,17 +14,7 @@ import * as logger from "../../utils/logger.ts";
 
 const TMP_AUDIO_DIR = DEFAULT_PATHS.audio;
 
-/**
- * Service to handle the complete audio-to-video workflow
- */
 export class WorkflowService {
-    /**
-     * Process audio file from Telegram through the complete workflow
-     * @param ctx - Telegram context
-     * @param fileId - Telegram file ID
-     * @param filename - Original filename
-     * @param style - Resolved style configuration (optional, defaults to history style)
-     */
     static async processAudioFile(
         ctx: Context,
         fileId: string,
@@ -62,12 +47,6 @@ export class WorkflowService {
         }
     }
 
-    /**
-     * Process audio file from URL through the complete workflow
-     * @param ctx - Telegram context
-     * @param url - Audio file URL
-     * @param style - Resolved style configuration (optional, defaults to history style)
-     */
     static async processAudioFromUrl(
         ctx: Context,
         url: string,
@@ -99,11 +78,6 @@ export class WorkflowService {
         }
     }
 
-    /**
-     * Build the completion message for the user
-     * @param result - Workflow result
-     * @param style - Resolved style configuration
-     */
     private static buildCompletionMessage(result: WorkflowResult, style: ResolvedStyle): string {
         let completionMessage = `✅ Video generated successfully!\n\n🎨 Style: ${style.name}`;
         completionMessage += `\n📁 Video saved at:\n\`${result.videoPath}\``;

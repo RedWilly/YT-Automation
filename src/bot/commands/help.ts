@@ -1,14 +1,6 @@
-/**
- * /help command handler
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import * as logger from "../../utils/logger.ts";
 
-/**
- * Handle /help command
- * Shows detailed help about styles and options
- */
 export async function handleHelpCommand(ctx: Context): Promise<void> {
     logger.log("Bot", "Received /help command");
 

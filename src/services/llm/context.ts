@@ -4,7 +4,7 @@
  * Enables context-aware query generation across batches
  */
 
-import { getAIConfig } from '../../config/environment.ts';
+import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import * as logger from '../../utils/logger.ts';
 
@@ -139,7 +139,10 @@ Analyze the transcript and extract:
   - Example: "6'2\" Viking warrior with braided red beard, blue war paint on face, bare-chested, wielding a massive Dane axe with a 6-foot ash wood handle"
 - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
 - Rate importance: primary (main focus), secondary (supporting), background (minor)
-- Track which segments mention each entity
+- Track which segments mention each entity using RANGE NOTATION to save space:
+  - Consecutive segments: "0-22" instead of [0,1,2,3,...,22]
+  - Gaps: ["0-5", "10-15"] for segments 0-5 and 10-15
+  - Single: ["7"] for just segment 7
 
 # ERA CONSTRAINTS RULES
 Identify the historical/fictional era and determine:
@@ -175,7 +178,7 @@ Return a valid JSON object with this structure:
             "eraConstraints": null,
             "importance": "primary|secondary|background",
             "firstMention": 0,
-            "mentions": [0, 5, 10]
+            "mentions": ["0-5", "8-12"]
         }
     ],
     "scenes": [
@@ -192,7 +195,17 @@ Return a valid JSON object with this structure:
     ]
 }
 
-CRITICAL: Return ONLY valid JSON. No markdown, no explanations.`;
+## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
+
+1. **NEVER TRUNCATE**: Output the COMPLETE JSON or nothing. Do not cut off arrays mid-way. If you cannot fit everything, prioritize PRIMARY entities over BACKGROUND ones.
+
+2. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor. Do not write "a soldier" — write "a 25-year-old soldier with short brown hair, wearing a mud-stained olive drab uniform, carrying an M1 Garand rifle".
+
+3. **USE RANGE NOTATION**: For mentions[], use compact ranges like ["0-22", "25-30"] instead of listing every number. Never truncate ranges mid-way.
+
+4. **VALID JSON ONLY**: No markdown code blocks. No explanations. No trailing commas. Just raw, parseable JSON.
+
+Return ONLY valid JSON.`;
 }
 
 /**
@@ -267,10 +280,6 @@ export function buildContextInjection(
 
     // Filter to relevant entities
     const relevantEntities = context.entities.filter(e => relevantEntityIds.has(e.id));
-
-    // Build entity section
-    const primaryEntities = relevantEntities.filter(e => e.importance === 'primary');
-    const secondaryEntities = relevantEntities.filter(e => e.importance !== 'primary');
 
     // -------------------------------------------------------------------------
     // BUILD ASSET REGISTRY (ALL ENTITIES ARE CRITICAL)
@@ -362,10 +371,12 @@ Example: Instead of "The Viking on the bridge", write:
 /**
  * Extract story context from a transcript using LLM
  * This is Phase 1 of the two-phase query generation process
+ * Retries up to 3 times on failure before throwing
  */
 export async function extractStoryContext(
     transcript: string,
-    segmentCount: number
+    segmentCount: number,
+    maxRetries: number = 3
 ): Promise<StoryContext> {
     const aiConfig = getAIConfig();
 
@@ -375,7 +386,52 @@ export async function extractStoryContext(
     const systemPrompt = buildExtractionSystemPrompt();
     const userPrompt = buildExtractionUserPrompt(transcript, segmentCount);
 
-    // Call LLM for extraction
+    let lastError: Error | undefined;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const context = await attemptContextExtraction(
+                aiConfig,
+                systemPrompt,
+                userPrompt
+            );
+
+            // Validate we got meaningful results
+            if (context.entities.length === 0 && context.scenes.length === 0) {
+                throw new Error('Context extraction returned empty entities and scenes');
+            }
+
+            logger.success(
+                'Context',
+                `Extracted ${context.entities.length} entities and ${context.scenes.length} scenes`
+            );
+
+            return context;
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            if (attempt < maxRetries) {
+                logger.warn(
+                    'Context',
+                    `Context extraction failed (attempt ${attempt}/${maxRetries}): ${lastError.message}. Retrying...`
+                );
+            }
+        }
+    }
+
+    // All retries exhausted
+    logger.error('Context', `Context extraction failed after ${maxRetries} attempts`);
+    throw new Error(`Context extraction failed after ${maxRetries} attempts: ${lastError?.message}`);
+}
+
+/**
+ * Single attempt at context extraction
+ */
+async function attemptContextExtraction(
+    aiConfig: ReturnType<typeof getAIConfig>,
+    systemPrompt: string,
+    userPrompt: string
+): Promise<StoryContext> {
     const response = await fetch(`${aiConfig.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -388,7 +444,7 @@ export async function extractStoryContext(
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userPrompt },
             ],
-            temperature: 0.3, // Lower temperature for structured output
+            temperature: aiConfig.temperature,
             max_tokens: aiConfig.maxTokens,
         }),
     });
@@ -400,21 +456,14 @@ export async function extractStoryContext(
 
     const data = await response.json() as LLMResponse;
     const content = data.choices[0]?.message?.content;
-    logger.log('Context', `Raw context extraction response: ${content}`);
+
+    logger.debug('Context', `Raw response length: ${content?.length ?? 0} chars`);
 
     if (!content) {
         throw new Error('Empty response from context extraction');
     }
 
-    // Parse the JSON response
-    const context = parseStoryContext(content);
-
-    logger.success(
-        'Context',
-        `Extracted ${context.entities.length} entities and ${context.scenes.length} scenes`
-    );
-
-    return context;
+    return parseStoryContext(content);
 }
 
 /**
@@ -467,27 +516,59 @@ function parseStoryContext(content: string): StoryContext {
             };
         }
 
-        // Ensure each entity has visualAnchor and eraConstraints
+        // Ensure each entity has visualAnchor, eraConstraints, and expanded mentions
         parsed.entities = parsed.entities.map((entity) => ({
             ...entity,
             visualAnchor: entity.visualAnchor || entity.description || '',
             eraConstraints: entity.eraConstraints ?? null,
+            mentions: expandMentionRanges(entity.mentions),
         }));
 
         return parsed as StoryContext;
     } catch (error) {
-        logger.error('Context', 'Failed to parse context extraction response', error);
-        // Return minimal valid context
-        return {
-            summary: '',
-            era: '',
-            primarySetting: '',
-            tone: '',
-            entities: [],
-            scenes: [],
-            globalEraConstraints: DEFAULT_ERA_CONSTRAINTS,
-        };
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error('Context', `Failed to parse context extraction response: ${errorMsg}`);
+        throw new Error(`Failed to parse context JSON: ${errorMsg}`);
     }
+}
+
+/**
+ * Expand mention ranges from compact notation to full arrays
+ * Handles: ["0-5", "10-15"] → [0,1,2,3,4,5,10,11,12,13,14,15]
+ * Also handles: [0, 1, 2] (already expanded) or ["7"] (single)
+ */
+function expandMentionRanges(mentions: unknown): number[] {
+    if (!mentions || !Array.isArray(mentions)) {
+        return [];
+    }
+
+    const result: number[] = [];
+
+    for (const item of mentions) {
+        if (typeof item === 'number') {
+            // Already a number, just add it
+            result.push(item);
+        } else if (typeof item === 'string') {
+            // Could be "5" or "0-22"
+            if (item.includes('-')) {
+                const [startStr, endStr] = item.split('-');
+                const start = parseInt(startStr ?? '', 10);
+                const end = parseInt(endStr ?? '', 10);
+                if (!isNaN(start) && !isNaN(end) && start <= end) {
+                    for (let i = start; i <= end; i++) {
+                        result.push(i);
+                    }
+                }
+            } else {
+                const num = parseInt(item, 10);
+                if (!isNaN(num)) {
+                    result.push(num);
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 /**

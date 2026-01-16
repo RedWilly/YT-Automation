@@ -1,9 +1,4 @@
-/**
- * Configuration type definitions
- * Re-exports from defaults for convenience
- */
-
-export type { CaptionAlignment } from "./defaults.ts";
+// Defaults
 
 export {
     DEFAULT_VIDEO_DIMENSIONS,
@@ -15,11 +10,13 @@ export {
     DEFAULT_PATHS,
 } from './defaults.ts';
 
+// Provider types and configs
+export type { AIProvider, AIImageProvider, ProviderConfig } from './providers.ts';
+export { PROVIDER_CONFIGS } from './providers.ts';
+
+// Service configs
 export {
-    type AIProvider,
-    type AIImageProvider,
-    type ProviderConfig,
-    PROVIDER_CONFIGS,
+    parseIdList,
     TELEGRAM,
     TRANSCRIPTION,
     AI_TEXT,
@@ -27,7 +24,7 @@ export {
     MINIO,
     PATHS,
     DEBUG,
-    validateEnvironment,
-    getAIConfig,
-    parseIdList,
-} from "./environment.ts";
+} from './services.ts';
+
+// Validation
+export { validateEnvironment, getAIConfig } from './validation.ts';

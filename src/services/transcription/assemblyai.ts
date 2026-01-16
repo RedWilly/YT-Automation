@@ -1,9 +1,5 @@
-/**
- * AssemblyAI service for audio transcription (using official SDK)
- */
-
 import { AssemblyAI } from "assemblyai";
-import { TRANSCRIPTION } from "../../config/environment.ts";
+import { TRANSCRIPTION } from "../../config/index.ts";
 import type {
   AssemblyAIUploadResponse,
   AssemblyAITranscriptRequest,
@@ -20,28 +16,14 @@ const client = new AssemblyAI({
 const ASSEMBLYAI_POLL_INTERVAL_MS = TRANSCRIPTION.pollIntervalMs;
 const ASSEMBLYAI_MAX_POLLS = TRANSCRIPTION.maxPolls;
 
-/**
- * Upload audio file to AssemblyAI
- * @param audioFilePath - Path to the audio file
- * @returns Upload URL for the audio file
- */
 export async function uploadAudio(audioFilePath: string): Promise<string> {
   logger.step("AssemblyAI", "Uploading audio file", audioFilePath);
-
   const uploadUrl = await client.files.upload(audioFilePath);
   logger.success("AssemblyAI", "Audio uploaded successfully");
   logger.debug("AssemblyAI", `Upload URL: ${uploadUrl}`);
-
-  // Match the original type signature
-  const data: AssemblyAIUploadResponse = { upload_url: uploadUrl };
-  return data.upload_url;
+  return uploadUrl;
 }
 
-/**
- * Request transcription from AssemblyAI
- * @param audioUrl - URL of the uploaded audio file
- * @returns Transcript response with ID and initial status
- */
 export async function requestTranscription(
   audioUrl: string
 ): Promise<AssemblyAITranscriptResponse> {
@@ -59,11 +41,6 @@ export async function requestTranscription(
   return transcript as AssemblyAITranscriptResponse;
 }
 
-/**
- * Get transcription status and result
- * @param transcriptId - ID of the transcript
- * @returns Transcript response with current status
- */
 export async function getTranscript(
   transcriptId: string
 ): Promise<AssemblyAITranscriptResponse> {
@@ -71,11 +48,6 @@ export async function getTranscript(
   return transcript as AssemblyAITranscriptResponse;
 }
 
-/**
- * Poll for transcription completion
- * @param transcriptId - ID of the transcript to poll
- * @returns Completed transcript response
- */
 export async function pollForCompletion(
   transcriptId: string
 ): Promise<AssemblyAITranscriptResponse> {
@@ -112,11 +84,6 @@ export async function pollForCompletion(
   );
 }
 
-/**
- * Complete workflow: upload audio and get transcription
- * @param audioFilePath - Path to the audio file
- * @returns Completed transcript response
- */
 export async function transcribeAudio(
   audioFilePath: string
 ): Promise<AssemblyAITranscriptResponse> {

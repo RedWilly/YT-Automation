@@ -1,9 +1,3 @@
-/**
- * Job Queue Service
- * Manages the queue of video generation jobs
- * Processes audio files in order and notifies on completion
- */
-
 import * as logger from "../../utils/logger.ts";
 import type { Context } from "../../utils/telegram/index.ts";
 import { sendMessage } from "../../utils/telegram/index.ts";
@@ -11,45 +5,25 @@ import type { ResolvedStyle } from "../../styles/types.ts";
 import type { Job, JobProcessor, QueueStatus } from "./types.ts";
 import { formatQueueStatus as formatStatus, formatJobInfo, formatDuration } from "./formatter.ts";
 
-/**
- * Job Queue class - manages the queue of video generation jobs
- */
 class JobQueueService {
     private queue: Job[] = [];
     private isProcessing = false;
     private processor: JobProcessor | null = null;
     private contextMap: Map<string, Context> = new Map();
 
-    /**
-     * Generate a unique job ID
-     * @returns Unique job identifier
-     */
     private generateJobId(): string {
         return `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     }
 
-    /**
-     * Set the job processor function
-     * @param processor - Function to process each job
-     */
     setProcessor(processor: JobProcessor): void {
         this.processor = processor;
     }
 
-    /**
-     * Check if a job is currently being processed
-     * @returns True if a job is in progress
-     */
     hasActiveJob(): boolean {
         return this.isProcessing;
     }
 
-    /**
-     * Wait for the current job to finish (if any)
-     * Used for graceful shutdown
-     * @param maxWaitMs - Maximum time to wait in milliseconds (default: 5 minutes)
-     * @returns Promise that resolves when current job is done or timeout
-     */
+    /** Wait for current job before shutdown. Returns when job completes or timeout. */
     async waitForCurrentJob(maxWaitMs: number = 300000): Promise<void> {
         if (!this.isProcessing) {
             return;
@@ -70,14 +44,6 @@ class JobQueueService {
         }
     }
 
-    /**
-     * Add a file-based job to the queue
-     * @param ctx - Telegram context
-     * @param fileId - Telegram file ID
-     * @param filename - Original filename
-     * @param style - Optional resolved style configuration
-     * @returns Created job
-     */
     addFileJob(ctx: Context, fileId: string, filename: string, style?: ResolvedStyle): Job {
         if (!ctx.chat) {
             throw new Error("Context does not have a chat");
@@ -104,13 +70,6 @@ class JobQueueService {
         return job;
     }
 
-    /**
-     * Add a URL-based job to the queue
-     * @param ctx - Telegram context
-     * @param url - Audio file URL
-     * @param style - Optional resolved style configuration
-     * @returns Created job
-     */
     addUrlJob(ctx: Context, url: string, style?: ResolvedStyle): Job {
         if (!ctx.chat) {
             throw new Error("Context does not have a chat");
@@ -136,10 +95,6 @@ class JobQueueService {
         return job;
     }
 
-    /**
-     * Get current queue status
-     * @returns Queue status information
-     */
     getQueueStatus(): QueueStatus {
         const pending = this.queue.filter(j => j.status === "pending");
         const processing = this.queue.find(j => j.status === "processing") || null;
@@ -153,29 +108,16 @@ class JobQueueService {
         };
     }
 
-    /**
-     * Get jobs for a specific chat
-     * @param chatId - Chat ID to filter by
-     * @returns Jobs for the specified chat
-     */
     getJobsForChat(chatId: number | string): Job[] {
         return this.queue.filter(j => j.chatId === chatId);
     }
 
-    /**
-     * Get position in queue for a specific job
-     * @param jobId - Job ID to check
-     * @returns Position (1-based) or -1 if not found/not pending
-     */
     getQueuePosition(jobId: string): number {
         const pendingJobs = this.queue.filter(j => j.status === "pending");
         const index = pendingJobs.findIndex(j => j.id === jobId);
         return index === -1 ? -1 : index + 1;
     }
 
-    /**
-     * Process the next job in the queue
-     */
     private async processNext(): Promise<void> {
         // Don't start if already processing
         if (this.isProcessing) {
@@ -247,9 +189,6 @@ class JobQueueService {
         }
     }
 
-    /**
-     * Clear completed/failed jobs from history
-     */
     clearHistory(): number {
         const beforeCount = this.queue.length;
         this.queue = this.queue.filter(j => j.status === "pending" || j.status === "processing");
@@ -258,25 +197,14 @@ class JobQueueService {
         return cleared;
     }
 
-    /**
-     * Format queue status for display
-     * @param chatId - Optional: filter to show only jobs for this chat
-     * @returns Formatted status string
-     */
     formatQueueStatus(chatId?: number | string): string {
         return formatStatus(this.getQueueStatus(), chatId);
     }
 
-    /**
-     * Format job information for display (delegated to formatter)
-     */
     formatJobInfo(job: Job): string {
         return formatJobInfo(job);
     }
 
-    /**
-     * Format duration (delegated to formatter)
-     */
     formatDuration(seconds: number): string {
         return formatDuration(seconds);
     }

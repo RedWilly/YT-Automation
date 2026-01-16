@@ -1,14 +1,6 @@
-/**
- * /upload command handler
- */
-
 import type { Context } from "../../utils/telegram/index.ts";
 import { AI_TEXT } from "../../config/index.ts";
 
-/**
- * Handle /upload command
- * Prompts user to send an audio file
- */
 export async function handleUploadCommand(ctx: Context): Promise<void> {
     await ctx.reply(
         "Please send me your audio or voice file now.\n\n" +

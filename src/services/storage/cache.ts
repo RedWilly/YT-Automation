@@ -1,7 +1,4 @@
 /**
- * SQLite Cache Service for workflow step caching
- * Uses Bun's built-in SQLite support to avoid redundant API calls
- * 
  * Cache Structure:
  * - audio_cache: Shared data per audio file (upload, transcript)
  * - style_cache: Style-specific data per audio+style (segmentation, images)
@@ -21,7 +18,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
-import { PATHS } from "../../config/environment.ts";
+import { PATHS } from "../../config/index.ts";
 import type { AssemblyAIWord, TranscriptSegment, ImageSearchQuery, DownloadedImage } from "../../types/index.ts";
 import * as logger from "../../utils/logger.ts";
 
@@ -75,9 +72,6 @@ export interface AudioCacheUpdate {
     audio_duration?: number;
 }
 
-/**
- * Partial style cache data for updates
- */
 export interface StyleCacheUpdate {
     segments?: string;
     formatted_transcript?: string;
@@ -89,9 +83,6 @@ export interface StyleCacheUpdate {
 // Singleton database instance
 let db: Database | null = null;
 
-/**
- * Initialize the SQLite database and create tables if needed
- */
 export function initDatabase(): void {
     if (db) return;
 
@@ -164,9 +155,6 @@ export function initDatabase(): void {
     logger.debug("Cache", `Database initialized at ${CACHE_DB_PATH}`);
 }
 
-/**
- * Get the database instance, initializing if needed
- */
 function getDb(): Database {
     if (!db) {
         initDatabase();
@@ -174,11 +162,6 @@ function getDb(): Database {
     return db!;
 }
 
-/**
- * Generate MD5 hash of an audio file for identification
- * @param filePath - Path to the audio file
- * @returns MD5 hash string
- */
 export async function hashAudioFile(filePath: string): Promise<string> {
     const fileBuffer = await readFile(filePath);
     const hash = createHash("md5").update(fileBuffer).digest("hex");
@@ -190,11 +173,6 @@ export async function hashAudioFile(filePath: string): Promise<string> {
 // AUDIO CACHE (Shared per audio file)
 // ============================================================
 
-/**
- * Get audio cache entry by audio hash
- * @param audioHash - MD5 hash of the audio file
- * @returns Cache entry or null if not found
- */
 export function getAudioCache(audioHash: string): AudioCacheEntry | null {
     const database = getDb();
     const stmt = database.prepare("SELECT * FROM audio_cache WHERE audio_hash = ?");
@@ -207,11 +185,6 @@ export function getAudioCache(audioHash: string): AudioCacheEntry | null {
     return result;
 }
 
-/**
- * Create or update audio cache entry
- * @param audioHash - MD5 hash of the audio file
- * @param data - Partial cache data to update
- */
 export function updateAudioCache(audioHash: string, data: AudioCacheUpdate): void {
     const database = getDb();
     const existing = getAudioCache(audioHash);
@@ -258,14 +231,6 @@ export function updateAudioCache(audioHash: string, data: AudioCacheUpdate): voi
 // STYLE CACHE (Per audio + style + orientation combination)
 // ============================================================
 
-/**
- * Get style-specific cache entry
- * @param audioHash - MD5 hash of the audio file
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @returns Style cache entry or null if not found
- */
 export function getStyleCache(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): StyleCacheEntry | null {
     const database = getDb();
     const stmt = database.prepare(
@@ -280,14 +245,6 @@ export function getStyleCache(audioHash: string, styleId: string, orientation: s
     return result;
 }
 
-/**
- * Create or update style-specific cache entry
- * @param audioHash - MD5 hash of the audio file
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @param data - Partial cache data to update
- */
 export function updateStyleCache(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean, data: StyleCacheUpdate): void {
     const database = getDb();
     const existing = getStyleCache(audioHash, styleId, orientation, naturalEdit);
@@ -334,10 +291,6 @@ export function updateStyleCache(audioHash: string, styleId: string, orientation
 // Cache Deletion
 // ============================================================
 
-/**
- * Delete audio cache and all associated style caches
- * @param audioHash - MD5 hash of the audio file
- */
 export function deleteCache(audioHash: string): void {
     const database = getDb();
 
@@ -352,10 +305,6 @@ export function deleteCache(audioHash: string): void {
     logger.debug("Cache", `Deleted all cache for hash ${audioHash.substring(0, 8)}...`);
 }
 
-/**
- * Clear all cache entries from the database
- * @returns Object with count of deleted entries
- */
 export function clearAllCache(): { audioCount: number; styleCount: number } {
     const database = getDb();
 
@@ -376,21 +325,11 @@ export function clearAllCache(): { audioCount: number; styleCount: number } {
 // Step-Specific Cache Helpers (Shared)
 // ============================================================
 
-/**
- * Get cached upload URL
- * @param audioHash - Audio file hash
- * @returns Upload URL or null
- */
 export function getCachedUploadUrl(audioHash: string): string | null {
     const cache = getAudioCache(audioHash);
     return cache?.upload_url || null;
 }
 
-/**
- * Get cached transcript data
- * @param audioHash - Audio file hash
- * @returns Transcript data or null
- */
 export function getCachedTranscript(audioHash: string): {
     transcriptId: string;
     words: AssemblyAIWord[];
@@ -419,14 +358,6 @@ export function getCachedTranscript(audioHash: string): {
 // Step-Specific Cache Helpers (Style-Specific)
 // ============================================================
 
-/**
- * Get cached segments (style-specific)
- * @param audioHash - Audio file hash
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @returns Segments data or null
- */
 export function getCachedSegments(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): {
     segments: TranscriptSegment[];
     formattedTranscript: string;
@@ -449,14 +380,6 @@ export function getCachedSegments(audioHash: string, styleId: string, orientatio
     return null;
 }
 
-/**
- * Get cached image queries (style-specific)
- * @param audioHash - Audio file hash
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @returns Image queries or null
- */
 export function getCachedImageQueries(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): ImageSearchQuery[] | null {
     const cache = getStyleCache(audioHash, styleId, orientation, naturalEdit);
 
@@ -472,14 +395,6 @@ export function getCachedImageQueries(audioHash: string, styleId: string, orient
     return null;
 }
 
-/**
- * Get cached story context (style-specific)
- * @param audioHash - Audio file hash
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @returns Story context object or null
- */
 export function getCachedStoryContext(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): unknown | null {
     const cache = getStyleCache(audioHash, styleId, orientation, naturalEdit);
 
@@ -495,14 +410,7 @@ export function getCachedStoryContext(audioHash: string, styleId: string, orient
     return null;
 }
 
-/**
- * Get cached downloaded images (style-specific, with file existence verification)
- * @param audioHash - Audio file hash
- * @param styleId - Style ID
- * @param orientation - Video orientation (horizontal or vertical)
- * @param naturalEdit - Whether natural edit mode is enabled
- * @returns Downloaded images or null (returns null if any file is missing)
- */
+/** Returns null if any cached image file is missing on disk */
 export function getCachedImages(audioHash: string, styleId: string, orientation: string = "horizontal", naturalEdit: boolean = false): DownloadedImage[] | null {
     const cache = getStyleCache(audioHash, styleId, orientation, naturalEdit);
 
@@ -528,9 +436,6 @@ export function getCachedImages(audioHash: string, styleId: string, orientation:
     return null;
 }
 
-/**
- * Close the database connection
- */
 export function closeDatabase(): void {
     if (db) {
         db.close();

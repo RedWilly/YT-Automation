@@ -99,8 +99,8 @@ CAMERA MOVEMENT (The 'type' field):
 - "static": RARE (~10%). Reserved for deliberate pauses, intimate close-ups, or when stillness IS the statement.
 
 DISTRIBUTION TARGET:
-- pan: ~44% of shots (the workhorse)
-- zoom: ~46% of shots (emphasis moments)
+- pan: ~54% of shots (the workhorse)
+- zoom: ~36% of shots (emphasis moments)
 - static: ~10% of shots (rare, deliberate stillness)
 
 WHEN TO USE EACH:

@@ -55,7 +55,8 @@ export function parseStructuredShots(content: string): StructuredShot[] {
     }
 
     // Enforce shot type distribution: static should be ~10% max
-    return enforceShootTypeDistribution(parsed);
+    // return enforceShootTypeDistribution(parsed);
+    return parsed;
 }
 
 /**
@@ -64,7 +65,7 @@ export function parseStructuredShots(content: string): StructuredShot[] {
  */
 function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[] {
     const total = shots.length;
-    const maxStatic = Math.max(1, Math.ceil(total * 0.1)); // At least 1, max 10%
+    const maxStatic = Math.max(1, Math.ceil(total * 0.25)); // At least 1, max 20%
 
     const staticShots = shots.filter(s => s.type === 'static');
     const staticCount = staticShots.length;
@@ -88,7 +89,7 @@ function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[]
 
         // Choose pan or zoom based on composition and beat type
         const isEmotional = ['emotional', 'climax', 'tension', 'revelation'].includes(shot.beatType);
-        const isCloseUp = shot.composition === 'close-up' || shot.composition === 'extreme-close-up';
+        const isCloseUp = shot.composition && ['close-up', 'extreme-close-up'].includes(shot.composition);
 
         // Zoom for emotional close-ups, pan for everything else
         const newType = (isEmotional && isCloseUp) ? 'zoom' : 'pan';

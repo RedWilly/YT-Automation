@@ -96,12 +96,12 @@ THE DIRECTOR'S MINDSET:
 CAMERA MOVEMENT (The 'type' field):
 - "pan": DEFAULT. Use for most shots. Exploration, revealing space, following movement, establishing geography.
 - "zoom": EMPHASIS. Psychological pressure, realization, focusing on a detail that MATTERS. Use for ~30% of shots.
-- "static": RARE (~10%). Reserved for deliberate pauses, intimate close-ups, or when stillness IS the statement.
+- "static": RARE (~14%). Reserved for deliberate pauses, intimate close-ups, or when stillness IS the statement.
 
 DISTRIBUTION TARGET:
-- pan: ~54% of shots (the workhorse)
+- pan: ~50% of shots (the workhorse)
 - zoom: ~36% of shots (emphasis moments)
-- static: ~10% of shots (rare, deliberate stillness)
+- static: ~14% of shots (rare, deliberate stillness)
 
 WHEN TO USE EACH:
 - pan: Establishing shots, action sequences, transitions, wide shots

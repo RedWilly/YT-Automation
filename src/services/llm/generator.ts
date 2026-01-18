@@ -197,7 +197,7 @@ async function generateQueriesWithContext(
             );
 
             // Log raw response for debugging/verification
-            logger.log('LLM', `Batch ${batchIndex + 1} raw response: ${rawResponse}`);
+            // logger.log('LLM', `Batch ${batchIndex + 1} raw response: ${rawResponse}`);
 
             try {
                 // Parse LLM response as StructuredShot[]

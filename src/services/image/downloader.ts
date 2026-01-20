@@ -4,9 +4,9 @@ import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
 import type { ImageSearchQuery, DownloadedImage, StructuredShot } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { generateConsistentSeed } from "../llm/index.ts";
-import { getProvider, getFallbackProvider } from "./providers/index.ts";
+import { getProvider } from "./providers/index.ts";
 import { calculateBackoffDelay, sleep } from "./providers/retry.ts";
-import { isUnsafePromptError } from "./providers/errors.ts";
+import { isUnsafePromptError, isHighTrafficError } from "./providers/errors.ts";
 import { rewriteUnsafePrompt } from "../llm/index.ts";
 import { join, extname } from "node:path";
 import * as logger from "../../utils/logger.ts";
@@ -230,54 +230,21 @@ async function generateAIImageForQuery(
         continue;
       }
 
+      // If high traffic error, wait and retry the same attempt
+      if (isHighTrafficError(error)) {
+        const waitTime = error.retryAfterMs;
+        logger.warn("AI-Images", `High traffic on ${error.provider}, waiting ${waitTime / 1000}s before retry...`);
+        await sleep(waitTime);
+        attempt--; // Retry the same attempt
+        continue;
+      }
+
       if (attempt < IMAGE_RETRY_ATTEMPTS) {
         const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
         logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
         await sleep(delay);
       }
     }
-  }
-
-  const fallback = getFallbackProvider(provider.id);
-  if (fallback) {
-    logger.step("AI-Images", `Switching to fallback provider: ${fallback.name}`);
-
-    for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
-      try {
-        logger.debug("AI-Images", `[${fallback.name}] Fallback attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS}`);
-
-        // Combine style prefix with scene description
-        const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
-
-        const result = await fallback.generate({
-          prompt: styledPrompt,
-          negativePrompt: style.negativePrompt,
-          aspectRatio,
-          seed,
-        });
-
-        const sanitizedQuery = sanitizeFilename(queryData.query);
-        const filename = `ai_${sanitizedQuery}.${result.format}`;
-        const filePath = join(TMP_IMAGES_DIR, filename);
-
-        await Bun.write(filePath, result.data);
-        logger.success("AI-Images", `Fallback succeeded: ${filePath}`);
-
-        return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
-
-      } catch (fallbackError) {
-        lastError = fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError));
-
-        if (attempt < IMAGE_RETRY_ATTEMPTS) {
-          const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
-          logger.warn("AI-Images", `Fallback attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
-          await sleep(delay);
-        }
-      }
-    }
-
-    logger.error("AI-Images", `Fallback provider also failed after ${IMAGE_RETRY_ATTEMPTS} attempts`);
-    throw new Error(`Both providers failed after retries. Last error: ${lastError?.message}`);
   }
 
   throw new Error(

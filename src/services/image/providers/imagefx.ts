@@ -6,7 +6,7 @@
 
 import { ImageFX, Prompt, type AspectRatio } from "@rohitaryal/imagefx-api";
 import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
-import { UnsafePromptError } from "./errors.ts";
+import { UnsafePromptError, HighTrafficError } from "./errors.ts";
 import { AI_IMAGE } from "../../../config/index.ts";
 import { DEFAULT_PATHS } from "../../../config/defaults.ts";
 import * as logger from "../../../utils/logger.ts";
@@ -139,6 +139,12 @@ class ImageFXProvider implements ImageProvider {
                 errorMsg.includes("PUBLIC_ERROR_PROMINENT_PEOPLE_FILTER_FAILED")) {
                 logger.warn("ImageFX", `Prompt flagged as unsafe: ${promptText.substring(0, 50)}...`);
                 throw new UnsafePromptError(promptText, "ImageFX safety filter", "imagefx");
+            }
+
+            if (errorMsg.includes("RESOURCE_EXHAUSTED") ||
+                errorMsg.includes("PUBLIC_ERROR_HIGH_TRAFFIC") ||
+                errorMsg.includes("429")) {
+                throw new HighTrafficError("imagefx");
             }
 
             logger.error("ImageFX", `Generation failed: ${errorMsg}`);

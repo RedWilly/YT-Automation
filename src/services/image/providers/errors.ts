@@ -34,3 +34,31 @@ export class UnsafePromptError extends Error {
 export function isUnsafePromptError(error: unknown): error is UnsafePromptError {
     return error instanceof UnsafePromptError;
 }
+
+/**
+ * Error thrown when the provider is experiencing high traffic (429/quota exhausted)
+ * Should trigger a retry after waiting
+ */
+export class HighTrafficError extends Error {
+    /** Provider that returned the error */
+    public readonly provider: string;
+
+    /** Recommended wait time in milliseconds before retry */
+    public readonly retryAfterMs: number;
+
+    constructor(provider: string, retryAfterMs: number = 10000) {
+        super(`High traffic detected on ${provider}. Retry after ${retryAfterMs / 1000}s.`);
+        this.name = "HighTrafficError";
+        this.provider = provider;
+        this.retryAfterMs = retryAfterMs;
+    }
+}
+
+/**
+ * Check if an error is a high traffic error
+ * @param error - Error to check
+ * @returns True if the error is a HighTrafficError
+ */
+export function isHighTrafficError(error: unknown): error is HighTrafficError {
+    return error instanceof HighTrafficError;
+}

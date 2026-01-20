@@ -94,19 +94,24 @@ THE DIRECTOR'S MINDSET:
 ## CINEMATOGRAPHY: THE DIRECTOR'S TOOLKIT
 
 CAMERA MOVEMENT (The 'type' field):
-- "pan": DEFAULT. Use for most shots. Exploration, revealing space, following movement, establishing geography.
-- "zoom": EMPHASIS. Psychological pressure, realization, focusing on a detail that MATTERS. Use for ~30% of shots.
-- "static": RARE (~14%). Reserved for deliberate pauses, intimate close-ups, or when stillness IS the statement.
+- "pan": Revealing space, following motion, establishing geography, transitions between subjects. The workhorse.
+- "zoom": Drawing attention to something important—a face, detail, realization, emotional beat. Emphasis.
+- "static": Deliberate stillness. Gives the viewer breathing room. Without static shots, constant motion becomes exhausting.
 
-DISTRIBUTION TARGET:
-- pan: ~50% of shots (the workhorse)
-- zoom: ~36% of shots (emphasis moments)
-- static: ~14% of shots (rare, deliberate stillness)
+MOVEMENT SELECTION (Let the shot dictate):
+- Establishing a location? → pan
+- Following action or motion? → pan
+- Revealing something new? → pan
+- Emotional beat or realization? → zoom
+- Close-up on face/detail that matters? → zoom
+- Drawing psychological pressure? → zoom
+- Moment needs to land, sink in? → static
+- Intimate, contemplative beat? → static
+- Letting the audience absorb? → static
 
-WHEN TO USE EACH:
-- pan: Establishing shots, action sequences, transitions, wide shots
-- zoom: Revelations, emotional beats, close-ups on faces/objects
-- static: Only when the scene demands STILLNESS (death, contemplation, shock freeze)
+WHY STATIC MATTERS: A video with only motion feels frantic and cheap. Static shots add weight, intentionality, and let powerful moments breathe. Every video needs them.
+
+RHYTHM RULE: Vary movement types. Don't repeat the same type 3+ times consecutively. Alternate between motion and stillness.
 
 ANGLE PSYCHOLOGY (Use in 'framingNote'):
 - LOW ANGLE: Suggests power, dominance, or threat. Subject looks imposing.

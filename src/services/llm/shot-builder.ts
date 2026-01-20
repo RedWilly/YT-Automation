@@ -23,14 +23,26 @@ function buildEntityDescription(
     const entity = context.entities.find(e => e.id === entityId);
     if (!entity) return '';
 
-    // 'visual-only': Just the visual anchor for primary subjects
-    if (detail === 'visual-only') return entity.visualAnchor;
+    // Get group visual anchor if entity belongs to a group
+    const groupAnchor = entity.groupId 
+        ? context.groups?.find(g => g.id === entity.groupId)?.visualAnchor 
+        : null;
+
+    // 'visual-only': Group appearance + entity visual anchor for primary subjects
+    // e.g., "grey Wehrmacht uniforms, steel helmets, scarred face"
+    if (detail === 'visual-only') {
+        if (groupAnchor && entity.visualAnchor) {
+            return `${groupAnchor}, ${entity.visualAnchor}`;
+        }
+        return groupAnchor || entity.visualAnchor;
+    }
     
-    // 'brief-visual': Name + visual anchor in brackets for secondary elements
-    // e.g., "Captain Miller (battle-worn soldier in olive uniform)"
+    // 'brief-visual': Name + (group + visual anchor) in brackets for secondary elements
+    // e.g., "Soldier Klaus (grey Wehrmacht uniforms, steel helmets, scarred face)"
     if (detail === 'brief-visual') {
-        return entity.visualAnchor 
-            ? `${entity.name} (${entity.visualAnchor})` 
+        const visualParts = [groupAnchor, entity.visualAnchor].filter(Boolean).join(', ');
+        return visualParts 
+            ? `${entity.name} (${visualParts})` 
             : entity.name;
     }
 

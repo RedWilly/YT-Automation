@@ -15,7 +15,8 @@ export type {
   LLMMessage,
   LLMRequest,
   LLMResponse,
-  Composition,
+  CameraAngle,
+  ShotScale,
   EntityType,
   ContentType,
   VisualApproach,
@@ -34,8 +35,12 @@ export type {
 
 // LLM const arrays for schema generation
 export {
-  COMPOSITIONS,
-  COMPOSITION_SCHEMA,
+  CAMERA_ANGLES,
+  CAMERA_ANGLE_KEYS,
+  CAMERA_ANGLE_SCHEMA,
+  SHOT_SCALES,
+  SHOT_SCALE_KEYS,
+  SHOT_SCALE_SCHEMA,
   SHOT_TYPES,
   SHOT_TYPE_SCHEMA,
   ENTITY_TYPES,

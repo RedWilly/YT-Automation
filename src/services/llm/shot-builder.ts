@@ -1,18 +1,31 @@
-import type { StoryContext, Scene, StructuredShot, Composition } from '../../types/llm.ts';
+import type { StoryContext, Scene, StructuredShot, CameraAngle, ShotScale } from '../../types/llm.ts';
+import { CAMERA_ANGLES, SHOT_SCALES } from '../../types/llm.ts';
 import type { ResolvedStyle } from '../../styles/types.ts';
 
 export type { StructuredShot } from '../../types/llm.ts';
 
-const COMPOSITION_PREFIXES: Record<Composition, string> = {
-    'extreme-wide': 'Extreme wide establishing shot:',
-    'wide': 'Wide shot:',
-    'medium': 'Medium shot:',
-    'close-up': 'Close-up:',
-    'extreme-close-up': 'Extreme close-up:'
-};
-
-function getCompositionPrefix(composition: StructuredShot['composition']): string {
-    return composition ? COMPOSITION_PREFIXES[composition] || '' : '';
+/**
+ * Build camera framing prefix from angle and scale
+ * Combines both to create natural prompt prefix like "Low angle, close-up shot:"
+ */
+function getCameraFramingPrefix(
+    cameraAngle: CameraAngle | null,
+    shotScale: ShotScale | null
+): string {
+    const parts: string[] = [];
+    
+    if (cameraAngle && CAMERA_ANGLES[cameraAngle]) {
+        parts.push(CAMERA_ANGLES[cameraAngle]);
+    }
+    if (shotScale && SHOT_SCALES[shotScale]) {
+        parts.push(SHOT_SCALES[shotScale]);
+    }
+    
+    if (parts.length === 0) return '';
+    
+    // Capitalize first letter and add colon
+    const combined = parts.join(', ');
+    return combined.charAt(0).toUpperCase() + combined.slice(1) + ':';
 }
 
 /**
@@ -37,8 +50,8 @@ function buildEntityDescription(
         groupAnchor = context.groups?.find(g => g.id === entity.groupId)?.visualAnchor ?? null;
     }
 
-    // Build visual parts: group anchor + entity anchor + unique traits
-    const visualParts = [groupAnchor, entity.visualAnchor, entity.uniqueTraits].filter(Boolean);
+    // Build visual parts: group anchor + entity anchor
+    const visualParts = [groupAnchor, entity.visualAnchor].filter(Boolean);
 
     // 'visual-only': Full visual description for primary subjects
     // e.g., "grey uniforms, steel helmets, young face, scar on left cheek"
@@ -82,7 +95,7 @@ export function buildImagePrompt(
     _style: ResolvedStyle
 ): string {
     const scene = context.scenes.find(s => s.id === shot.sceneId);
-    const compositionPrefix = getCompositionPrefix(shot.composition);
+    const cameraFramingPrefix = getCameraFramingPrefix(shot.cameraAngle, shot.shotScale);
     
     // Build the core action description with primary subjects
     const primarySubjects = shot.focus.primary
@@ -157,7 +170,7 @@ export function buildImagePrompt(
 
     // Assemble in natural reading order
     const parts = [
-        compositionPrefix,
+        cameraFramingPrefix,
         coreDescription,
         keyProps,
         settingParts.length > 0 ? settingParts.join('. ') : null,

@@ -154,7 +154,6 @@ Return a valid JSON object with this structure:
             "importance": "primary|secondary|background",
             "mentions": ["0-5", "8-12"],
             "groupId": "optional_group_id (for characters in factions)",
-            "uniqueTraits": "traits specific to this entity (visual only)",
             "role": "leader|soldier|civilian|background (for characters)"
         }
     ],
@@ -311,9 +310,6 @@ export function buildContextInjection(
     for (const e of sortedEntities) {
         entitySection += `ID: ${e.id} (${e.importance.toUpperCase()} ${e.type.toUpperCase()})\n`;
         entitySection += `VISUAL ANCHOR: "${e.visualAnchor}"\n`;
-        if (e.uniqueTraits) {
-            entitySection += `UNIQUE TRAITS: ${e.uniqueTraits}\n`;
-        }
         if (e.eraConstraints) {
             entitySection += `CONSTRAINTS: Allowed [${e.eraConstraints.allowedWeapons.join(', ')}], Prohibited [${e.eraConstraints.prohibitedItems.join(', ')}]\n`;
         }

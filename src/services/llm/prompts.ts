@@ -7,7 +7,7 @@
 
 import type { ResolvedStyle } from '../../styles/types.ts';
 import type { StoryContext, BatchState } from '../../types/llm.ts';
-import { COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
+import { CAMERA_ANGLE_SCHEMA, SHOT_SCALE_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -75,7 +75,8 @@ THE DIRECTOR'S MINDSET:
     "exclude": ["entity_id"]
   },
   "action": "what is physically happening",
-  "composition": ${COMPOSITION_SCHEMA} | null,
+  "cameraAngle": ${CAMERA_ANGLE_SCHEMA} | null,
+  "shotScale": ${SHOT_SCALE_SCHEMA} | null,
   "framingNote": "optional specific framing guidance",
   "type": ${SHOT_TYPE_SCHEMA}
 }`
@@ -89,7 +90,8 @@ THE DIRECTOR'S MINDSET:
     "exclude": []
   },
   "action": "what is happening",
-  "composition": null,
+  "cameraAngle": null,
+  "shotScale": null,
   "type": "pan"
 }`;
 
@@ -117,11 +119,19 @@ WHY STATIC MATTERS: A video with only motion feels frantic and cheap. Static sho
 
 RHYTHM RULE: Vary movement types. Don't repeat the same type 3+ times consecutively. Alternate between motion and stillness.
 
-ANGLE PSYCHOLOGY (Use in 'framingNote'):
-- LOW ANGLE: Suggests power, dominance, or threat. Subject looks imposing.
-- HIGH ANGLE: Implies vulnerability, objectivity, or diminishment. Subject looks small.
-- DUTCH ANGLE (tilted): Signals disorientation, unease, or instability. Use sparingly.
-- EYE LEVEL: Neutral, relatable. Default for dialogue and connection.
+CAMERA ANGLE (The 'cameraAngle' field):
+- "Eye Level": Neutral, relatable. Default for dialogue and connection.
+- "Low Angle": Suggests power, dominance, or threat. Subject looks imposing.
+- "High Angle": Implies vulnerability, objectivity, or diminishment. Subject looks small.
+- "Bird's Eye": God's view, shows scale and geography. Detached, observational.
+- "Dutch Angle": Signals disorientation, unease, or instability. Use sparingly.
+- "Over Shoulder": POV intimacy, connects viewer to character's perspective.
+
+SHOT SCALE (The 'shotScale' field):
+- "Wide Shot": Full body, shows action in environment. Establishes geography.
+- "Medium Shot": Waist up, balances character and context. Conversational.
+- "Close-Up": Face/detail, emotional emphasis. Intimacy and intensity.
+- "Extreme Close-Up": Hands, eyes, objects—maximum intimacy. Critical details.
 
 MISE-EN-SCÈNE CHECKLIST (What's in the frame?):
 - SETTING: Location details that establish tone (cluttered vs. sterile, warm vs. cold light)
@@ -144,8 +154,9 @@ DEPTH STAGING (MANDATORY):
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
 4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
-5. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
-6. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
+5. **cameraAngle MUST be EXACTLY one of**: ${CAMERA_ANGLE_SCHEMA} | null
+6. **shotScale MUST be EXACTLY one of**: ${SHOT_SCALE_SCHEMA} | null
+7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
@@ -163,18 +174,15 @@ Before choosing your shot, mentally stage the scene:
 - Who is trapped, isolated, or exposed?
 THEN choose composition and camera to REVEAL that truth.
 
-## COMPOSITION GUIDANCE (Framing for Clarity)
-- "extreme-wide": Establishes geography, shows isolation or scale
-- "wide": Full body, shows action in environment
-- "medium": Waist up, balances character and context
-- "close-up": Face/detail, emotional emphasis
-- "extreme-close-up": Hands, eyes, objects—maximum intimacy
-
-Match composition to intent:
-- Tension? Close-up, tight framing, low angle.
-- Power? Low angle, wide shot, subject dominates frame.
-- Vulnerability? High angle, isolating composition, empty space around subject.
-- Disorientation? Dutch angle, off-center framing.
+## COMBINING ANGLE + SCALE (Visual Intent)
+Match camera angle and shot scale to emotional intent:
+- Tension? "Close-Up" + "Low Angle" - tight framing, subject looms.
+- Power? "Wide Shot" + "Low Angle" - subject dominates the frame.
+- Vulnerability? "Medium Shot" + "High Angle" - subject looks small, exposed.
+- Disorientation? "Close-Up" + "Dutch Angle" - off-center, unsettling.
+- Intimacy? "Close-Up" + "Eye Level" - direct connection with viewer.
+- Observation? "Wide Shot" + "Bird's Eye" - detached, god's view.
+- POV connection? "Medium Shot" + "Over Shoulder" - viewer becomes participant.
 
 ## SYMBOLISM CONSISTENCY
 - Use consistent visual metaphors. If swords represent honor, maintain that meaning.
@@ -243,11 +251,13 @@ export function buildContextAwareUserPrompt(
    const typeField = naturalEdit
       ? `- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
 - SET "type": "pan", "zoom", or "static" (for video editing)
-- SET "composition": framing guidance or null
+- SET "cameraAngle": camera perspective or null
+- SET "shotScale": framing distance or null
 - SET "framingNote": optional specific framing details`
       : `- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
 - SET "type": "pan" (default)
-- SET "composition": null`;
+- SET "cameraAngle": null
+- SET "shotScale": null`;
 
    const outputExample = naturalEdit
       ? `[{
@@ -260,7 +270,8 @@ export function buildContextAwareUserPrompt(
     "exclude": ["enemy_soldiers"]
   },
   "action": "hands gripping the hilt tightly, rain dripping onto the muddy trench floor",
-  "composition": "extreme-close-up",
+  "cameraAngle": "Low Angle",
+  "shotScale": "Extreme Close-Up",
   "framingNote": "sword fills foreground, blurred soldier silhouettes in background",
   "type": "static"
 }, ...]`
@@ -274,7 +285,8 @@ export function buildContextAwareUserPrompt(
     "exclude": []
   },
   "action": "walking across the cobblestone square, market stalls blurred in background",
-  "composition": null,
+  "cameraAngle": null,
+  "shotScale": null,
   "type": "pan"
 }]`;
 

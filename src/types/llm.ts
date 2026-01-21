@@ -6,15 +6,36 @@
 
 
 // =============================================================================
-// COMPOSITIONS
+// CAMERA ANGLES
 // =============================================================================
 
-export const COMPOSITIONS = [
-  'extreme-wide', 'wide', 'medium', 'close-up', 'extreme-close-up'
-] as const;
+export const CAMERA_ANGLES = {
+  'Eye Level': 'eye-level shot',
+  'Low Angle': 'low angle shot, looking up',
+  'High Angle': 'high angle shot, looking down',
+  "Bird's Eye": "bird's eye view, top-down shot",
+  'Dutch Angle': 'Dutch angle shot, tilted horizon',
+  'Over Shoulder': 'over-the-shoulder shot',
+} as const;
 
-export type Composition = typeof COMPOSITIONS[number];
-export const COMPOSITION_SCHEMA = COMPOSITIONS.map(c => `"${c}"`).join(' | ');
+export type CameraAngle = keyof typeof CAMERA_ANGLES;
+export const CAMERA_ANGLE_KEYS = Object.keys(CAMERA_ANGLES) as CameraAngle[];
+export const CAMERA_ANGLE_SCHEMA = CAMERA_ANGLE_KEYS.map(a => `"${a}"`).join(' | ');
+
+// =============================================================================
+// SHOT SCALES (Framing/Composition)
+// =============================================================================
+
+export const SHOT_SCALES = {
+  'Wide Shot': 'wide shot',
+  'Medium Shot': 'medium shot',
+  'Close-Up': 'close-up shot',
+  'Extreme Close-Up': 'extreme close-up',
+} as const;
+
+export type ShotScale = keyof typeof SHOT_SCALES;
+export const SHOT_SCALE_KEYS = Object.keys(SHOT_SCALES) as ShotScale[];
+export const SHOT_SCALE_SCHEMA = SHOT_SCALE_KEYS.map(s => `"${s}"`).join(' | ');
 
 // =============================================================================
 // SHOT TYPES
@@ -153,7 +174,10 @@ export interface StructuredShot {
     exclude: string[];
   };
   action: string;
-  composition: Composition | null;
+  /** Camera angle - determines vertical perspective */
+  cameraAngle: CameraAngle | null;
+  /** Shot scale - determines framing/distance from subject */
+  shotScale: ShotScale | null;
   framingNote?: string;
   type: ShotType;
 }
@@ -209,7 +233,6 @@ export interface Entity {
   visualAnchor: string;
   eraConstraints: EraConstraints | null;
   groupId?: string;
-  uniqueTraits?: string;
   role?: 'leader' | 'soldier' | 'civilian' | 'background';
 }
 

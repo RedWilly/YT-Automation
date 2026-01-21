@@ -1,7 +1,7 @@
 /** Handles parsing, JSON extraction, and validation of LLM responses */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
-import { COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
+import { CAMERA_ANGLE_KEYS, SHOT_SCALE_KEYS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
 import * as logger from "../../utils/logger.ts";
 
 /** Parse and validate image queries from LLM response */
@@ -87,13 +87,13 @@ function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[]
 
         converted++;
 
-        // Choose pan or zoom based on composition
-        const isCloseUp = shot.composition && ['close-up', 'extreme-close-up'].includes(shot.composition);
+        // Choose pan or zoom based on shot scale
+        const isCloseUp = shot.shotScale && ['Close-Up', 'Extreme Close-Up'].includes(shot.shotScale);
 
         // Zoom for close-ups, pan for everything else
         const newType = isCloseUp ? 'zoom' : 'pan';
 
-        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.composition})`);
+        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.shotScale})`);
 
         return { ...shot, type: newType };
     });
@@ -247,9 +247,14 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
         if (!Array.isArray(focus.secondary)) return false;
         if (!Array.isArray(focus.exclude)) return false;
 
-        // composition validation (can be null)
-        if (obj.composition !== null && obj.composition !== undefined) {
-            if (!COMPOSITIONS.includes(obj.composition as typeof COMPOSITIONS[number])) return false;
+        // cameraAngle validation (can be null)
+        if (obj.cameraAngle !== null && obj.cameraAngle !== undefined) {
+            if (!CAMERA_ANGLE_KEYS.includes(obj.cameraAngle as typeof CAMERA_ANGLE_KEYS[number])) return false;
+        }
+
+        // shotScale validation (can be null)
+        if (obj.shotScale !== null && obj.shotScale !== undefined) {
+            if (!SHOT_SCALE_KEYS.includes(obj.shotScale as typeof SHOT_SCALE_KEYS[number])) return false;
         }
 
         // Optional framingNote

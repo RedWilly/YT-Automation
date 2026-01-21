@@ -15,6 +15,11 @@ function getCompositionPrefix(composition: StructuredShot['composition']): strin
     return composition ? COMPOSITION_PREFIXES[composition] || '' : '';
 }
 
+/**
+ * Build entity description with role-aware group handling
+ * - Leaders (role: 'leader'): Use only their unique appearance, skip group anchor
+ * - Non-leaders: Always include group anchor for visual consistency
+ */
 function buildEntityDescription(
     entityId: string, 
     context: StoryContext, 
@@ -23,49 +28,32 @@ function buildEntityDescription(
     const entity = context.entities.find(e => e.id === entityId);
     if (!entity) return '';
 
-    // Get group visual anchor if entity belongs to a group
-    const groupAnchor = entity.groupId 
-        ? context.groups?.find(g => g.id === entity.groupId)?.visualAnchor 
-        : null;
+    // Leaders have distinct appearances — don't inherit group visuals
+    const isLeader = entity.role === 'leader';
+    
+    // Get group visual anchor (only for non-leaders)
+    let groupAnchor: string | null = null;
+    if (entity.groupId && !isLeader) {
+        groupAnchor = context.groups?.find(g => g.id === entity.groupId)?.visualAnchor ?? null;
+    }
 
-    // 'visual-only': Group appearance + entity visual anchor for primary subjects
-    // e.g., "grey Wehrmacht uniforms, steel helmets, scarred face"
+    // Build visual parts: group anchor + entity anchor + unique traits
+    const visualParts = [groupAnchor, entity.visualAnchor, entity.uniqueTraits].filter(Boolean);
+
+    // 'visual-only': Full visual description for primary subjects
+    // e.g., "grey uniforms, steel helmets, young face, scar on left cheek"
     if (detail === 'visual-only') {
-        if (groupAnchor && entity.visualAnchor) {
-            return `${groupAnchor}, ${entity.visualAnchor}`;
-        }
-        return groupAnchor || entity.visualAnchor;
+        return visualParts.join(', ') || '';
     }
     
-    // 'brief-visual': Name + (group + visual anchor) in brackets for secondary elements
-    // e.g., "Soldier Klaus (grey Wehrmacht uniforms, steel helmets, scarred face)"
+    // 'brief-visual': Name + (visual description) for secondary elements
+    // e.g., "Captain Miller (battle-worn soldier, scar on left cheek)"
     if (detail === 'brief-visual') {
-        const visualParts = [groupAnchor, entity.visualAnchor].filter(Boolean).join(', ');
-        return visualParts 
-            ? `${entity.name} (${visualParts})` 
-            : entity.name;
+        const visual = visualParts.join(', ');
+        return visual ? `${entity.name} (${visual})` : entity.name;
     }
 
     return '';
-
-    // UNUSED DETAIL LEVELS (commented out for reference):
-    // 
-    // 'brief': Just the entity name - not useful for image generation
-    // since the generator doesn't know who "Captain Miller" is
-    // if (detail === 'brief') return entity.name;
-    //
-    // 'full': Group anchor + visual anchor + unique traits
-    // Too verbose for prompts, creates token bloat
-    // const parts: string[] = [];
-    // if (entity.groupId) {
-    //     const group = context.groups?.find(g => g.id === entity.groupId);
-    //     if (group?.visualAnchor) parts.push(group.visualAnchor);
-    // }
-    // if (entity.visualAnchor && !parts.includes(entity.visualAnchor)) {
-    //     parts.push(entity.visualAnchor);
-    // }
-    // if (entity.uniqueTraits) parts.push(entity.uniqueTraits);
-    // return parts.filter(Boolean).join(', ');
 }
 
 function buildSettingDescription(scene: Scene | undefined, context: StoryContext): string {
@@ -95,7 +83,7 @@ export function buildImagePrompt(
 ): string {
     const scene = context.scenes.find(s => s.id === shot.sceneId);
     const compositionPrefix = getCompositionPrefix(shot.composition);
-
+    
     // Build the core action description with primary subjects
     const primarySubjects = shot.focus.primary
         .map(id => {
@@ -151,11 +139,21 @@ export function buildImagePrompt(
     // Build atmosphere/lighting
     const atmosphere = buildAtmosphere(scene, context);
     
+    // Add key props from scene (symbolic objects the director marked as important)
+    const keyProps = scene?.keyProps?.length 
+        ? `featuring ${scene.keyProps.join(', ')}` 
+        : null;
+    
+    // Add power dynamic (who dominates the frame)
+    const powerDynamic = scene?.powerDynamic || null;
+    
     // Assemble in natural reading order
     const parts = [
         compositionPrefix,
         coreDescription,
+        keyProps,
         settingParts.length > 0 ? settingParts.join('. ') : null,
+        powerDynamic,
         atmosphere || null,
         shot.framingNote || null,
         context.era || null

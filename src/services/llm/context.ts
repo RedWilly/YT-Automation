@@ -4,12 +4,10 @@ import { getAIConfig } from '../../config/index.ts';
 import type { LLMResponse } from '../../types/index.ts';
 import type { StoryContext, BatchState, EraConstraints } from '../../types/llm.ts';
 import {
-    BEAT_TYPE_SCHEMA,
     CONTENT_TYPE_SCHEMA,
     VISUAL_APPROACH_SCHEMA,
     ENTITY_TYPE_SCHEMA,
     TECHNOLOGY_LEVEL_SCHEMA,
-    CAMERA_ANGLE_SCHEMA,
 } from '../../types/llm.ts';
 import * as logger from '../../utils/logger.ts';
 
@@ -80,51 +78,6 @@ NEWS → events, people, locations, data
 - Identify factions, armies, teams, or any collection of characters with shared visual identity
 - Each group has a visualAnchor describing shared appearance (e.g., "red cloaks, bronze armor, plumed helmets")
 - memberIds lists all character entity IDs that belong to this group (use range notation like "soldier_1-soldier_10")
-- allegiance: protagonist (heroes), antagonist (enemies), or neutral
-
-# BEAT RULES (UNIVERSAL - ADAPT TO CONTENT TYPE)
-Analyze EACH segment for its beat type. Use beats appropriate to the content:
-
-NARRATIVE BEATS:
-- establishing: Setting the scene, location focus
-- action: Movement, conflict, physical activity
-- emotional: Character feelings, reactions, intimate moments
-- dialogue: Conversation between characters
-- tension: Building suspense, anticipation
-- climax: Peak moment, payoff
-- resolution: Aftermath, calm after storm
-- transition: Moving between scenes/moments
-
-EDUCATIONAL BEATS:
-- introduction: Presenting a topic, overview
-- explanation: Describing how/why something works
-- example: Showing a specific case or illustration
-- demonstration: Showing how to do something
-- comparison: Contrasting two or more things
-- summary: Recap, key takeaways
-
-DOCUMENTARY BEATS:
-- context: Historical/factual background
-- evidence: Data, facts, proof
-- testimony: Quotes, statements
-
-PRODUCT BEATS:
-- showcase: Highlighting a feature
-- benefit: Showing advantage/outcome
-- use-case: Demonstrating application
-
-Rate importance: high (key moment), medium (supporting), low (filler)
-suggestedFocus: what should be primary focus (character, object, setting, action, group, concept)
-
-# DIRECTOR'S BEAT ANALYSIS (CRITICAL)
-For EACH beat, answer:
-- emotionalIntent: "What should the audience FEEL or UNDERSTAND?" (e.g., "dread", "hope", "confusion", "revelation")
-- suggestedAngle: Camera psychology ("low" = power/threat, "high" = vulnerability, "eye" = neutral, "dutch" = disorientation)
-
-EXAMPLE:
-- Segment about a king's decree → emotionalIntent: "authority", suggestedAngle: "low" (looking up at power)
-- Segment about a child lost → emotionalIntent: "vulnerability", suggestedAngle: "high" (looking down, small)
-- Segment about chaos/battle → emotionalIntent: "disorientation", suggestedAngle: "dutch" (off-kilter)
 
 # ERA CONSTRAINTS RULES
 Identify the historical/fictional era and determine:
@@ -152,7 +105,6 @@ Return a valid JSON object with this structure:
         "type": "same as contentType",
         "visualApproach": ${VISUAL_APPROACH_SCHEMA},
         "entityMeaning": "What entities represent in this content type",
-        "typicalBeats": ["list", "of", "common", "beats"]
     },
     "era": "Time period or setting type (if applicable, else 'modern' or 'timeless')",
     "primarySetting": "Main location/environment/context",
@@ -185,7 +137,6 @@ Return a valid JSON object with this structure:
             "name": "Group Name",
             "visualAnchor": "Shared appearance for ALL members",
             "memberIds": ["member_1", "member_2-member_10"],
-            "allegiance": "protagonist|antagonist|neutral"
         }
     ],
     "scenes": [
@@ -203,19 +154,7 @@ Return a valid JSON object with this structure:
             "keyProps": ["symbolic_object_1", "symbolic_object_2"],
             "lightingCue": "harsh shadows|soft warmth|silhouette|cold blue|etc"
         }
-    ],
-    "narrativeArc": {
-        "beats": [
-            {
-                "segmentIndex": 0,
-                "beatType": ${BEAT_TYPE_SCHEMA},
-                "importance": "high|medium|low",
-                "suggestedFocus": "character|object|setting|action|group|concept",
-                "emotionalIntent": "What should the audience FEEL? (dread, hope, confusion, revelation, etc.)",
-                "suggestedAngle": ${CAMERA_ANGLE_SCHEMA} | null
-            }
-        ]
-    }
+    ]
 }
 
 ## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
@@ -597,10 +536,6 @@ function parseStoryContext(content: string, segmentCount?: number): StoryContext
             ...group,
             memberIds: expandMemberIds(group.memberIds),
         }));
-
-        if (!parsed.narrativeArc || !parsed.narrativeArc.beats) {
-            parsed.narrativeArc = { beats: [] };
-        }
 
         parsed.entities = parsed.entities.map((entity) => ({
             ...entity,

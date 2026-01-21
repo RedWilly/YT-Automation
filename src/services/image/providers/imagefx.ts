@@ -31,7 +31,7 @@ class ImageFXProvider implements ImageProvider {
     private lastRequestEndTime = 0;
 
     /** Minimum delay between requests in milliseconds */
-    private readonly MIN_DELAY_MS = 2000;
+    private readonly MIN_DELAY_MS = 3000;
 
     /**
      * Check if ImageFX is configured (has Google cookie)

@@ -105,14 +105,6 @@ export const FOCUS_TYPES = ['character', 'object', 'setting', 'action', 'group',
 export type FocusType = typeof FOCUS_TYPES[number];
 
 // =============================================================================
-// CAMERA ANGLES (Directorial Psychology)
-// =============================================================================
-
-export const CAMERA_ANGLES = ['low', 'high', 'eye', 'dutch'] as const;
-export type CameraAngle = typeof CAMERA_ANGLES[number];
-export const CAMERA_ANGLE_SCHEMA = CAMERA_ANGLES.map(t => `"${t}"`).join(' | ');
-
-// =============================================================================
 // IMAGE SEARCH QUERY
 // =============================================================================
 
@@ -211,26 +203,6 @@ export interface Group {
   name: string;
   visualAnchor: string;
   memberIds: string[];
-  allegiance?: 'protagonist' | 'antagonist' | 'neutral';
-}
-
-// =============================================================================
-// NARRATIVE BEAT
-// =============================================================================
-
-export interface NarrativeBeat {
-  segmentIndex: number;
-  beatType: BeatType;
-  importance: 'high' | 'medium' | 'low';
-  suggestedFocus: FocusType;
-  /** Director's intent: What should the audience FEEL or UNDERSTAND? */
-  emotionalIntent?: string;
-  /** Suggested camera angle for psychological effect */
-  suggestedAngle?: CameraAngle;
-}
-
-export interface NarrativeArc {
-  beats: NarrativeBeat[];
 }
 
 // =============================================================================
@@ -290,7 +262,6 @@ export interface StoryContext {
   groups: Group[];
   scenes: Scene[];
   globalEraConstraints: EraConstraints;
-  narrativeArc: NarrativeArc;
 }
 
 // =============================================================================

@@ -27,8 +27,6 @@ export type {
   EraConstraints,
   ContentStrategy,
   Group,
-  NarrativeBeat,
-  NarrativeArc,
   Entity,
   Scene,
   StoryContext,

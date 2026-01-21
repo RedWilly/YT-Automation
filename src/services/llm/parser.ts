@@ -1,7 +1,7 @@
 /** Handles parsing, JSON extraction, and validation of LLM responses */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
-import { BEAT_TYPES, COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
+import { COMPOSITIONS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
 import * as logger from "../../utils/logger.ts";
 
 /** Parse and validate image queries from LLM response */
@@ -87,14 +87,13 @@ function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[]
 
         converted++;
 
-        // Choose pan or zoom based on composition and beat type
-        const isEmotional = ['emotional', 'climax', 'tension', 'revelation'].includes(shot.beatType);
+        // Choose pan or zoom based on composition
         const isCloseUp = shot.composition && ['close-up', 'extreme-close-up'].includes(shot.composition);
 
-        // Zoom for emotional close-ups, pan for everything else
-        const newType = (isEmotional && isCloseUp) ? 'zoom' : 'pan';
+        // Zoom for close-ups, pan for everything else
+        const newType = isCloseUp ? 'zoom' : 'pan';
 
-        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.beatType}, ${shot.composition})`);
+        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.composition})`);
 
         return { ...shot, type: newType };
     });
@@ -241,9 +240,6 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
         if (typeof obj.action !== "string") return false;
         if (!SHOT_TYPES.includes(obj.type as typeof SHOT_TYPES[number])) return false;
 
-        // beatType validation using centralized constants
-        if (!BEAT_TYPES.includes(obj.beatType as typeof BEAT_TYPES[number])) return false;
-
         // focus object validation
         if (!obj.focus || typeof obj.focus !== 'object') return false;
         const focus = obj.focus as Record<string, unknown>;
@@ -326,11 +322,6 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
         // Validate focus has at least primary
         if (!shot.focus || !Array.isArray(shot.focus.primary)) {
             throw new Error(`Invalid shot at index ${i}: focus.primary is required`);
-        }
-
-        // Validate beatType
-        if (!shot.beatType) {
-            throw new Error(`Invalid shot at index ${i}: beatType is required`);
         }
     }
 

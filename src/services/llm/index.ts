@@ -7,5 +7,5 @@ export { buildImagePrompt, generateConsistentSeed } from './shot-builder.ts';
 // Re-export all types from centralized types/llm.ts
 export type {
     Entity, EntityType, EraConstraints, Scene, StoryContext, BatchState,
-    StructuredShot, BeatType, ContentType, Composition, ShotType,
+    StructuredShot, ContentType, Composition, ShotType,
 } from '../../types/llm.ts';

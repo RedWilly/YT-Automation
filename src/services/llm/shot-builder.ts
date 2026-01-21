@@ -147,6 +147,14 @@ export function buildImagePrompt(
     // Add power dynamic (who dominates the frame)
     const powerDynamic = scene?.powerDynamic || null;
     
+    // Build era constraints for image prompt
+    const eraConstraints = context.globalEraConstraints;
+    const eraLabel = eraConstraints?.era || null;
+    const techLevel = eraConstraints?.technologyLevel || null;
+    const prohibitedItems = eraConstraints?.prohibitedItems?.length
+        ? `Avoid anachronisms: ${eraConstraints.prohibitedItems.join(', ')}`
+        : null;
+
     // Assemble in natural reading order
     const parts = [
         compositionPrefix,
@@ -156,7 +164,9 @@ export function buildImagePrompt(
         powerDynamic,
         atmosphere || null,
         shot.framingNote || null,
-        context.era || null
+        eraLabel,
+        techLevel ? `Technology: ${techLevel}` : null,
+        prohibitedItems
     ];
 
     // Add exclusions if needed

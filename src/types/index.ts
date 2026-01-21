@@ -15,7 +15,6 @@ export type {
   LLMMessage,
   LLMRequest,
   LLMResponse,
-  BeatType,
   Composition,
   EntityType,
   ContentType,
@@ -35,8 +34,6 @@ export type {
 
 // LLM const arrays for schema generation
 export {
-  BEAT_TYPES,
-  BEAT_TYPE_SCHEMA,
   COMPOSITIONS,
   COMPOSITION_SCHEMA,
   SHOT_TYPES,

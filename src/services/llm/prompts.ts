@@ -7,7 +7,7 @@
 
 import type { ResolvedStyle } from '../../styles/types.ts';
 import type { StoryContext, BatchState } from '../../types/llm.ts';
-import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
+import { COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -43,8 +43,14 @@ THE DIRECTOR'S MINDSET:
    - Describe only the ACTION, not visual appearances (handled automatically)`;
 
    // --- CONTEXT: STORY OVERVIEW ---
+   const era = storyContext.globalEraConstraints?.era || 'Not specified';
+   const techLevel = storyContext.globalEraConstraints?.technologyLevel || 'modern';
+   const prohibitedItems = storyContext.globalEraConstraints?.prohibitedItems?.join(', ') || 'none';
+   
    const storyOverview = `PRODUCTION CONTEXT:
-- Era/Period: ${storyContext.era || 'Not specified'}
+- Era/Period: ${era}
+- Technology Level: ${techLevel}
+- Prohibited Items (anachronisms): ${prohibitedItems}
 - Primary Location: ${storyContext.primarySetting || 'Various locations'}
 - Visual Tone: ${storyContext.tone || 'Not specified'}`;
 
@@ -63,7 +69,6 @@ THE DIRECTOR'S MINDSET:
   "start": number,
   "end": number,
   "sceneId": "scene_id_from_context",
-  "beatType": ${BEAT_TYPE_SCHEMA},
   "focus": {
     "primary": ["entity_id"],
     "secondary": ["entity_id"],
@@ -78,7 +83,6 @@ THE DIRECTOR'S MINDSET:
   "start": number,
   "end": number,
   "sceneId": "scene_id",
-  "beatType": ${BEAT_TYPE_SCHEMA},
   "focus": {
     "primary": ["entity_id"],
     "secondary": [],
@@ -132,7 +136,6 @@ DEPTH STAGING (MANDATORY):
       : '';
 
    // --- CRITICAL RULES (Condensed for token efficiency) ---
-   const typicalBeats = storyContext.contentStrategy?.typicalBeats?.join(', ');
    const contentType = storyContext.contentStrategy?.type || storyContext.contentType;
 
    const criticalRules = `
@@ -141,14 +144,12 @@ DEPTH STAGING (MANDATORY):
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
 4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
-5. **beatType MUST be EXACTLY one of**: ${BEAT_TYPE_SCHEMA}
-6. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
-7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
+5. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
+6. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
 Visual Approach: ${storyContext.contentStrategy?.visualApproach}
-Typical Beats: ${typicalBeats}
 
 ## FOCUS LOGIC (Visual Hierarchy)
 - PRIMARY: THE subject. If everything is primary, nothing is. Pick ONE focus per shot.
@@ -240,13 +241,11 @@ export function buildContextAwareUserPrompt(
    }).join('\n\n');
 
    const typeField = naturalEdit
-      ? `- SET "beatType": narrative purpose of this shot
-- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
+      ? `- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
 - SET "type": "pan", "zoom", or "static" (for video editing)
 - SET "composition": framing guidance or null
 - SET "framingNote": optional specific framing details`
-      : `- SET "beatType": purpose of this shot (action, explanation, establishing, etc.)
-- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
+      : `- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
 - SET "type": "pan" (default)
 - SET "composition": null`;
 
@@ -255,7 +254,6 @@ export function buildContextAwareUserPrompt(
   "start": 0,
   "end": 5000,
   "sceneId": "battlefield",
-  "beatType": "emotional",
   "focus": {
     "primary": ["fathers_sword"],
     "secondary": ["marcus"],
@@ -270,7 +268,6 @@ export function buildContextAwareUserPrompt(
   "start": 0,
   "end": 5000,
   "sceneId": "main_scene",
-  "beatType": "action",
   "focus": {
     "primary": ["main_entity"],
     "secondary": [],

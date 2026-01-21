@@ -55,24 +55,54 @@ COMPARISON → alternatives, criteria, outcomes, pros, cons
 NEWS → events, people, locations, data
 
 - **ENTITY EXTRACTION RULES (STRICT VISUALS)**:
-  - Each entity needs a clear VISUAL DESCRIPTION (for image generation)
-  - Each entity MUST have a **VISUAL ANCHOR**: immutable visual traits that define this entity.
-  - **CRITICAL**: Use ONLY physical, visual adjectives (colors, textures, lighting, shapes).
-  - **AVOID**: Abstract adjectives ("brave", "corrupt", "mysterious"). Instead use visual cues: "scarred face, tattered cloak, flickering torchlight".
-  - Identify explicit mentions AND implicit references ("he", "it", "the warrior" → entity ID)
+  - Each entity MUST have a **visualAnchor**: the SOLE visual source for image generation.
+  - **visualAnchor is PROMPT-READY**: a dense, comma-separated visual descriptor fragment usable VERBATIM in an image prompt.
+  - **CRITICAL**: Use ONLY physical, visual adjectives (colors, textures, materials, shapes, silhouettes).
+  - **AVOID**: Abstract adjectives ("brave", "corrupt", "mysterious"). Instead use visual cues: "scarred face, tattered cloak, torch-lit".
+  - **ABSOLUTELY FORBIDDEN in visualAnchor**:
+    - NO narrative ("he later..."), NO future events ("eventually destroyed"), NO story beats
+    - NO verbs describing actions, NO timeline words ("later", "eventually", "becomes")
+    - NO abstract concepts that cannot be photographed
   - Rate importance: primary (main focus), secondary (supporting), background (minor)
   - **SEGMENT INDEXING (CRITICAL)**:
   - The transcript has segments numbered [0] to [N-1] where N = total segments
-  - "firstMention" = segment INDEX (0 to N-1). Example: if 238 segments, valid values are 0-237
   - "mentions" = segment INDICES in range notation. MUST be within [0, N-1].
   - **GAPS ARE MEANINGFUL**: The ranges indicate WHERE the entity IS PRESENT. Segments NOT in ranges = entity is ABSENT.
     - ["0-50"] → Entity appears in ALL 51 segments (continuous presence)
     - ["0-10", "17-40", "42-49"] → Entity is ABSENT in segments 11-16 and 41 (gaps = not mentioned)
-  - This helps determine which entities to include when generating visuals for each segment
   - **VALUES OUTSIDE SEGMENT RANGE WILL BE REJECTED**
   - **DO NOT use milliseconds or timestamps. Use ONLY segment indices.**
 - For characters, assign a role: leader, soldier, civilian, or background
 - If a character belongs to a group/faction, set groupId to the group's id
+
+# VISUAL ANCHOR CONTRACT (MANDATORY)
+visualAnchor MUST be detailed, era-specific, and immediately usable in an image prompt.
+
+**FOR CHARACTERS** - include ALL of:
+- Age range, build, skin tone/ethnicity (if stated), hair style/color, facial hair
+- Clothing layers + materials + colors (MUST be era-appropriate: Roman = tunic/toga, Medieval = doublet/hose, etc.)
+- Footwear + headwear (era-appropriate)
+- Gear/props they carry (era-appropriate weapons, tools)
+- Defining marks (scars, tattoos, jewelry, distinctive features)
+
+**FOR LOCATIONS** - include ALL of:
+- Architecture style + materials (stone, mudbrick, timber, marble), period-specific features
+- Layout features, ground texture, vegetation, water features
+- Lighting/atmosphere as a STATIC descriptor (e.g., "overcast daylight", "torch-lit interior")
+- NO future events ("later destroyed") - describe the CURRENT visual state only
+
+**FOR OBJECTS** - include ALL of:
+- Material, size, condition, ornamentation, era-appropriate details
+- Color, texture, distinctive features
+
+**FOR CONCEPTS/ABSTRACTS** - provide a VISUAL REPRESENTATION:
+- How to depict this visually (e.g., "split-screen comparison", "symbolic imagery of chains breaking")
+
+**GOOD vs BAD EXAMPLES**:
+- BAD: "A wealthy Roman man who later loses his power" (narrative, future event)
+- GOOD: "Middle-aged Roman man, olive skin, clean-shaven, purple-trimmed white toga, gold rings on fingers, commanding posture, cold calculating expression"
+- BAD: "The pool that is later filled with earth" (future event)
+- GOOD: "Large rectangular freshwater pool, 20 meters wide, murky green water, rough-cut stone edges, torch-lit, steam rising from surface"
 
 # GROUP EXTRACTION RULES
 - Identify factions, armies, teams, or any collection of characters with shared visual identity
@@ -106,13 +136,12 @@ Return a valid JSON object with this structure:
         "visualApproach": ${VISUAL_APPROACH_SCHEMA},
         "entityMeaning": "What entities represent in this content type",
     },
-    "era": "Time period or setting type (if applicable, else 'modern' or 'timeless')",
     "primarySetting": "Main location/environment/context",
     "tone": "Overall mood/atmosphere",
     "globalEraConstraints": {
-        "era": "medieval|ww2|modern|ancient|futuristic|etc",
-        "allowedWeapons": ["sword", "spear", "bow"],
-        "prohibitedItems": ["gun", "car", "phone", "computer"],
+        "era": "Late Roman Republic|Medieval England|WW2 Europe|Modern|etc - be SPECIFIC",
+        "allowedWeapons": ["era-appropriate weapons"],
+        "prohibitedItems": ["items that would be anachronistic for this era"],
         "technologyLevel": ${TECHNOLOGY_LEVEL_SCHEMA}
     },
     "entities": [
@@ -120,14 +149,12 @@ Return a valid JSON object with this structure:
             "id": "unique_snake_case_id",
             "type": ${ENTITY_TYPE_SCHEMA},
             "name": "Display Name",
-            "description": "Detailed visual description for image generation",
-            "visualAnchor": "FIXED immutable visual traits that MUST appear in every query",
+            "visualAnchor": "PROMPT-READY visual description: age, build, skin tone, hair, clothing+materials+colors (era-appropriate), footwear, gear, defining marks. NO narrative, NO events.",
             "eraConstraints": null,
             "importance": "primary|secondary|background",
-            "firstMention": 0,           // ← SEGMENT INDEX (0 to N-1). If 238 segments → valid: 0-237
-            "mentions": ["0-5", "8-12"], // ← SEGMENT INDICES. MUST be within [0, N-1]. "0-500" when N=238 is WRONG!
+            "mentions": ["0-5", "8-12"],
             "groupId": "optional_group_id (for characters in factions)",
-            "uniqueTraits": "traits specific to this entity",
+            "uniqueTraits": "traits specific to this entity (visual only)",
             "role": "leader|soldier|civilian|background (for characters)"
         }
     ],
@@ -135,7 +162,7 @@ Return a valid JSON object with this structure:
         {
             "id": "group_id",
             "name": "Group Name",
-            "visualAnchor": "Shared appearance for ALL members",
+            "visualAnchor": "Shared era-appropriate appearance for ALL members (clothing, armor, colors, materials)",
             "memberIds": ["member_1", "member_2-member_10"],
         }
     ],
@@ -159,30 +186,34 @@ Return a valid JSON object with this structure:
 
 ## CRITICAL RULES (INSTANT FAIL IF VIOLATED)
 
-1. **SEGMENT INDICES, NOT MILLISECONDS**: firstMention and mentions[] MUST use segment indices (0 to N-1). If transcript has 238 segments, valid values are 0-237. Values like 172650 are WRONG.
+1. **SEGMENT INDICES, NOT MILLISECONDS**: mentions[] MUST use segment indices (0 to N-1). Values like 172650 are WRONG.
 
 2. **BOUNDS CHECK**: All segment indices MUST be within [0, N-1] where N = segment count.
    - 238 segments → valid range: 0-237
    - CORRECT: ["0-50", "60-100", "150-237"] (gaps show entity is ABSENT in segments 51-59, 101-149)
    - WRONG: ["0-500"] when N=238 (500 > 237 is out of bounds)
-   - Any value >= N will be REJECTED
 
-3. **VISUAL COHERENCE**: Entities must have VISUAL descriptions. NO abstraction.
-   - "A mysterious man" → WRONG
-   - "A man in a shadowed fedora with a jagged scar over his left eye" → RIGHT
+3. **VISUAL ANCHOR MUST BE PROMPT-READY** (INSTANT REJECTION if violated):
+   - MUST include: physical appearance, era-appropriate clothing/materials/colors
+   - MUST NOT include: narrative, future events, story beats, verbs, "later", "eventually"
+   - "A mysterious man" → WRONG (abstract)
+   - "Later shown being filled with earth" → WRONG (narrative/future)
+   - "Middle-aged Roman man, olive skin, purple-trimmed toga, gold rings, cold expression" → RIGHT
 
-4. **ANTI-PATTERNS (DO NOT DO THESE)**:
+4. **ERA CONSISTENCY**: All visualAnchors MUST match the detected era in globalEraConstraints.
+   - Ancient/Roman → togas, tunics, sandals, bronze/iron weapons
+   - Medieval → doublets, mail, swords, torches
+   - Modern → suits, casual wear, contemporary items
+   - Use prohibitedItems from globalEraConstraints to avoid anachronisms
+
+5. **ANTI-PATTERNS (DO NOT DO THESE)**:
    - DO NOT list "The Narrator" as a character unless they are VISUALLY present on screen.
-   - DO NOT invent "Locations" that aren't mentioned or clearly implied.
-   - DO NOT use generic descriptions for Primary Entities. Every Main Character needs a distinct look.
+   - DO NOT invent locations that aren't mentioned or clearly implied.
+   - DO NOT use generic visualAnchors for Primary Entities. Every main character needs a DISTINCT, DETAILED look.
 
-5. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
-
-6. **NO LAZINESS**: Every entity MUST have a detailed visualAnchor.
+6. **NEVER TRUNCATE**: Output the COMPLETE JSON. Prioritize PRIMARY entities over BACKGROUND ones if space is limited.
 
 7. **USE RANGE NOTATION**: For mentions[], use compact ranges. Gaps indicate segments where entity is NOT present.
-   - ["0-237"] = entity appears in ALL segments (continuous)
-   - ["0-50", "80-120", "200-237"] = entity ABSENT in segments 51-79 and 121-199
 
 8. **VALID JSON ONLY**: No markdown code blocks. No explanations. Just raw, parseable JSON.
 
@@ -280,9 +311,8 @@ export function buildContextInjection(
     for (const e of sortedEntities) {
         entitySection += `ID: ${e.id} (${e.importance.toUpperCase()} ${e.type.toUpperCase()})\n`;
         entitySection += `VISUAL ANCHOR: "${e.visualAnchor}"\n`;
-        // Include context/description for everyone, not just primary
-        if (e.description && e.description !== e.visualAnchor) {
-            entitySection += `CONTEXT: ${e.description}\n`;
+        if (e.uniqueTraits) {
+            entitySection += `UNIQUE TRAITS: ${e.uniqueTraits}\n`;
         }
         if (e.eraConstraints) {
             entitySection += `CONSTRAINTS: Allowed [${e.eraConstraints.allowedWeapons.join(', ')}], Prohibited [${e.eraConstraints.prohibitedItems.join(', ')}]\n`;
@@ -505,7 +535,6 @@ function parseStoryContext(content: string, segmentCount?: number): StoryContext
             parsed.scenes = [];
         }
         if (!parsed.summary) parsed.summary = '';
-        if (!parsed.era) parsed.era = '';
         if (!parsed.primarySetting) parsed.primarySetting = '';
         if (!parsed.tone) parsed.tone = '';
 
@@ -518,14 +547,12 @@ function parseStoryContext(content: string, segmentCount?: number): StoryContext
                 type: parsed.contentType,
                 visualApproach: 'realistic',
                 entityMeaning: 'Visual elements in the content',
-                typicalBeats: ['establishing', 'action', 'resolution'],
             };
         }
 
         if (!parsed.globalEraConstraints) {
             parsed.globalEraConstraints = {
                 ...DEFAULT_ERA_CONSTRAINTS,
-                era: parsed.era || 'unspecified',
             };
         }
 
@@ -537,13 +564,16 @@ function parseStoryContext(content: string, segmentCount?: number): StoryContext
             memberIds: expandMemberIds(group.memberIds),
         }));
 
-        parsed.entities = parsed.entities.map((entity) => ({
-            ...entity,
-            visualAnchor: entity.visualAnchor || entity.description || '',
-            eraConstraints: entity.eraConstraints ?? null,
-            mentions: expandMentionRanges(entity.mentions, segmentCount),
-            firstMention: validateSegmentIndex(entity.firstMention, segmentCount),
-        }));
+        parsed.entities = parsed.entities.map((entity) => {
+            const mentions = expandMentionRanges(entity.mentions, segmentCount);
+            return {
+                ...entity,
+                // visualAnchor is the SOLE visual source - no fallback to narrative description
+                visualAnchor: entity.visualAnchor || '',
+                eraConstraints: entity.eraConstraints ?? null,
+                mentions,
+            };
+        });
 
         // Validate scene segment ranges
         if (segmentCount) {

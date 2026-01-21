@@ -3,20 +3,7 @@
  * All schema definitions used by LLM prompts and TypeScript validation
  */
 
-// =============================================================================
-// BEAT TYPES
-// =============================================================================
 
-export const BEAT_TYPES = [
-  'establishing', 'action', 'emotional', 'dialogue', 'tension', 'climax', 'resolution', 'transition',
-  'introduction', 'explanation', 'example', 'demonstration', 'comparison', 'summary',
-  'context', 'evidence', 'testimony', 'analysis',
-  'showcase', 'benefit', 'use-case',
-  'symbol',
-] as const;
-
-export type BeatType = typeof BEAT_TYPES[number];
-export const BEAT_TYPE_SCHEMA = BEAT_TYPES.map(b => `"${b}"`).join(' | ');
 
 // =============================================================================
 // COMPOSITIONS
@@ -160,7 +147,6 @@ export interface StructuredShot {
   start: number;
   end: number;
   sceneId: string;
-  beatType: BeatType;
   focus: {
     primary: string[];
     secondary: string[];
@@ -191,7 +177,6 @@ export interface ContentStrategy {
   type: ContentType;
   visualApproach: VisualApproach;
   entityMeaning: string;
-  typicalBeats: BeatType[];
 }
 
 // =============================================================================
@@ -213,10 +198,14 @@ export interface Entity {
   id: string;
   type: EntityType;
   name: string;
-  description: string;
   importance: EntityImportance;
-  firstMention: number;  // Segment INDEX (0 to N-1), NOT milliseconds
   mentions: number[];    // Array of segment INDICES, NOT timestamps
+  /**
+   * PROMPT-READY visual description ONLY.
+   * Must include: era-appropriate clothing/gear/materials/colors/textures/silhouette.
+   * Must NOT include: narrative, events, time progression, story beats.
+   * This is the SOLE visual source for image prompt building.
+   */
   visualAnchor: string;
   eraConstraints: EraConstraints | null;
   groupId?: string;
@@ -253,7 +242,6 @@ export interface Scene {
 
 export interface StoryContext {
   summary: string;
-  era: string;
   primarySetting: string;
   tone: string;
   contentType: ContentType;
@@ -261,6 +249,7 @@ export interface StoryContext {
   entities: Entity[];
   groups: Group[];
   scenes: Scene[];
+  /** Canonical era constraints - single source of truth for era/period */
   globalEraConstraints: EraConstraints;
 }
 

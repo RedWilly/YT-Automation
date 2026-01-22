@@ -167,18 +167,27 @@ export interface LLMResponse {
 export interface StructuredShot {
   start: number;
   end: number;
+  /** Scene ID - shot inherits primaryEntities, setting, mood, lighting from scene */
   sceneId: string;
+  /** 
+   * Focus configuration - simplified for consistency
+   * - emphasis: Entity IDs to EMPHASIZE in this shot (1-2 max, subset of scene entities)
+   * - exclude: Entity IDs to HIDE from this shot (mentioned but not shown)
+   * All other scene.primaryEntities are auto-included as secondary
+   */
   focus: {
-    primary: string[];
-    secondary: string[];
+    emphasis: string[];
     exclude: string[];
   };
+  /** Physical action happening - NO visual descriptions, just movement/gesture */
   action: string;
   /** Camera angle - determines vertical perspective */
   cameraAngle: CameraAngle | null;
   /** Shot scale - determines framing/distance from subject */
   shotScale: ShotScale | null;
+  /** Optional specific framing guidance */
   framingNote?: string;
+  /** Shot type for video effects */
   type: ShotType;
 }
 

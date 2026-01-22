@@ -54,13 +54,11 @@ function buildEntityDescription(
     const visualParts = [groupAnchor, entity.visualAnchor].filter(Boolean);
 
     // 'visual-only': Full visual description for primary subjects
-    // e.g., "grey uniforms, steel helmets, young face, scar on left cheek"
     if (detail === 'visual-only') {
         return visualParts.join(', ') || '';
     }
     
     // 'brief-visual': Name + (visual description) for secondary elements
-    // e.g., "Captain Miller (battle-worn soldier, scar on left cheek)"
     if (detail === 'brief-visual') {
         const visual = visualParts.join(', ');
         return visual ? `${entity.name} (${visual})` : entity.name;
@@ -69,49 +67,106 @@ function buildEntityDescription(
     return '';
 }
 
+/**
+ * Resolve effective focus from shot + scene inheritance
+ * - emphasis: What LLM wants to focus on (becomes primary)
+ * - exclude: What to hide from this shot
+ * - secondary: Scene's other primaryEntities (auto-inherited, minus emphasis & exclude)
+ */
+function resolveSceneFocus(
+    shot: StructuredShot,
+    scene: Scene | undefined,
+    context: StoryContext
+): { primary: string[]; secondary: string[]; exclude: string[] } {
+    const emphasis = shot.focus.emphasis || [];
+    const exclude = new Set(shot.focus.exclude || []);
+    
+    // Get scene's primary and secondary entities
+    const scenePrimary = scene?.primaryEntities || [];
+    const sceneSecondary = scene?.secondaryEntities || [];
+    
+    // Primary = LLM's emphasis (what to focus on)
+    const primary = emphasis.filter(id => !exclude.has(id));
+    
+    // Secondary = scene's primary entities (minus emphasis, minus exclude)
+    // Plus scene's secondary entities (minus exclude)
+    const emphasisSet = new Set(emphasis);
+    const secondary = [
+        ...scenePrimary.filter(id => !emphasisSet.has(id) && !exclude.has(id)),
+        ...sceneSecondary.filter(id => !emphasisSet.has(id) && !exclude.has(id))
+    ];
+    
+    return {
+        primary,
+        secondary,
+        exclude: Array.from(exclude)
+    };
+}
+
+/**
+ * Build the setting description from scene
+ * Prioritizes location entities, falls back to scene.setting
+ */
 function buildSettingDescription(scene: Scene | undefined, context: StoryContext): string {
-    if (!scene) return '';
+    if (!scene) return context.primarySetting || '';
     
-    const setting = context.entities.find(e => 
-        e.type === 'location' && 
-        (e.id === scene.id || scene.primaryEntities?.includes(e.id))
-    );
+    // Find location entity in scene's primary entities
+    const locationEntity = scene.primaryEntities
+        ?.map(id => context.entities.find(e => e.id === id))
+        .find(e => e?.type === 'location');
     
-    return setting?.visualAnchor || scene.setting || context.primarySetting;
+    if (locationEntity) {
+        return locationEntity.visualAnchor;
+    }
+    
+    return scene.setting || context.primarySetting || '';
 }
 
+/**
+ * Build atmosphere/lighting from scene context
+ */
 function buildAtmosphere(scene: Scene | undefined, context: StoryContext): string {
-    const mood = scene?.mood || context.tone;
-    const lightingCue = scene?.lightingCue;
-    
-    if (lightingCue) return lightingCue;
-    if (mood) return mood;
-    return '';
+    if (scene?.lightingCue) return scene.lightingCue;
+    if (scene?.mood) return scene.mood;
+    return context.tone || '';
 }
 
+/**
+ * Build image prompt from structured shot + scene inheritance
+ * 
+ * NEW FLOW:
+ * 1. Get scene from sceneId
+ * 2. Resolve focus: emphasis → primary, scene entities → secondary (auto-inherited)
+ * 3. Build prompt with scene's setting, mood, lighting, keyProps
+ * 4. Apply exclusions
+ */
 export function buildImagePrompt(
     shot: StructuredShot, 
     context: StoryContext, 
     _style: ResolvedStyle
 ): string {
     const scene = context.scenes.find(s => s.id === shot.sceneId);
+    
+    // Resolve effective focus (inherits from scene)
+    const resolvedFocus = resolveSceneFocus(shot, scene, context);
+    
+    // Camera framing prefix
     const cameraFramingPrefix = getCameraFramingPrefix(shot.cameraAngle, shot.shotScale);
     
-    // Build the core action description with primary subjects
-    const primarySubjects = shot.focus.primary
+    // Build primary subjects (emphasis entities)
+    const primarySubjects = resolvedFocus.primary
         .map(id => {
             const entity = context.entities.find(e => e.id === id);
-            // For locations, use in setting instead of as subject
+            // For locations, we'll use in setting instead
             if (entity?.type === 'location') return null;
             return buildEntityDescription(id, context, 'visual-only');
         })
         .filter(Boolean);
 
-    // Start with action (most important)
-    const actionPhrase = shot.action;
-    
     // Build subject-action combo
+    const actionPhrase = shot.action;
     let coreDescription = actionPhrase;
+    
     if (primarySubjects.length > 0) {
         // If action doesn't already mention the subjects, prepend them
         const subjectsMentioned = primarySubjects.some(subj => 
@@ -126,41 +181,51 @@ export function buildImagePrompt(
     // Build setting context
     const settingParts: string[] = [];
     
-    // Add primary location
-    const primaryLocation = shot.focus.primary.find(id => {
+    // Check if a location is emphasized
+    const emphasizedLocation = resolvedFocus.primary.find(id => {
         const entity = context.entities.find(e => e.id === id);
         return entity?.type === 'location';
     });
     
-    if (primaryLocation) {
-        const locDesc = buildEntityDescription(primaryLocation, context, 'visual-only');
+    if (emphasizedLocation) {
+        // Use emphasized location as primary setting
+        const locDesc = buildEntityDescription(emphasizedLocation, context, 'visual-only');
         if (locDesc) settingParts.push(locDesc);
     } else {
+        // Auto-include setting from scene
         const settingDesc = buildSettingDescription(scene, context);
         if (settingDesc) settingParts.push(settingDesc);
     }
 
-    // Add secondary elements as background/context
-    const secondaryElements = shot.focus.secondary
-        .map(id => buildEntityDescription(id, context, 'brief-visual'))
+    // Add secondary elements as background/context (auto-inherited from scene)
+    const secondaryElements = resolvedFocus.secondary
+        .map(id => {
+            const entity = context.entities.find(e => e.id === id);
+            // Skip locations in secondary (already in setting)
+            if (entity?.type === 'location') return null;
+            return buildEntityDescription(id, context, 'brief-visual');
+        })
         .filter(Boolean);
     
     if (secondaryElements.length > 0) {
-        settingParts.push(`${secondaryElements.join(' and ')} visible in background`);
+        settingParts.push(`${secondaryElements.join(', ')} visible in scene`);
     }
 
-    // Build atmosphere/lighting
+    // Build atmosphere/lighting (from scene)
     const atmosphere = buildAtmosphere(scene, context);
     
-    // Add key props from scene (symbolic objects the director marked as important)
-    const keyProps = scene?.keyProps?.length 
-        ? `featuring ${scene.keyProps.join(', ')}` 
+    // Add key props from scene (symbolic objects)
+    const excludeSet = new Set(resolvedFocus.exclude);
+    const visibleKeyProps = scene?.keyProps?.filter(prop => !excludeSet.has(prop)) || [];
+    const keyPropsText = visibleKeyProps.length > 0
+        ? `featuring ${visibleKeyProps.join(', ')}`
         : null;
     
-    // Add power dynamic (who dominates the frame)
+    // Scene's visual tone and power dynamic
+    const visualTone = scene?.visualTone || null;
     const powerDynamic = scene?.powerDynamic || null;
     
-    // Build era constraints for image prompt
+    // Era constraints
     const eraConstraints = context.globalEraConstraints;
     const eraLabel = eraConstraints?.era || null;
     const techLevel = eraConstraints?.technologyLevel || null;
@@ -172,25 +237,29 @@ export function buildImagePrompt(
     const parts = [
         cameraFramingPrefix,
         coreDescription,
-        keyProps,
+        keyPropsText,
         settingParts.length > 0 ? settingParts.join('. ') : null,
+        visualTone,
         powerDynamic,
-        atmosphere || null,
+        atmosphere,
         shot.framingNote || null,
         eraLabel,
         techLevel ? `Technology: ${techLevel}` : null,
         prohibitedItems
     ];
 
-    // Add exclusions if needed
+    // Build prompt
     let prompt = parts.filter(Boolean).join('. ').trim();
     
-    if (shot.focus.exclude.length > 0) {
-        const exclusions = shot.focus.exclude
+    // Add exclusions (for negative prompting)
+    if (resolvedFocus.exclude.length > 0) {
+        const exclusions = resolvedFocus.exclude
             .map(id => context.entities.find(e => e.id === id)?.name)
             .filter(Boolean)
             .join(', ');
-        prompt += `. Do not include: ${exclusions}`;
+        if (exclusions) {
+            prompt += `. Do not include: ${exclusions}`;
+        }
     }
 
     // Clean up any double periods or spacing issues
@@ -207,7 +276,7 @@ function hashCode(str: string): number {
 }
 
 export function generateConsistentSeed(shot: StructuredShot, shotIndex: number): number {
-    const allEntities = [...shot.focus.primary, ...shot.focus.secondary].sort();
+    const allEntities = [...shot.focus.emphasis, ...shot.focus.exclude].sort();
     const seedBase = `${shot.sceneId}_${allEntities.join(',')}`;
     return Math.abs(hashCode(seedBase) + shotIndex) % 2147483647 || 1;
 }

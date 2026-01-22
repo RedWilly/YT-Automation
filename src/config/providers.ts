@@ -52,7 +52,7 @@ export const PROVIDER_CONFIGS: Record<AIProvider, ProviderConfig> = {
         maxRetries: 6,
     },
     gemini: {
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
         apiKey: envString('GEMINI_API_KEY'),
         segmentsPerBatch: 30, // Batch for reliable output on long transcripts

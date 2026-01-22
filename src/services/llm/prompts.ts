@@ -68,16 +68,15 @@ THE DIRECTOR'S MINDSET:
       ? `{
   "start": number,
   "end": number,
-  "sceneId": "scene_id_from_context",
+  "sceneId": "scene_id_from_SCENE_LIST",
   "focus": {
-    "primary": ["entity_id"],
-    "secondary": ["entity_id"],
-    "exclude": ["entity_id"]
+    "emphasis": ["entity_id"],  // 1-2 entities to FOCUS on (from scene's entities)
+    "exclude": ["entity_id"]    // entities mentioned but NOT shown
   },
-  "action": "what is physically happening",
+  "action": "physical action only - NO visual descriptions",
   "cameraAngle": ${CAMERA_ANGLE_SCHEMA} | null,
   "shotScale": ${SHOT_SCALE_SCHEMA} | null,
-  "framingNote": "optional specific framing guidance",
+  "framingNote": "optional framing guidance",
   "type": ${SHOT_TYPE_SCHEMA}
 }`
       : `{
@@ -85,8 +84,7 @@ THE DIRECTOR'S MINDSET:
   "end": number,
   "sceneId": "scene_id",
   "focus": {
-    "primary": ["entity_id"],
-    "secondary": [],
+    "emphasis": ["entity_id"],
     "exclude": []
   },
   "action": "what is happening",
@@ -162,10 +160,24 @@ DEPTH STAGING (MANDATORY):
 Content Type: ${contentType}
 Visual Approach: ${storyContext.contentStrategy?.visualApproach}
 
-## FOCUS LOGIC (Visual Hierarchy)
-- PRIMARY: THE subject. If everything is primary, nothing is. Pick ONE focus per shot.
-- SECONDARY: Visible but not dominant. Background elements. Set dressing.
+## SCENE INHERITANCE (CRITICAL - READ CAREFULLY)
+Your shot INHERITS from the scene automatically:
+- Scene's primaryEntities are AUTO-INCLUDED (you don't specify them)
+- Scene's setting, mood, lighting, keyProps are AUTO-APPLIED
+- You ONLY specify:
+  1. "emphasis": Which 1-2 entities to FOCUS on (subset of scene entities)
+  2. "exclude": Which entities to HIDE from this specific shot
+  3. "action": What is physically happening
+
+Example: Scene has primaryEntities ["vettius_pollio", "screaming_slave", "moray_eel", "eel_pools"]
+- Your emphasis: ["screaming_slave"] → slave is the focus
+- Your exclude: ["vettius_pollio"] → Pollio not shown
+- AUTO-INCLUDED as secondary: moray_eel, eel_pools (because they're in the scene)
+
+## FOCUS LOGIC
+- EMPHASIS: The 1-2 entities to FOCUS on. Pick the emotional center of the shot.
 - EXCLUDE: Entities mentioned in audio but NOT shown. Builds tension, saves reveals.
+- Everything else in the scene is automatically visible as context.
 
 ## THE "BLOCKING FIRST" RULE
 Before choosing your shot, mentally stage the scene:
@@ -249,30 +261,30 @@ export function buildContextAwareUserPrompt(
    }).join('\n\n');
 
    const typeField = naturalEdit
-      ? `- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
+      ? `- SET "focus.emphasis": 1-2 entity IDs to FOCUS on (from scene's entities)
+- SET "focus.exclude": entity IDs to HIDE from this shot
 - SET "type": "pan", "zoom", or "static" (for video editing)
-- SET "cameraAngle": camera perspective or null
-- SET "shotScale": framing distance or null
-- SET "framingNote": optional specific framing details`
-      : `- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
-- SET "type": "pan" (default)
-- SET "cameraAngle": null
-- SET "shotScale": null`;
+- SET "cameraAngle": camera perspective
+- SET "shotScale": framing distance
+- SET "framingNote": optional specific framing details
+NOTE: Scene's other entities are AUTO-INCLUDED as secondary context`
+      : `- SET "focus.emphasis": main entity to focus on
+- SET "focus.exclude": [] (entities to hide)
+- SET "type": "pan" (default)`;
 
    const outputExample = naturalEdit
       ? `[{
   "start": 0,
   "end": 5000,
-  "sceneId": "battlefield",
+  "sceneId": "scene_1",
   "focus": {
-    "primary": ["fathers_sword"],
-    "secondary": ["marcus"],
-    "exclude": ["enemy_soldiers"]
+    "emphasis": ["screaming_slave"],
+    "exclude": ["vettius_pollio"]
   },
-  "action": "hands gripping the hilt tightly, rain dripping onto the muddy trench floor",
+  "action": "suspended by ropes over the dark water, struggling against bonds",
   "cameraAngle": "Low Angle",
-  "shotScale": "Extreme Close-Up",
-  "framingNote": "sword fills foreground, blurred soldier silhouettes in background",
+  "shotScale": "Medium Shot",
+  "framingNote": "slave centered, guards' boots visible in foreground",
   "type": "static"
 }, ...]`
       : `[{
@@ -280,11 +292,10 @@ export function buildContextAwareUserPrompt(
   "end": 5000,
   "sceneId": "main_scene",
   "focus": {
-    "primary": ["main_entity"],
-    "secondary": [],
+    "emphasis": ["main_entity"],
     "exclude": []
   },
-  "action": "walking across the cobblestone square, market stalls blurred in background",
+  "action": "walking across the cobblestone square",
   "cameraAngle": null,
   "shotScale": null,
   "type": "pan"

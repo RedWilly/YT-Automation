@@ -27,7 +27,7 @@ function assignSeeds(queries: ImageSearchQuery[], shots?: StructuredShot[]): Map
       // Use deterministic entity-based seed
       const seed = generateConsistentSeed(shot, i);
       seedMap.set(i, seed);
-      logger.debug('Seeds', `Segment ${i}: seed ${seed} (based on ${shot.sceneId}, entities: ${[...shot.focus.primary, ...shot.focus.secondary].join(',')})`);
+      logger.debug('Seeds', `Segment ${i}: seed ${seed} (based on ${shot.sceneId}, emphasis: ${shot.focus.emphasis.join(',')})`);
     } else {
       // Fallback to random seed if no structured shot
       const seed = Math.floor(Math.random() * 2147483646) + 1;

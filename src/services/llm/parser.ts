@@ -93,7 +93,7 @@ function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[]
         // Zoom for close-ups, pan for everything else
         const newType = isCloseUp ? 'zoom' : 'pan';
 
-        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (${shot.shotScale})`);
+        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (scale: ${shot.shotScale})`);
 
         return { ...shot, type: newType };
     });
@@ -240,11 +240,10 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
         if (typeof obj.action !== "string") return false;
         if (!SHOT_TYPES.includes(obj.type as typeof SHOT_TYPES[number])) return false;
 
-        // focus object validation
+        // focus object validation (new structure: emphasis + exclude)
         if (!obj.focus || typeof obj.focus !== 'object') return false;
         const focus = obj.focus as Record<string, unknown>;
-        if (!Array.isArray(focus.primary)) return false;
-        if (!Array.isArray(focus.secondary)) return false;
+        if (!Array.isArray(focus.emphasis)) return false;
         if (!Array.isArray(focus.exclude)) return false;
 
         // cameraAngle validation (can be null)
@@ -324,9 +323,12 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
             throw new Error(`Invalid shot at index ${i}: start (${shot.start}) > end (${shot.end})`);
         }
 
-        // Validate focus has at least primary
-        if (!shot.focus || !Array.isArray(shot.focus.primary)) {
-            throw new Error(`Invalid shot at index ${i}: focus.primary is required`);
+        // Validate focus has emphasis array
+        if (!shot.focus || !Array.isArray(shot.focus.emphasis)) {
+            throw new Error(`Invalid shot at index ${i}: focus.emphasis is required`);
+        }
+        if (shot.focus.emphasis.length === 0) {
+            logger.warn("LLM", `Shot ${i} has empty emphasis - no focus entity specified`);
         }
     }
 

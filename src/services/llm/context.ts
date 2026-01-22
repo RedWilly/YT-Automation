@@ -259,6 +259,43 @@ export function buildContextInjection(
     });
 
     // -------------------------------------------------------------------------
+    // STORY OVERVIEW (Big Picture Context)
+    // -------------------------------------------------------------------------
+    let overviewSection = '== STORY OVERVIEW ==\n';
+    overviewSection += `Summary: ${context.summary}\n`;
+    overviewSection += `Tone: ${context.tone}\n`;
+    overviewSection += `Setting: ${context.primarySetting}\n\n`;
+
+    // -------------------------------------------------------------------------
+    // SCENE ARC (Where We Are in the Story)
+    // -------------------------------------------------------------------------
+    const currentSceneId = relevantScenes[0]?.id || '';
+    const currentSceneIndex = context.scenes.findIndex(s => s.id === currentSceneId);
+    
+    let sceneArcSection = '== SCENE ARC ==\n';
+    context.scenes.forEach((scene, i) => {
+        const marker = scene.id === currentSceneId ? '→ ' : '  ';
+        const position = i === 0 ? '(OPENING)' : 
+                        i === context.scenes.length - 1 ? '(CLOSING)' : '';
+        sceneArcSection += `${marker}${i + 1}. ${scene.name} [${scene.segmentRange[0] + 1}-${scene.segmentRange[1] + 1}] ${position}\n`;
+    });
+    sceneArcSection += `\nCurrently: Scene ${currentSceneIndex + 1} of ${context.scenes.length}\n\n`;
+
+    // -------------------------------------------------------------------------
+    // GROUPS/FACTIONS (For Faction Awareness)
+    // -------------------------------------------------------------------------
+    let groupsSection = '';
+    if (context.groups && context.groups.length > 0) {
+        groupsSection = '== GROUPS/FACTIONS ==\n';
+        for (const group of context.groups) {
+            groupsSection += `${group.id}: ${group.name}\n`;
+            groupsSection += `  Visual: ${group.visualAnchor}\n`;
+            groupsSection += `  Members: ${group.memberIds.join(', ')}\n`;
+        }
+        groupsSection += '\n';
+    }
+
+    // -------------------------------------------------------------------------
     // DETERMINE RELEVANT ENTITIES (Predictive, not Reactive)
     // -------------------------------------------------------------------------
     const relevantEntityIds = new Set<string>();
@@ -318,15 +355,20 @@ export function buildContextInjection(
 
     // Build scene section with directorial information
     let sceneSection = '== CURRENT SCENE (DIRECTORIAL CONTEXT) ==\n';
-    let currentSceneId = '';
 
     if (relevantScenes.length > 0) {
         const scene = relevantScenes[0];
         if (scene) {
-            currentSceneId = scene.id;
+            sceneSection += `SCENE ID: ${scene.id}\n`;
             sceneSection += `LOCATION: ${scene.name}\n`;
             sceneSection += `SETTING: ${scene.setting}\n`;
             sceneSection += `MOOD: ${scene.mood}\n`;
+
+            // PRIMARY ENTITIES (AUTO-INCLUDED in every shot unless excluded)
+            sceneSection += `\nPRIMARY ENTITIES (auto-included): [${scene.primaryEntities.join(', ')}]\n`;
+            if (scene.secondaryEntities && scene.secondaryEntities.length > 0) {
+                sceneSection += `SECONDARY ENTITIES: [${scene.secondaryEntities.join(', ')}]\n`;
+            }
 
             // Directorial fields
             if (scene.visualTone) {
@@ -352,6 +394,7 @@ export function buildContextInjection(
     // DETECT SCENE CUT
     // batchState.currentScene holds the scene ID from the PREVIOUS batch
     const isNewScene = batchState && batchState.currentScene !== currentSceneId;
+    // Note: currentSceneId is defined earlier in the sceneArc section
 
     if (batchState && batchState.batchIndex > 0) {
         if (isNewScene) {
@@ -394,7 +437,7 @@ MANDATORY RULES:
 4. Symbolic props (keyProps) should appear when emotionally relevant
 `;
 
-    return `${entitySection}${sceneSection}${stateSection}${instructionSection}`;
+    return `${overviewSection}${sceneArcSection}${groupsSection}${entitySection}${sceneSection}${stateSection}${instructionSection}`;
 }
 
 // ============================================================================
@@ -487,6 +530,7 @@ async function attemptContextExtraction(
     const content = data.choices[0]?.message?.content;
 
     logger.debug('Context', `Raw response length: ${content?.length ?? 0} chars`);
+    // logger.debug('Context', `Full LLM response:\n${content}`);
 
     if (!content) {
         throw new Error('Empty response from context extraction');

@@ -192,7 +192,7 @@ async function generateQueriesWithContext(
                 systemPrompt,
                 userPrompt,
                 label,
-                1,
+                maxBatchRetries,  // Use full retries for LLM call (handles empty responses)
                 true // Return raw response for structured shot parsing
             );
 

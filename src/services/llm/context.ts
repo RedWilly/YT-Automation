@@ -271,12 +271,12 @@ export function buildContextInjection(
     // -------------------------------------------------------------------------
     const currentSceneId = relevantScenes[0]?.id || '';
     const currentSceneIndex = context.scenes.findIndex(s => s.id === currentSceneId);
-    
+
     let sceneArcSection = '== SCENE ARC ==\n';
     context.scenes.forEach((scene, i) => {
         const marker = scene.id === currentSceneId ? '→ ' : '  ';
-        const position = i === 0 ? '(OPENING)' : 
-                        i === context.scenes.length - 1 ? '(CLOSING)' : '';
+        const position = i === 0 ? '(OPENING)' :
+            i === context.scenes.length - 1 ? '(CLOSING)' : '';
         sceneArcSection += `${marker}${i + 1}. ${scene.name} [${scene.segmentRange[0] + 1}-${scene.segmentRange[1] + 1}] ${position}\n`;
     });
     sceneArcSection += `\nCurrently: Scene ${currentSceneIndex + 1} of ${context.scenes.length}\n\n`;

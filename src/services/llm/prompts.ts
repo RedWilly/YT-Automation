@@ -46,7 +46,7 @@ THE DIRECTOR'S MINDSET:
    const era = storyContext.globalEraConstraints?.era || 'Not specified';
    const techLevel = storyContext.globalEraConstraints?.technologyLevel || 'modern';
    const prohibitedItems = storyContext.globalEraConstraints?.prohibitedItems?.join(', ') || 'none';
-   
+
    const storyOverview = `PRODUCTION CONTEXT:
 - Era/Period: ${era}
 - Technology Level: ${techLevel}
@@ -95,49 +95,76 @@ THE DIRECTOR'S MINDSET:
 
    const shotTypeInstructions = useShotTypes
       ? `
-## CINEMATOGRAPHY: THE DIRECTOR'S TOOLKIT
+## SCHEMA DEFINITIONS (EXACT VALUES REQUIRED)
 
-CAMERA MOVEMENT (The 'type' field):
-- "pan": Revealing space, following motion, establishing geography, transitions between subjects. The workhorse.
-- "zoom": Drawing attention to something important—a face, detail, realization, emotional beat. Emphasis.
-- "static": Deliberate stillness. Gives the viewer breathing room. Without static shots, constant motion becomes exhausting.
+### FIELD: type (CAMERA MOVEMENT)
+Controls camera MOVEMENT effect for video editing.
+ALLOWED VALUES (pick exactly one):
+  ├─ "pan"    → reveals space, follows motion, establishes geography
+  ├─ "zoom"   → draws attention to important detail, emotional emphasis
+  └─ "static" → deliberate stillness, lets moment breathe, adds weight
 
-MOVEMENT SELECTION (Let the shot dictate):
-- Establishing a location? → pan
-- Following action or motion? → pan
-- Revealing something new? → pan
-- Emotional beat or realization? → zoom
-- Close-up on face/detail that matters? → zoom
-- Drawing psychological pressure? → zoom
-- Moment needs to land, sink in? → static
-- Intimate, contemplative beat? → static
-- Letting the audience absorb? → static
+RHYTHM RULE: Vary movement types. Don't repeat same type 3+ times consecutively.
 
-WHY STATIC MATTERS: A video with only motion feels frantic and cheap. Static shots add weight, intentionality, and let powerful moments breathe. Every video needs them.
+---
 
-RHYTHM RULE: Vary movement types. Don't repeat the same type 3+ times consecutively. Alternate between motion and stillness.
+### FIELD: cameraAngle (VERTICAL PERSPECTIVE)
+Controls where camera looks FROM (vertical position relative to subject).
+ALLOWED VALUES (pick exactly one, or null):
+  ├─ "Eye Level"     → camera at subject's eye height, neutral/relatable
+  ├─ "Low Angle"     → camera BELOW subject, looking UP → power/dominance/threat
+  ├─ "High Angle"    → camera ABOVE subject, looking DOWN → vulnerability/diminishment
+  ├─ "Bird's Eye"    → camera directly ABOVE, top-down view → god's view, scale
+  ├─ "Dutch Angle"   → camera TILTED, horizon at angle → disorientation/unease
+  └─ "Over Shoulder" → camera BEHIND one character → POV intimacy
 
-CAMERA ANGLE (The 'cameraAngle' field):
-- "Eye Level": Neutral, relatable. Default for dialogue and connection.
-- "Low Angle": Suggests power, dominance, or threat. Subject looks imposing.
-- "High Angle": Implies vulnerability, objectivity, or diminishment. Subject looks small.
-- "Bird's Eye": God's view, shows scale and geography. Detached, observational.
-- "Dutch Angle": Signals disorientation, unease, or instability. Use sparingly.
-- "Over Shoulder": POV intimacy, connects viewer to character's perspective.
+---
 
-SHOT SCALE (The 'shotScale' field):
-- "Wide Shot": Full body, shows action in environment. Establishes geography.
-- "Medium Shot": Waist up, balances character and context. Conversational.
-- "Close-Up": Face/detail, emotional emphasis. Intimacy and intensity.
-- "Extreme Close-Up": Hands, eyes, objects—maximum intimacy. Critical details.
+### FIELD: shotScale (FRAMING DISTANCE)
+Controls how much of subject fills the frame (distance from subject).
+ALLOWED VALUES (pick exactly one, or null):
+  ├─ "Wide Shot"         → FULL BODY + environment visible, establishes geography
+  ├─ "Medium Shot"       → WAIST UP, balances character and context
+  ├─ "Close-Up"          → FACE/DETAIL fills most of frame, emotional emphasis
+  └─ "Extreme Close-Up"  → EYES/HANDS/OBJECTS only, maximum intimacy
 
-MISE-EN-SCÈNE CHECKLIST (What's in the frame?):
+---
+
+⚠️ CRITICAL: DO NOT CONFUSE THESE FIELDS ⚠️
+┌─────────────────────────────────────────────────────────────────────┐
+│ "Close-Up" is a shotScale (FRAMING), NOT a cameraAngle             │
+│ "Low Angle" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
+│ "Wide Shot" is a shotScale (FRAMING), NOT a cameraAngle            │
+│ "Eye Level" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
+│                                                                     │
+│ Each field has its OWN set of valid values that NEVER overlap!     │
+└─────────────────────────────────────────────────────────────────────┘
+
+---
+
+## COMBINING FIELDS FOR EMOTIONAL INTENT
+
+Use this table to select cameraAngle + shotScale based on what you want the audience to feel:
+
+| Intent          | cameraAngle      | shotScale           | Effect                        |
+|-----------------|------------------|---------------------|-------------------------------|
+| Tension         | "Low Angle"      | "Close-Up"          | subject looms, feels threat   |
+| Power           | "Low Angle"      | "Wide Shot"         | subject dominates the frame   |
+| Vulnerability   | "High Angle"     | "Medium Shot"       | subject looks small, exposed  |
+| Disorientation  | "Dutch Angle"    | "Close-Up"          | off-center, unsettling        |
+| Intimacy        | "Eye Level"      | "Close-Up"          | direct connection with viewer |
+| Observation     | "Bird's Eye"     | "Wide Shot"         | detached, god's view          |
+| POV Connection  | "Over Shoulder"  | "Medium Shot"       | viewer becomes participant    |
+
+---
+
+## MISE-EN-SCÈNE CHECKLIST (What's in the frame?)
 - SETTING: Location details that establish tone (cluttered vs. sterile, warm vs. cold light)
 - PROPS: Objects that carry meaning (a weapon, a letter, an empty chair)
 - POSITIONING: Where characters stand relative to each other (dominance, isolation, intimacy)
 - LIGHTING: Harsh shadows = tension. Soft light = warmth. Silhouettes = mystery.
 
-DEPTH STAGING (MANDATORY):
+## DEPTH STAGING (MANDATORY)
 - FOREGROUND: Elements that create tension, frame the shot, or add intimacy
 - MIDGROUND: Where the action lives
 - BACKGROUND: Context, threat, or environmental storytelling`
@@ -152,9 +179,22 @@ DEPTH STAGING (MANDATORY):
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
 4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
-5. **cameraAngle MUST be EXACTLY one of**: ${CAMERA_ANGLE_SCHEMA} | null
-6. **shotScale MUST be EXACTLY one of**: ${SHOT_SCALE_SCHEMA} | null
-7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
+
+## SCHEMA ENFORCEMENT (EXACT VALUES ONLY)
+┌──────────────┬─────────────────────────────────────────────────────────────────┐
+│ FIELD        │ EXACT VALID VALUES                                              │
+├──────────────┼─────────────────────────────────────────────────────────────────┤
+│ type         │ "pan" | "zoom" | "static"                                       │
+│ cameraAngle  │ "Eye Level" | "Low Angle" | "High Angle" | "Bird's Eye" |       │
+│              │ "Dutch Angle" | "Over Shoulder" | null                          │
+│ shotScale    │ "Wide Shot" | "Medium Shot" | "Close-Up" | "Extreme Close-Up" | │
+│              │ null                                                            │
+└──────────────┴─────────────────────────────────────────────────────────────────┘
+
+REMEMBER:
+- cameraAngle = WHERE camera looks FROM (vertical perspective)
+- shotScale = HOW MUCH of subject is in frame (framing distance)
+- DO NOT CONFUSE cameraAngle and shotScale!
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
@@ -185,16 +225,6 @@ Before choosing your shot, mentally stage the scene:
 - Who dominates space?
 - Who is trapped, isolated, or exposed?
 THEN choose composition and camera to REVEAL that truth.
-
-## COMBINING ANGLE + SCALE (Visual Intent)
-Match camera angle and shot scale to emotional intent:
-- Tension? "Close-Up" + "Low Angle" - tight framing, subject looms.
-- Power? "Wide Shot" + "Low Angle" - subject dominates the frame.
-- Vulnerability? "Medium Shot" + "High Angle" - subject looks small, exposed.
-- Disorientation? "Close-Up" + "Dutch Angle" - off-center, unsettling.
-- Intimacy? "Close-Up" + "Eye Level" - direct connection with viewer.
-- Observation? "Wide Shot" + "Bird's Eye" - detached, god's view.
-- POV connection? "Medium Shot" + "Over Shoulder" - viewer becomes participant.
 
 ## SYMBOLISM CONSISTENCY
 - Use consistent visual metaphors. If swords represent honor, maintain that meaning.

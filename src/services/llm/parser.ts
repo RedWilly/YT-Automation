@@ -227,42 +227,89 @@ export function isValidQueryArray(data: unknown): data is ImageSearchQuery[] {
     });
 }
 
-/** Type guard for StructuredShot[] */
+/** Type guard for StructuredShot[] with diagnostic logging */
 export function isValidStructuredShotArray(data: unknown): data is StructuredShot[] {
-    return Array.isArray(data) && data.every(item => {
-        if (!item || typeof item !== "object") return false;
+    if (!Array.isArray(data)) {
+        logger.debug("LLM", "Validation failed: data is not an array");
+        return false;
+    }
+
+    for (let i = 0; i < data.length; i++) {
+        const item = data[i];
+        if (!item || typeof item !== "object") {
+            logger.debug("LLM", `Shot ${i}: not an object`);
+            return false;
+        }
         const obj = item as Record<string, unknown>;
 
         // Required fields
-        if (typeof obj.start !== "number") return false;
-        if (typeof obj.end !== "number") return false;
-        if (typeof obj.sceneId !== "string") return false;
-        if (typeof obj.action !== "string") return false;
-        if (!SHOT_TYPES.includes(obj.type as typeof SHOT_TYPES[number])) return false;
+        if (typeof obj.start !== "number") {
+            logger.debug("LLM", `Shot ${i}: start is not a number (got ${typeof obj.start})`);
+            return false;
+        }
+        if (typeof obj.end !== "number") {
+            logger.debug("LLM", `Shot ${i}: end is not a number (got ${typeof obj.end})`);
+            return false;
+        }
+        if (typeof obj.sceneId !== "string") {
+            logger.debug("LLM", `Shot ${i}: sceneId is not a string (got ${typeof obj.sceneId})`);
+            return false;
+        }
+        if (typeof obj.action !== "string") {
+            logger.debug("LLM", `Shot ${i}: action is not a string (got ${typeof obj.action})`);
+            return false;
+        }
+        if (!SHOT_TYPES.includes(obj.type as typeof SHOT_TYPES[number])) {
+            logger.debug("LLM", `Shot ${i}: invalid type "${obj.type}" (valid: ${SHOT_TYPES.join(', ')})`);
+            return false;
+        }
 
         // focus object validation (new structure: emphasis + exclude)
-        if (!obj.focus || typeof obj.focus !== 'object') return false;
+        if (!obj.focus || typeof obj.focus !== 'object') {
+            logger.debug("LLM", `Shot ${i}: focus is missing or not an object (got ${typeof obj.focus})`);
+            return false;
+        }
         const focus = obj.focus as Record<string, unknown>;
-        if (!Array.isArray(focus.emphasis)) return false;
-        if (!Array.isArray(focus.exclude)) return false;
+
+        // Check for OLD format (primary/secondary instead of emphasis)
+        if ('primary' in focus || 'secondary' in focus) {
+            logger.debug("LLM", `Shot ${i}: OLD FORMAT DETECTED - has primary/secondary instead of emphasis/exclude`);
+            return false;
+        }
+
+        if (!Array.isArray(focus.emphasis)) {
+            logger.debug("LLM", `Shot ${i}: focus.emphasis is not an array (got ${typeof focus.emphasis})`);
+            return false;
+        }
+        if (!Array.isArray(focus.exclude)) {
+            logger.debug("LLM", `Shot ${i}: focus.exclude is not an array (got ${typeof focus.exclude})`);
+            return false;
+        }
 
         // cameraAngle validation (can be null)
         if (obj.cameraAngle !== null && obj.cameraAngle !== undefined) {
-            if (!CAMERA_ANGLE_KEYS.includes(obj.cameraAngle as typeof CAMERA_ANGLE_KEYS[number])) return false;
+            if (!CAMERA_ANGLE_KEYS.includes(obj.cameraAngle as typeof CAMERA_ANGLE_KEYS[number])) {
+                logger.debug("LLM", `Shot ${i}: invalid cameraAngle "${obj.cameraAngle}" (valid: ${CAMERA_ANGLE_KEYS.join(', ')})`);
+                return false;
+            }
         }
 
         // shotScale validation (can be null)
         if (obj.shotScale !== null && obj.shotScale !== undefined) {
-            if (!SHOT_SCALE_KEYS.includes(obj.shotScale as typeof SHOT_SCALE_KEYS[number])) return false;
+            if (!SHOT_SCALE_KEYS.includes(obj.shotScale as typeof SHOT_SCALE_KEYS[number])) {
+                logger.debug("LLM", `Shot ${i}: invalid shotScale "${obj.shotScale}" (valid: ${SHOT_SCALE_KEYS.join(', ')})`);
+                return false;
+            }
         }
 
         // Optional framingNote
         if (obj.framingNote !== undefined && obj.framingNote !== null && typeof obj.framingNote !== "string") {
+            logger.debug("LLM", `Shot ${i}: framingNote is not a string (got ${typeof obj.framingNote})`);
             return false;
         }
+    }
 
-        return true;
-    });
+    return true;
 }
 
 /** Validate image queries have required fields and valid data */

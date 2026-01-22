@@ -7,6 +7,14 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { config } from 'dotenv';
+
+// Load environment variables for API providers
+config();
+
+// Direct imports from src for image generation
+import { getProvider } from '../src/services/image/providers/index.ts';
+import { getStyle, resolveStyle } from '../src/styles/index.ts';
 
 // Configuration
 const PORT = 3000;
@@ -321,6 +329,61 @@ function deleteImages(audioHash: string, styleId: string, orientation: string, n
     }
 }
 
+async function regenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
+    const database = getDb();
+    const ne = naturalEdit ? 1 : 0;
+    const segmentIndex = index + 1; // 1-based
+
+    // 1. Get segment data
+    const cacheRow = database.prepare(
+        'SELECT current_prompt, structured_shot, seed FROM segment_cache WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?'
+    ).get(audioHash, styleId, orientation, ne, segmentIndex) as { current_prompt: string, structured_shot: string, seed: number | null } | null;
+
+    if (!cacheRow) throw new Error("Segment not found in database");
+
+    // 2. Resolve style
+    const style = getStyle(styleId) || getStyle("history")!;
+    const resolvedStyle = resolveStyle(style, { orientation: orientation as any });
+
+    // 3. Setup provider
+    const provider = getProvider();
+    const aspectRatio: '16:9' | '9:16' = orientation === 'vertical' ? '9:16' : '16:9';
+    const styledPrompt = `${resolvedStyle.imageStyle}. ${cacheRow.current_prompt}`;
+
+    // Use existing seed if available, otherwise random
+    const seed = cacheRow.seed || (Math.floor(Math.random() * 2147483646) + 1);
+
+    // 4. Generate
+    console.log(`[Regeneration] Generating image for segment ${index} (seed: ${seed}) with prompt: ${styledPrompt.substring(0, 100)}...`);
+    const result = await provider.generate({
+        prompt: styledPrompt,
+        negativePrompt: resolvedStyle.negativePrompt,
+        aspectRatio,
+        seed,
+    });
+
+    // 5. Save
+    const orientationSuffix = orientation === 'vertical' ? '_vertical' : '';
+    const filename = `${resolvedStyle.id}${orientationSuffix}_${index}.${result.format}`;
+    const filePath = join(IMAGES_DIR, filename);
+
+    if (!existsSync(IMAGES_DIR)) {
+        await Bun.spawn(["mkdir", "-p", IMAGES_DIR]).exited;
+    }
+
+    await Bun.write(filePath, result.data);
+    console.log(`[Regeneration] Saved image to: ${filePath}`);
+
+    // 6. Update DB
+    database.prepare(`
+        UPDATE segment_cache 
+        SET image_path = ?, status = 'approved', updated_at = strftime('%s', 'now') 
+        WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
+    `).run(filePath, audioHash, styleId, orientation, ne, segmentIndex);
+
+    return filePath;
+}
+
 // Static file serving
 function getContentType(path: string): string {
     if (path.endsWith('.html')) return 'text/html; charset=utf-8';
@@ -429,6 +492,26 @@ async function handleRequest(req: Request): Promise<Response> {
 
             const success = deleteImages(audioHash, styleId, orientation, naturalEdit);
             return Response.json({ success }, { headers: corsHeaders });
+        }
+
+        if (path.startsWith('/api/regenerate/') && method === 'POST') {
+            const parts = path.replace('/api/regenerate/', '').split('/');
+            const audioHash = parts[0];
+            const styleId = parts[1];
+            const index = parseInt(parts[2] || '', 10);
+            const orientation = url.searchParams.get('orientation') || 'horizontal';
+            const naturalEdit = url.searchParams.get('naturalEdit') === 'true';
+
+            if (!audioHash || !styleId || isNaN(index)) {
+                return Response.json({ error: 'Invalid parameters' }, { status: 400, headers: corsHeaders });
+            }
+
+            const filePath = await regenerateSegmentImage(audioHash, styleId, orientation, index, naturalEdit);
+            return Response.json({
+                success: true,
+                filePath,
+                url: `/images/${encodeURIComponent(filePath)}?t=${Date.now()}` // Add timestamp to bust cache
+            }, { headers: corsHeaders });
         }
 
         // Serve images from tmp/images directory or by full path

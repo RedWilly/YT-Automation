@@ -94,6 +94,17 @@ async function clearImages(audioHash, styleId, orientation = 'horizontal', natur
     return response.json();
 }
 
+async function regenerateImage(audioHash, styleId, index, orientation = 'horizontal', naturalEdit = false) {
+    const response = await fetch(
+        `${API_BASE}/api/regenerate/${audioHash}/${styleId}/${index}?orientation=${orientation}&naturalEdit=${naturalEdit}`,
+        { method: 'POST' }
+    );
+    if (!response.ok) {
+        throw new Error(`Failed to regenerate image: ${response.statusText}`);
+    }
+    return response.json();
+}
+
 // ========================================
 // Utility Functions
 // ========================================
@@ -287,6 +298,13 @@ function renderStoryboard() {
                                 >
                                     ✏️ Edit
                                 </button>
+                                <button 
+                                    class="query-regenerate-btn" 
+                                    data-index="${index}"
+                                    aria-label="Regenerate image for segment ${index + 1}"
+                                >
+                                    ✨ Regenerate
+                                </button>
                             </div>
                             ${entry.query
                 ? `<pre class="segment-query">${escapeHtml(entry.query.query)}</pre>`
@@ -315,6 +333,11 @@ function renderStoryboard() {
     // Add edit button handlers
     elements.timeline.querySelectorAll('.query-edit-btn').forEach(btn => {
         btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.index, 10)));
+    });
+
+    // Add regenerate button handlers
+    elements.timeline.querySelectorAll('.query-regenerate-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleRegenerate(parseInt(btn.dataset.index, 10)));
     });
 }
 
@@ -468,6 +491,61 @@ async function handleClearImages() {
         showToast('Images cleared. Run the bot to regenerate.');
     } catch (error) {
         showToast(`Failed to clear images: ${error.message}`, 'error');
+    }
+}
+
+async function handleRegenerate(index) {
+    if (!state.selectedProject || !state.selectedStyle || index === null) return;
+
+    const entry = state.storyboard?.entries[index];
+    if (!entry) return;
+
+    // Show loading state in the segment
+    const segmentEl = elements.timeline.querySelector(`.segment-card[data-index="${index}"]`);
+    const imgContainer = segmentEl.querySelector('.segment-image');
+    const regenerateBtn = segmentEl.querySelector('.query-regenerate-btn');
+
+    const originalContent = imgContainer.innerHTML;
+    const originalBtnText = regenerateBtn.innerHTML;
+
+    imgContainer.innerHTML = `
+        <div class="segment-image-placeholder">
+            <div class="spinner-small"></div>
+            <span>Regenerating...</span>
+        </div>
+    `;
+    regenerateBtn.disabled = true;
+    regenerateBtn.innerHTML = '⌛ Generating...';
+
+    try {
+        const result = await regenerateImage(
+            state.selectedProject,
+            state.selectedStyle,
+            index,
+            state.selectedOrientation,
+            state.selectedNaturalEdit
+        );
+
+        // Update local state and UI
+        if (state.storyboard.entries[index]) {
+            state.storyboard.entries[index].image = {
+                exists: true,
+                url: result.url,
+                filePath: result.filePath
+            };
+        }
+
+        // Just update the image directly to avoid full rerender
+        imgContainer.innerHTML = `
+            <img src="${result.url}" alt="Generated image for segment ${index + 1}" loading="lazy">
+        `;
+        showToast(`Image ${index + 1} regenerated successfully`);
+    } catch (error) {
+        imgContainer.innerHTML = originalContent;
+        showToast(`Failed to regenerate: ${error.message}`, 'error');
+    } finally {
+        regenerateBtn.disabled = false;
+        regenerateBtn.innerHTML = originalBtnText;
     }
 }
 

@@ -13,7 +13,7 @@ import { config } from 'dotenv';
 config();
 
 // Direct imports from src for image generation
-import { getProvider } from '../src/services/image/providers/index.ts';
+import { getProvider, generateWithSafetyRetry } from '../src/services/image/providers/index.ts';
 import { getStyle, resolveStyle } from '../src/styles/index.ts';
 
 // Configuration
@@ -25,6 +25,9 @@ const HTML_DIR = join(PROJECT_ROOT, 'html');
 
 // Database connection
 let db: Database | null = null;
+
+// Track in-flight regeneration requests to prevent duplicates
+const pendingRegenerations = new Map<string, Promise<string>>();
 
 function getDb(): Database {
     if (!db) {
@@ -330,6 +333,25 @@ function deleteImages(audioHash: string, styleId: string, orientation: string, n
 }
 
 async function regenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
+    // Deduplicate: if same segment is already being regenerated, wait for that instead
+    const dedupeKey = `${audioHash}:${styleId}:${orientation}:${index}:${naturalEdit}`;
+    const pending = pendingRegenerations.get(dedupeKey);
+    if (pending) {
+        console.log(`[Regeneration] Request already in progress for segment ${index}, waiting...`);
+        return pending;
+    }
+
+    const regenerationPromise = doRegenerateSegmentImage(audioHash, styleId, orientation, index, naturalEdit);
+    pendingRegenerations.set(dedupeKey, regenerationPromise);
+
+    try {
+        return await regenerationPromise;
+    } finally {
+        pendingRegenerations.delete(dedupeKey);
+    }
+}
+
+async function doRegenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
     const database = getDb();
     const ne = naturalEdit ? 1 : 0;
     const segmentIndex = index + 1; // 1-based
@@ -348,19 +370,35 @@ async function regenerateSegmentImage(audioHash: string, styleId: string, orient
     // 3. Setup provider
     const provider = getProvider();
     const aspectRatio: '16:9' | '9:16' = orientation === 'vertical' ? '9:16' : '16:9';
-    const styledPrompt = `${resolvedStyle.imageStyle}. ${cacheRow.current_prompt}`;
 
     // Use existing seed if available, otherwise random
     const seed = cacheRow.seed || (Math.floor(Math.random() * 2147483646) + 1);
 
-    // 4. Generate
-    console.log(`[Regeneration] Generating image for segment ${index} (seed: ${seed}) with prompt: ${styledPrompt.substring(0, 100)}...`);
-    const result = await provider.generate({
-        prompt: styledPrompt,
-        negativePrompt: resolvedStyle.negativePrompt,
-        aspectRatio,
-        seed,
-    });
+    // 4. Generate with unified safety retry (handles UnsafePromptError automatically)
+    // Pass raw prompt - style is applied at generation time via stylePrefix
+    console.log(`[Regeneration] Generating image for segment ${index} (seed: ${seed}) with prompt: ${cacheRow.current_prompt.substring(0, 100)}...`);
+    const result = await generateWithSafetyRetry(
+        provider,
+        {
+            prompt: cacheRow.current_prompt,
+            negativePrompt: resolvedStyle.negativePrompt,
+            aspectRatio,
+            seed,
+        },
+        {
+            style: resolvedStyle,
+            stylePrefix: resolvedStyle.imageStyle,
+            onPromptRewritten: (newPrompt, rewriteCount) => {
+                // Update the prompt in DB when rewritten (raw scene, no style)
+                database.prepare(`
+                    UPDATE segment_cache 
+                    SET current_prompt = ?, rewrite_count = ?, updated_at = strftime('%s', 'now') 
+                    WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
+                `).run(newPrompt, rewriteCount, audioHash, styleId, orientation, ne, segmentIndex);
+                console.log(`[Regeneration] Prompt rewritten (${rewriteCount}x): ${newPrompt.substring(0, 60)}...`);
+            },
+        }
+    );
 
     // 5. Save
     const orientationSuffix = orientation === 'vertical' ? '_vertical' : '';
@@ -582,6 +620,7 @@ if (!existsSync(CACHE_DB_PATH)) {
 const server = Bun.serve({
     port: PORT,
     fetch: handleRequest,
+    idleTimeout: 120, // 2 minutes - LLM rewrite + image generation can be slow
 });
 
 console.log(`✓ Server running at http://localhost:${server.port}`);

@@ -19,6 +19,7 @@ const AI_IMAGE_MODEL = AI_IMAGE.provider;
 
 // Re-export types for convenience
 export * from "./types.ts";
+export { generateWithSafetyRetry, type SafetyRetryOptions, type SafetyRetryResult } from "./retry.ts";
 
 /**
  * Registry of all available providers

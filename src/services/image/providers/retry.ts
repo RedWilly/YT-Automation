@@ -1,8 +1,13 @@
 /**
  * Retry Utilities for Image Providers
  * Provides exponential backoff and retry mechanisms
+ * Includes unified safety retry wrapper for all providers
  */
 
+import type { ImageProvider, ImageGenerationOptions, ImageGenerationResult } from "./types.ts";
+import type { ResolvedStyle } from "../../../styles/types.ts";
+import { isUnsafePromptError, isHighTrafficError } from "./errors.ts";
+import { rewriteUnsafePrompt } from "../../llm/client.ts";
 import * as logger from "../../../utils/logger.ts";
 
 /**
@@ -124,4 +129,138 @@ export function isRetryableError(error: unknown): boolean {
     ];
 
     return retryablePatterns.some(pattern => message.includes(pattern));
+}
+
+/**
+ * Options for generateWithSafetyRetry
+ */
+export interface SafetyRetryOptions {
+    /** Maximum number of retry attempts (default: 3) */
+    maxAttempts?: number;
+    /** Maximum number of prompt rewrites for safety errors (default: 25) */
+    maxRewrites?: number;
+    /** Style for prompt rewriting context */
+    style: ResolvedStyle;
+    /** Style prefix to prepend to prompt when generating (applied at generation time, not during rewrite) */
+    stylePrefix?: string;
+    /** Callback when prompt is rewritten (for caching) - receives the raw scene prompt without style */
+    onPromptRewritten?: (newPrompt: string, rewriteCount: number) => void;
+}
+
+/**
+ * Extended result that includes the final prompt used (may differ from input if rewritten)
+ */
+export interface SafetyRetryResult extends ImageGenerationResult {
+    /** The final prompt that succeeded (may be rewritten) */
+    finalPrompt: string;
+    /** Number of times the prompt was rewritten */
+    rewriteCount: number;
+}
+
+/**
+ * Generate an image with unified retry logic for all error types:
+ * - UnsafePromptError: Rewrites prompt via LLM and retries
+ * - HighTrafficError: Waits and retries the same attempt
+ * - Other errors: Exponential backoff retry
+ * 
+ * This is the single source of truth for image generation retry logic.
+ * All callers (downloader, server, CLI, etc.) should use this instead of provider.generate() directly.
+ * 
+ * @param provider - The image provider to use
+ * @param options - Generation options (prompt, aspectRatio, etc.)
+ * @param retryOptions - Retry and safety options
+ * @returns Generated image with metadata about rewrites
+ */
+export async function generateWithSafetyRetry(
+    provider: ImageProvider,
+    options: ImageGenerationOptions,
+    retryOptions: SafetyRetryOptions
+): Promise<SafetyRetryResult> {
+    const {
+        maxAttempts = 3,
+        maxRewrites = 25,
+        style,
+        stylePrefix,
+        onPromptRewritten,
+    } = retryOptions;
+
+    // currentPrompt is the raw scene description (no style)
+    let currentPrompt = options.prompt;
+    const originalPrompt = options.prompt;
+    let rewriteCount = 0;
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            // Apply style prefix only at generation time
+            const fullPrompt = stylePrefix ? `${stylePrefix}. ${currentPrompt}` : currentPrompt;
+            
+            logger.debug("SafetyRetry", `[${provider.name}] Generating image (attempt ${attempt}/${maxAttempts})`);
+
+            const result = await provider.generate({
+                ...options,
+                prompt: fullPrompt,
+            });
+
+            if (attempt > 1 || rewriteCount > 0) {
+                logger.success("SafetyRetry", `Successfully generated after ${attempt} attempts, ${rewriteCount} rewrites`);
+            }
+
+            return {
+                ...result,
+                finalPrompt: currentPrompt,
+                rewriteCount,
+            };
+
+        } catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+
+            // Handle unsafe prompt - rewrite and retry (resets attempt counter)
+            if (isUnsafePromptError(error) && rewriteCount < maxRewrites) {
+                rewriteCount++;
+                logger.warn("SafetyRetry", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${maxRewrites}), requesting LLM rewrite...`);
+
+                const rewrittenPrompt = await rewriteUnsafePrompt(
+                    currentPrompt,
+                    style,
+                    originalPrompt,
+                    rewriteCount,
+                    maxRewrites
+                );
+
+                currentPrompt = rewrittenPrompt;
+
+                // Notify caller for caching
+                if (onPromptRewritten) {
+                    onPromptRewritten(rewrittenPrompt, rewriteCount);
+                }
+
+                logger.log("SafetyRetry", `Retrying with rewritten prompt: ${rewrittenPrompt.substring(0, 60)}...`);
+
+                // Reset attempt counter - rewrite is a "fresh start"
+                attempt = 0;
+                continue;
+            }
+
+            // Handle high traffic - wait and retry same attempt
+            if (isHighTrafficError(error)) {
+                const waitTime = error.retryAfterMs;
+                logger.warn("SafetyRetry", `High traffic on ${error.provider}, waiting ${waitTime / 1000}s before retry...`);
+                await sleep(waitTime);
+                attempt--; // Retry the same attempt
+                continue;
+            }
+
+            // Handle other errors with exponential backoff
+            if (attempt < maxAttempts) {
+                const delay = calculateBackoffDelay(attempt, { logTag: "SafetyRetry" });
+                logger.warn("SafetyRetry", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
+                await sleep(delay);
+            }
+        }
+    }
+
+    throw new Error(
+        `Failed to generate image after ${maxAttempts} attempts and ${rewriteCount} rewrites. Error: ${lastError?.message}`
+    );
 }

@@ -4,10 +4,8 @@ import { AI_TEXT, AI_IMAGE } from "../../config/index.ts";
 import type { ImageSearchQuery, DownloadedImage, StructuredShot } from "../../types/index.ts";
 import type { ResolvedStyle } from "../../styles/types.ts";
 import { generateConsistentSeed } from "../llm/index.ts";
-import { getProvider } from "./providers/index.ts";
+import { getProvider, generateWithSafetyRetry } from "./providers/index.ts";
 import { calculateBackoffDelay, sleep } from "./providers/retry.ts";
-import { isUnsafePromptError, isHighTrafficError } from "./providers/errors.ts";
-import { rewriteUnsafePrompt } from "../llm/index.ts";
 import { join, extname } from "node:path";
 import * as logger from "../../utils/logger.ts";
 
@@ -166,90 +164,40 @@ async function generateAIImageForQuery(
 
   logger.debug('AI-Images', `Scene → ${queryData.type ?? 'default'} → ${aspectRatio}`);
 
-  let lastError: Error | null = null;
-  let rewriteCount = 0;
-  const MAX_REWRITES = 25;
-  const originalQuery = queryData.query;
-
-  for (let attempt = 1; attempt <= IMAGE_RETRY_ATTEMPTS; attempt++) {
-    try {
-      logger.debug("AI-Images", `[${provider.name}] Generating image (attempt ${attempt}/${IMAGE_RETRY_ATTEMPTS})`);
-
-      // Combine style prefix with scene description
-      const styledPrompt = `${style.imageStyle}. ${queryData.query}`;
-
-      const result = await provider.generate({
-        prompt: styledPrompt,
-        negativePrompt: style.negativePrompt,
-        aspectRatio,
-        seed,
-      });
-
-      // Save the image with style-based naming: {styleId}_{orientation}_{index}.{format}
-      const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
-      const filename = `${style.id}${orientationSuffix}_${index}.${result.format}`;
-      const filePath = join(TMP_IMAGES_DIR, filename);
-
-      await Bun.write(filePath, result.data);
-      logger.debug("AI-Images", `Saved image to: ${filePath}`);
-
-      if (attempt > 1) {
-        logger.success("AI-Images", `Successfully generated after ${attempt} attempts`);
-      }
-
-      return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
-
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-
-      // If prompt was flagged as unsafe, rewrite it and retry (max rewrites)
-      if (isUnsafePromptError(error) && rewriteCount < MAX_REWRITES) {
-        rewriteCount++;
-        logger.warn("AI-Images", `Prompt flagged as unsafe (rewrite ${rewriteCount}/${MAX_REWRITES}), requesting LLM rewrite...`);
-
-        // Pass original prompt, current prompt, and retry info
-        const rewrittenQuery = await rewriteUnsafePrompt(
-          queryData.query,
-          style,
-          originalQuery,
-          rewriteCount,
-          MAX_REWRITES
-        );
-
-        // Update query for next attempt and persist rewrite to cache
-        queryData.query = rewrittenQuery;
-        
-        // Cache the rewritten prompt so we don't lose progress on restart
+  // Use unified retry logic with safety rewrite handling
+  // Pass raw query - style is applied at generation time via stylePrefix
+  const result = await generateWithSafetyRetry(
+    provider,
+    {
+      prompt: queryData.query,
+      negativePrompt: style.negativePrompt,
+      aspectRatio,
+      seed,
+    },
+    {
+      maxAttempts: IMAGE_RETRY_ATTEMPTS,
+      style,
+      stylePrefix: style.imageStyle,
+      onPromptRewritten: (newPrompt, rewriteCount) => {
+        // Update queryData for cache consistency (raw scene, no style)
+        queryData.query = newPrompt;
+        // Persist rewrite to cache
         if (segmentCallbacks?.onPromptRewritten) {
-          segmentCallbacks.onPromptRewritten(segmentIndex, rewrittenQuery, rewriteCount);
+          segmentCallbacks.onPromptRewritten(segmentIndex, newPrompt, rewriteCount);
         }
-        
-        logger.log("AI-Images", `Retrying with rewritten prompt: ${rewrittenQuery.substring(0, 60)}...`);
-
-        attempt = 0;
-        continue;
-      }
-
-      // If high traffic error, wait and retry the same attempt
-      if (isHighTrafficError(error)) {
-        const waitTime = error.retryAfterMs;
-        logger.warn("AI-Images", `High traffic on ${error.provider}, waiting ${waitTime / 1000}s before retry...`);
-        await sleep(waitTime);
-        attempt--; // Retry the same attempt
-        continue;
-      }
-
-      if (attempt < IMAGE_RETRY_ATTEMPTS) {
-        const delay = calculateBackoffDelay(attempt, { logTag: "AI-Images" });
-        logger.warn("AI-Images", `Attempt ${attempt} failed, retrying in ${Math.round(delay / 1000)}s...`);
-        await sleep(delay);
-      }
+      },
     }
-  }
-
-  throw new Error(
-    `Failed to generate AI image for "${queryData.query}" after ${IMAGE_RETRY_ATTEMPTS} attempts. Error: ${lastError?.message}`
   );
+
+  // Save the image with style-based naming: {styleId}_{orientation}_{index}.{format}
+  const orientationSuffix = style.orientation === 'vertical' ? '_vertical' : '';
+  const filename = `${style.id}${orientationSuffix}_${index}.${result.format}`;
+  const filePath = join(TMP_IMAGES_DIR, filename);
+
+  await Bun.write(filePath, result.data);
+  logger.debug("AI-Images", `Saved image to: ${filePath}`);
+
+  return { query: queryData.query, start, end, filePath, type: queryData.type, seed };
 }
 
 function isWatermarkedImage(imageUrl: string): boolean {

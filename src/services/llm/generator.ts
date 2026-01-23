@@ -42,7 +42,7 @@ export interface LLMResumeState {
     cachedShots: StructuredShot[];
 }
 
-/** Generate image search queries from formatted transcript using context-aware extraction */
+/** Context-aware extraction of image search queries */
 export async function generateImageQueries(
     formattedTranscript: string,
     style: ResolvedStyle,
@@ -123,7 +123,7 @@ export async function generateImageQueries(
     return { queries, storyContext, structuredShots };
 }
 
-/** Generate queries with context injection for all segments */
+/** Context injection for all segments */
 async function generateQueriesWithContext(
     lines: string[],
     segmentCount: number,
@@ -273,8 +273,8 @@ async function generateQueriesWithContext(
             const matches = s.action.match(entityPattern) || [];
             return matches
                 .map(m => m.replace(/[\[\]]/g, ''))
-                .filter(id => !id.toLowerCase().startsWith('cameraangle') && 
-                              !id.toLowerCase().startsWith('shotscale'));
+                .filter(id => !id.toLowerCase().startsWith('cameraangle') &&
+                    !id.toLowerCase().startsWith('shotscale'));
         });
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;

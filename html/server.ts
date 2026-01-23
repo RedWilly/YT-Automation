@@ -122,10 +122,10 @@ function getProjects(): Project[] {
         image_count: number;
     }>;
 
-    // Build stats lookup
+    // Build stats lookup (normalize style_id to lowercase for consistent matching)
     const statsLookup = new Map<string, typeof segmentStatsRows[0]>();
     for (const stat of segmentStatsRows) {
-        const key = `${stat.audio_hash}:${stat.style_id}:${stat.orientation}:${stat.natural_edit}`;
+        const key = `${stat.audio_hash}:${stat.style_id.toLowerCase()}:${stat.orientation}:${stat.natural_edit}`;
         statsLookup.set(key, stat);
     }
 
@@ -156,7 +156,7 @@ function getProjects(): Project[] {
             duration: audio.audio_duration,
             createdAt: audio.updated_at, // audio_cache uses updated_at
             styles: jobs.map(j => {
-                const statKey = `${j.audio_hash}:${j.style_id}:${j.orientation}:${j.natural_edit}`;
+                const statKey = `${j.audio_hash}:${j.style_id.toLowerCase()}:${j.orientation}:${j.natural_edit}`;
                 const stats = statsLookup.get(statKey);
 
                 return {
@@ -234,13 +234,19 @@ function getStoryboard(audioHash: string, styleId: string, orientation: string =
     // Build entries by matching transcript segments with segment cache
     const entries: StoryboardEntry[] = [];
 
-    // Note: segment_cache uses 1-based indexing for segment_index
+    // Pre-index segment cache rows by segment_index for O(1) lookup.
+    // Note: segment_cache uses 1-based indexing for segment_index.
+    const segmentCacheByIndex = new Map<number, SegmentCacheRow>();
+    for (const row of segmentRows) {
+        segmentCacheByIndex.set(row.segment_index, row);
+    }
+
     for (let i = 0; i < transcriptSegments.length; i++) {
         const transcriptSegment = transcriptSegments[i];
         if (!transcriptSegment) continue;
 
         const segmentIndex = i + 1;
-        const cacheRow = segmentRows.find(r => r.segment_index === segmentIndex);
+        const cacheRow = segmentCacheByIndex.get(segmentIndex) ?? null;
 
         let queryData: any | null = null;
         if (cacheRow) {
@@ -334,7 +340,9 @@ function deleteImages(audioHash: string, styleId: string, orientation: string, n
 
 async function regenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
     // Deduplicate: if same segment is already being regenerated, wait for that instead
-    const dedupeKey = `${audioHash}:${styleId}:${orientation}:${index}:${naturalEdit}`;
+    // NOTE: styleId is normalized to lowercase to match DB lookup semantics (LOWER(style_id) = LOWER(?))
+    const normalizedStyleId = styleId.toLowerCase();
+    const dedupeKey = `${audioHash}:${normalizedStyleId}:${orientation}:${index}:${naturalEdit}`;
     const pending = pendingRegenerations.get(dedupeKey);
     if (pending) {
         console.log(`[Regeneration] Request already in progress for segment ${index}, waiting...`);
@@ -412,12 +420,12 @@ async function doRegenerateSegmentImage(audioHash: string, styleId: string, orie
     await Bun.write(filePath, result.data);
     console.log(`[Regeneration] Saved image to: ${filePath}`);
 
-    // 6. Update DB
+    // 6. Update DB (also persist the chosen seed for deterministic regeneration)
     database.prepare(`
         UPDATE segment_cache 
-        SET image_path = ?, status = 'approved', updated_at = strftime('%s', 'now') 
+        SET image_path = ?, status = 'approved', seed = ?, updated_at = strftime('%s', 'now') 
         WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
-    `).run(filePath, audioHash, styleId, orientation, ne, segmentIndex);
+    `).run(filePath, seed, audioHash, styleId, orientation, ne, segmentIndex);
 
     return filePath;
 }

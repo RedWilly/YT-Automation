@@ -87,19 +87,16 @@ export async function pollForCompletion(
 export async function transcribeAudio(
   audioFilePath: string
 ): Promise<AssemblyAITranscriptResponse> {
-  // Step 1: Upload audio
   const uploadUrl = await uploadAudio(audioFilePath);
 
-  // Step 2: Request transcription
   const transcriptResponse = await requestTranscription(uploadUrl);
 
-  // Step 3: Check if already completed or poll for completion
+  // Check if already completed or poll for completion
   if (transcriptResponse.status === "completed") {
     logger.success("AssemblyAI", "Transcription already completed");
     return transcriptResponse;
   }
 
-  // Step 4: Poll for completion
   const completedTranscript = await pollForCompletion(transcriptResponse.id);
   return completedTranscript;
 }

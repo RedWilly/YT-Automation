@@ -46,13 +46,7 @@ export interface SegmentCacheCallbacks {
   onPromptRewritten?: (segmentIndex: number, newPrompt: string, rewriteCount: number) => void;
 }
 
-/**
- * Search and download images for all queries. Supports:
- * - Resumption from partial cache (skips already-downloaded images)
- * - Incremental saving via callback to persist progress
- * - Per-segment caching for safety rewrite persistence
- * - Retry logic with exponential backoff
- */
+/** Search and download images for all queries with resumption and incremental saving support */
 export async function downloadImagesForQueries(
   queries: ImageSearchQuery[],
   style: ResolvedStyle,

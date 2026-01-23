@@ -250,9 +250,6 @@ ${transcript}
 Return ONLY valid JSON.`;
 }
 
-// ============================================================================
-// Context Injection for Query Generation
-// ============================================================================
 
 /** Build context injection for query generation prompts */
 export function buildContextInjection(
@@ -443,9 +440,6 @@ MANDATORY RULES:
     return `${overviewSection}${sceneArcSection}${groupsSection}${entitySection}${sceneSection}${stateSection}${instructionSection}`;
 }
 
-// ============================================================================
-// Extraction API
-// ============================================================================
 
 /** Extract story context from transcript using LLM */
 export async function extractStoryContext(

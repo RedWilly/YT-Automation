@@ -15,11 +15,7 @@ const AI_BASE_URL = aiConfig.baseUrl;
 const AI_MODEL = aiConfig.model;
 const AI_PROVIDER = AI_TEXT.provider;
 
-/**
- * Call LLM chat API with retry logic.
- * When returnRaw is true, returns the raw string response for custom parsing.
- * Otherwise, parses and returns ImageSearchQuery[].
- */
+/** Call LLM chat API with retry logic */
 export async function callLLMWithRetry(
     systemPrompt: string,
     userPrompt: string,

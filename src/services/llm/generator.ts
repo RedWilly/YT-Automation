@@ -192,7 +192,7 @@ async function generateQueriesWithContext(
                 systemPrompt,
                 userPrompt,
                 label,
-                1,
+                maxBatchRetries,  // Use full retries for LLM call (handles empty responses)
                 true // Return raw response for structured shot parsing
             );
 
@@ -266,7 +266,7 @@ async function generateQueriesWithContext(
         allStructuredShots.push(...batchShots);
 
         // Update batch state for next iteration
-        const activeEntities = batchShots.flatMap(s => [...s.focus.primary, ...s.focus.secondary]);
+        const activeEntities = batchShots.flatMap(s => [...s.focus.emphasis]);
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;
 

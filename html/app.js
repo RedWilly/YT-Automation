@@ -58,9 +58,9 @@ async function fetchProjects() {
     return response.json();
 }
 
-async function fetchStoryboard(audioHash, styleId, orientation = 'horizontal') {
+async function fetchStoryboard(audioHash, styleId, orientation = 'horizontal', naturalEdit = false) {
     const response = await fetch(
-        `${API_BASE}/api/storyboard/${audioHash}/${styleId}?orientation=${orientation}`
+        `${API_BASE}/api/storyboard/${audioHash}/${styleId}?orientation=${orientation}&naturalEdit=${naturalEdit}`
     );
     if (!response.ok) {
         throw new Error(`Failed to fetch storyboard: ${response.statusText}`);
@@ -68,9 +68,9 @@ async function fetchStoryboard(audioHash, styleId, orientation = 'horizontal') {
     return response.json();
 }
 
-async function updateQuery(audioHash, styleId, index, query, type, orientation = 'horizontal') {
+async function updateQuery(audioHash, styleId, index, query, type, orientation = 'horizontal', naturalEdit = false) {
     const response = await fetch(
-        `${API_BASE}/api/query/${audioHash}/${styleId}/${index}?orientation=${orientation}`,
+        `${API_BASE}/api/query/${audioHash}/${styleId}/${index}?orientation=${orientation}&naturalEdit=${naturalEdit}`,
         {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -83,13 +83,24 @@ async function updateQuery(audioHash, styleId, index, query, type, orientation =
     return response.json();
 }
 
-async function clearImages(audioHash, styleId, orientation = 'horizontal') {
+async function clearImages(audioHash, styleId, orientation = 'horizontal', naturalEdit = false) {
     const response = await fetch(
-        `${API_BASE}/api/images/${audioHash}/${styleId}?orientation=${orientation}`,
+        `${API_BASE}/api/images/${audioHash}/${styleId}?orientation=${orientation}&naturalEdit=${naturalEdit}`,
         { method: 'DELETE' }
     );
     if (!response.ok) {
         throw new Error(`Failed to clear images: ${response.statusText}`);
+    }
+    return response.json();
+}
+
+async function regenerateImage(audioHash, styleId, index, orientation = 'horizontal', naturalEdit = false) {
+    const response = await fetch(
+        `${API_BASE}/api/regenerate/${audioHash}/${styleId}/${index}?orientation=${orientation}&naturalEdit=${naturalEdit}`,
+        { method: 'POST' }
+    );
+    if (!response.ok) {
+        throw new Error(`Failed to regenerate image: ${response.statusText}`);
     }
     return response.json();
 }
@@ -239,18 +250,19 @@ function renderStoryboard() {
             <button 
                 class="style-tab" 
                 role="tab"
-                aria-selected="${style.styleId === storyboard.styleId && style.orientation === storyboard.orientation}"
+                aria-selected="${style.styleId === storyboard.styleId && style.orientation === storyboard.orientation && style.naturalEdit === (storyboard.naturalEdit || false)}"
                 data-style="${style.styleId}"
                 data-orientation="${style.orientation}"
+                data-natural-edit="${style.naturalEdit}"
             >
-                ${escapeHtml(style.styleId)} (${style.orientation})
+                ${escapeHtml(style.styleId)} (${style.orientation}${style.naturalEdit ? ', Natural' : ''})
             </button>
         `).join('');
 
         // Add click handlers
         elements.styleTabs.querySelectorAll('.style-tab').forEach(tab => {
             tab.addEventListener('click', () => {
-                selectStyle(tab.dataset.style, tab.dataset.orientation);
+                selectStyle(tab.dataset.style, tab.dataset.orientation, tab.dataset.naturalEdit === 'true');
             });
         });
     } else {
@@ -286,6 +298,13 @@ function renderStoryboard() {
                                 >
                                     ✏️ Edit
                                 </button>
+                                <button 
+                                    class="query-regenerate-btn" 
+                                    data-index="${index}"
+                                    aria-label="Regenerate image for segment ${index + 1}"
+                                >
+                                    ✨ Regenerate
+                                </button>
                             </div>
                             ${entry.query
                 ? `<pre class="segment-query">${escapeHtml(entry.query.query)}</pre>`
@@ -314,6 +333,11 @@ function renderStoryboard() {
     // Add edit button handlers
     elements.timeline.querySelectorAll('.query-edit-btn').forEach(btn => {
         btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.index, 10)));
+    });
+
+    // Add regenerate button handlers
+    elements.timeline.querySelectorAll('.query-regenerate-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleRegenerate(parseInt(btn.dataset.index, 10)));
     });
 }
 
@@ -349,20 +373,24 @@ async function selectProject(audioHash) {
 
     // Select first style by default
     const firstStyle = project.styles[0];
-    await selectStyle(firstStyle.styleId, firstStyle.orientation);
+    await selectStyle(firstStyle.styleId, firstStyle.orientation, firstStyle.naturalEdit);
 }
 
-async function selectStyle(styleId, orientation = 'horizontal') {
+async function selectStyle(styleId, orientation = 'horizontal', naturalEdit = false) {
     state.selectedStyle = styleId;
     state.selectedOrientation = orientation;
+    state.selectedNaturalEdit = naturalEdit;
     setView('loading');
 
     try {
         state.storyboard = await fetchStoryboard(
             state.selectedProject,
             styleId,
-            orientation
+            orientation,
+            naturalEdit
         );
+        // Add naturalEdit to storyboard response if not there
+        state.storyboard.naturalEdit = naturalEdit;
         renderStoryboard();
     } catch (error) {
         setView('error');
@@ -425,7 +453,8 @@ async function saveQuery() {
             index,
             newQuery,
             newType,
-            state.selectedOrientation
+            state.selectedOrientation,
+            state.selectedNaturalEdit
         );
 
         // Update local state
@@ -453,14 +482,70 @@ async function handleClearImages() {
         await clearImages(
             state.selectedProject,
             state.selectedStyle,
-            state.selectedOrientation
+            state.selectedOrientation,
+            state.selectedNaturalEdit
         );
 
         // Refresh storyboard
-        await selectStyle(state.selectedStyle, state.selectedOrientation);
+        await selectStyle(state.selectedStyle, state.selectedOrientation, state.selectedNaturalEdit);
         showToast('Images cleared. Run the bot to regenerate.');
     } catch (error) {
         showToast(`Failed to clear images: ${error.message}`, 'error');
+    }
+}
+
+async function handleRegenerate(index) {
+    if (!state.selectedProject || !state.selectedStyle || index === null) return;
+
+    const entry = state.storyboard?.entries[index];
+    if (!entry) return;
+
+    // Show loading state in the segment
+    const segmentEl = elements.timeline.querySelector(`.segment-card[data-index="${index}"]`);
+    const imgContainer = segmentEl.querySelector('.segment-image');
+    const regenerateBtn = segmentEl.querySelector('.query-regenerate-btn');
+
+    const originalContent = imgContainer.innerHTML;
+    const originalBtnText = regenerateBtn.innerHTML;
+
+    imgContainer.innerHTML = `
+        <div class="segment-image-placeholder">
+            <div class="spinner-small"></div>
+            <span>Regenerating...</span>
+        </div>
+    `;
+    regenerateBtn.disabled = true;
+    regenerateBtn.innerHTML = '⌛ Generating...';
+
+    try {
+        const result = await regenerateImage(
+            state.selectedProject,
+            state.selectedStyle,
+            index,
+            state.selectedOrientation,
+            state.selectedNaturalEdit
+        );
+
+        // Update local state and UI
+        if (state.storyboard.entries[index]) {
+            state.storyboard.entries[index].image = {
+                exists: true,
+                url: result.url,
+                filePath: result.filePath
+            };
+        }
+
+        // Just update the image directly to avoid full rerender
+        imgContainer.innerHTML = `
+            <img src="${result.url}" alt="Generated image for segment ${index + 1}" loading="lazy">
+        `;
+        showToast(`Image ${index + 1} regenerated successfully`);
+    } catch (error) {
+        imgContainer.innerHTML = originalContent;
+        showToast(`Failed to regenerate: ${error.message}`, 'error');
+    } finally {
+        regenerateBtn.disabled = false;
+        regenerateBtn.innerHTML = originalBtnText;
     }
 }
 

@@ -3,31 +3,39 @@
  * All schema definitions used by LLM prompts and TypeScript validation
  */
 
-// =============================================================================
-// BEAT TYPES
-// =============================================================================
 
-export const BEAT_TYPES = [
-  'establishing', 'action', 'emotional', 'dialogue', 'tension', 'climax', 'resolution', 'transition',
-  'introduction', 'explanation', 'example', 'demonstration', 'comparison', 'summary',
-  'context', 'evidence', 'testimony', 'analysis',
-  'showcase', 'benefit', 'use-case',
-  'symbol',
-] as const;
-
-export type BeatType = typeof BEAT_TYPES[number];
-export const BEAT_TYPE_SCHEMA = BEAT_TYPES.map(b => `"${b}"`).join(' | ');
 
 // =============================================================================
-// COMPOSITIONS
+// CAMERA ANGLES
 // =============================================================================
 
-export const COMPOSITIONS = [
-  'extreme-wide', 'wide', 'medium', 'close-up', 'extreme-close-up'
-] as const;
+export const CAMERA_ANGLES = {
+  'Eye Level': 'eye-level shot',
+  'Low Angle': 'low angle shot, looking up',
+  'High Angle': 'high angle shot, looking down',
+  "Bird's Eye": "bird's eye view, top-down shot",
+  'Dutch Angle': 'Dutch angle shot, tilted horizon',
+  'Over Shoulder': 'over-the-shoulder shot',
+} as const;
 
-export type Composition = typeof COMPOSITIONS[number];
-export const COMPOSITION_SCHEMA = COMPOSITIONS.map(c => `"${c}"`).join(' | ');
+export type CameraAngle = keyof typeof CAMERA_ANGLES;
+export const CAMERA_ANGLE_KEYS = Object.keys(CAMERA_ANGLES) as CameraAngle[];
+export const CAMERA_ANGLE_SCHEMA = CAMERA_ANGLE_KEYS.map(a => `"${a}"`).join(' | ');
+
+// =============================================================================
+// SHOT SCALES (Framing/Composition)
+// =============================================================================
+
+export const SHOT_SCALES = {
+  'Wide Shot': 'wide shot',
+  'Medium Shot': 'medium shot',
+  'Close-Up': 'close-up shot',
+  'Extreme Close-Up': 'extreme close-up',
+} as const;
+
+export type ShotScale = keyof typeof SHOT_SCALES;
+export const SHOT_SCALE_KEYS = Object.keys(SHOT_SCALES) as ShotScale[];
+export const SHOT_SCALE_SCHEMA = SHOT_SCALE_KEYS.map(s => `"${s}"`).join(' | ');
 
 // =============================================================================
 // SHOT TYPES
@@ -159,16 +167,27 @@ export interface LLMResponse {
 export interface StructuredShot {
   start: number;
   end: number;
+  /** Scene ID - shot inherits primaryEntities, setting, mood, lighting from scene */
   sceneId: string;
-  beatType: BeatType;
+  /** 
+   * Focus configuration - simplified for consistency
+   * - emphasis: Entity IDs to EMPHASIZE in this shot (1-2 max, subset of scene entities)
+   * - exclude: Entity IDs to HIDE from this shot (mentioned but not shown)
+   * All other scene.primaryEntities are auto-included as secondary
+   */
   focus: {
-    primary: string[];
-    secondary: string[];
+    emphasis: string[];
     exclude: string[];
   };
+  /** Physical action happening - NO visual descriptions, just movement/gesture */
   action: string;
-  composition: Composition | null;
+  /** Camera angle - determines vertical perspective */
+  cameraAngle: CameraAngle | null;
+  /** Shot scale - determines framing/distance from subject */
+  shotScale: ShotScale | null;
+  /** Optional specific framing guidance */
   framingNote?: string;
+  /** Shot type for video effects */
   type: ShotType;
 }
 
@@ -191,7 +210,6 @@ export interface ContentStrategy {
   type: ContentType;
   visualApproach: VisualApproach;
   entityMeaning: string;
-  typicalBeats: BeatType[];
 }
 
 // =============================================================================
@@ -213,14 +231,17 @@ export interface Entity {
   id: string;
   type: EntityType;
   name: string;
-  description: string;
   importance: EntityImportance;
-  firstMention: number;  // Segment INDEX (0 to N-1), NOT milliseconds
   mentions: number[];    // Array of segment INDICES, NOT timestamps
+  /**
+   * PROMPT-READY visual description ONLY.
+   * Must include: era-appropriate clothing/gear/materials/colors/textures/silhouette.
+   * Must NOT include: narrative, events, time progression, story beats.
+   * This is the SOLE visual source for image prompt building.
+   */
   visualAnchor: string;
   eraConstraints: EraConstraints | null;
   groupId?: string;
-  uniqueTraits?: string;
   role?: 'leader' | 'soldier' | 'civilian' | 'background';
 }
 
@@ -253,7 +274,6 @@ export interface Scene {
 
 export interface StoryContext {
   summary: string;
-  era: string;
   primarySetting: string;
   tone: string;
   contentType: ContentType;
@@ -261,6 +281,7 @@ export interface StoryContext {
   entities: Entity[];
   groups: Group[];
   scenes: Scene[];
+  /** Canonical era constraints - single source of truth for era/period */
   globalEraConstraints: EraConstraints;
 }
 

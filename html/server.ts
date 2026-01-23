@@ -7,6 +7,14 @@
 import { Database } from 'bun:sqlite';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { config } from 'dotenv';
+
+// Load environment variables for API providers
+config();
+
+// Direct imports from src for image generation
+import { getProvider, generateWithSafetyRetry } from '../src/services/image/providers/index.ts';
+import { getStyle, resolveStyle } from '../src/styles/index.ts';
 
 // Configuration
 const PORT = 3000;
@@ -17,6 +25,9 @@ const HTML_DIR = join(PROJECT_ROOT, 'html');
 
 // Database connection
 let db: Database | null = null;
+
+// Track in-flight regeneration requests to prevent duplicates
+const pendingRegenerations = new Map<string, Promise<string>>();
 
 function getDb(): Database {
     if (!db) {
@@ -30,18 +41,17 @@ function getDb(): Database {
 
 // Types
 interface AudioCacheRow {
-    id: number;
     audio_hash: string;
     audio_filename: string;
     audio_path: string | null;
+    upload_url: string | null;
+    transcript_id: string | null;
     transcript_words: string | null;
     audio_duration: number | null;
-    created_at: number;
     updated_at: number;
 }
 
-interface StyleCacheRow {
-    id: number;
+interface JobCacheRow {
     audio_hash: string;
     style_id: string;
     orientation: string;
@@ -49,9 +59,23 @@ interface StyleCacheRow {
     segments: string | null;
     formatted_transcript: string | null;
     story_context: string | null;
-    image_queries: string | null;
-    downloaded_images: string | null;
-    created_at: number;
+    updated_at: number;
+}
+
+interface SegmentCacheRow {
+    audio_hash: string;
+    style_id: string;
+    orientation: string;
+    natural_edit: number;
+    segment_index: number;
+    total_segments: number;
+    original_prompt: string;
+    current_prompt: string;
+    structured_shot: string;
+    rewrite_count: number;
+    status: 'pending' | 'approved' | 'failed';
+    seed: number | null;
+    image_path: string | null;
     updated_at: number;
 }
 
@@ -78,44 +102,71 @@ function getProjects(): Project[] {
     // Get all audio entries
     const audioRows = database.prepare('SELECT * FROM audio_cache ORDER BY updated_at DESC').all() as AudioCacheRow[];
 
-    // Get all style entries
-    const styleRows = database.prepare('SELECT * FROM style_cache').all() as StyleCacheRow[];
+    // Get all job entries
+    const jobRows = database.prepare('SELECT * FROM job_cache').all() as JobCacheRow[];
 
-    // Group styles by audio_hash
-    const stylesByHash = new Map<string, StyleCacheRow[]>();
-    for (const style of styleRows) {
-        const existing = stylesByHash.get(style.audio_hash) || [];
-        existing.push(style);
-        stylesByHash.set(style.audio_hash, existing);
+    // Get segment counts and status from segment_cache
+    const segmentStatsRows = database.prepare(`
+        SELECT 
+            audio_hash, style_id, orientation, natural_edit,
+            COUNT(*) as segment_count,
+            SUM(CASE WHEN image_path IS NOT NULL THEN 1 ELSE 0 END) as image_count
+        FROM segment_cache
+        GROUP BY audio_hash, style_id, orientation, natural_edit
+    `).all() as Array<{
+        audio_hash: string;
+        style_id: string;
+        orientation: string;
+        natural_edit: number;
+        segment_count: number;
+        image_count: number;
+    }>;
+
+    // Build stats lookup
+    const statsLookup = new Map<string, typeof segmentStatsRows[0]>();
+    for (const stat of segmentStatsRows) {
+        const key = `${stat.audio_hash}:${stat.style_id}:${stat.orientation}:${stat.natural_edit}`;
+        statsLookup.set(key, stat);
+    }
+
+    // Group jobs by audio_hash and deduplicate case-insensitive styles
+    const jobsByHash = new Map<string, JobCacheRow[]>();
+    for (const job of jobRows) {
+        const existing = jobsByHash.get(job.audio_hash) || [];
+        // Case-insensitive check for duplicate style/orientation combos
+        const isDuplicate = existing.some(e =>
+            e.style_id.toLowerCase() === job.style_id.toLowerCase() &&
+            e.orientation === job.orientation &&
+            e.natural_edit === job.natural_edit
+        );
+        if (!isDuplicate) {
+            existing.push(job);
+            jobsByHash.set(job.audio_hash, existing);
+        }
     }
 
     // Build project list
     const projects: Project[] = [];
     for (const audio of audioRows) {
-        const styles = stylesByHash.get(audio.audio_hash) || [];
+        const jobs = jobsByHash.get(audio.audio_hash) || [];
 
         projects.push({
             audioHash: audio.audio_hash,
             filename: audio.audio_filename,
             duration: audio.audio_duration,
-            createdAt: audio.created_at,
-            styles: styles.map(s => {
-                let segmentCount = 0;
-                if (s.segments) {
-                    try {
-                        const parsed = JSON.parse(s.segments);
-                        segmentCount = Array.isArray(parsed) ? parsed.length : 0;
-                    } catch { /* ignore */ }
-                }
+            createdAt: audio.updated_at, // audio_cache uses updated_at
+            styles: jobs.map(j => {
+                const statKey = `${j.audio_hash}:${j.style_id}:${j.orientation}:${j.natural_edit}`;
+                const stats = statsLookup.get(statKey);
 
                 return {
-                    styleId: s.style_id,
-                    orientation: s.orientation,
-                    naturalEdit: s.natural_edit === 1,
-                    hasSegments: !!s.segments,
-                    hasQueries: !!s.image_queries,
-                    hasImages: !!s.downloaded_images,
-                    segmentCount,
+                    styleId: j.style_id,
+                    orientation: j.orientation,
+                    naturalEdit: j.natural_edit === 1,
+                    hasSegments: !!j.segments,
+                    hasQueries: (stats?.segment_count ?? 0) > 0,
+                    hasImages: (stats?.image_count ?? 0) > 0,
+                    segmentCount: stats?.segment_count ?? 0,
                 };
             }),
         });
@@ -154,66 +205,68 @@ interface StoryboardResponse {
     entries: StoryboardEntry[];
 }
 
-function getStoryboard(audioHash: string, styleId: string, orientation: string = 'horizontal'): StoryboardResponse | null {
+function getStoryboard(audioHash: string, styleId: string, orientation: string = 'horizontal', naturalEdit: boolean = false): StoryboardResponse | null {
     const database = getDb();
+    const ne = naturalEdit ? 1 : 0;
 
     // Get audio info
     const audio = database.prepare('SELECT * FROM audio_cache WHERE audio_hash = ?').get(audioHash) as AudioCacheRow | null;
     if (!audio) return null;
 
-    // Get style cache
-    const style = database.prepare(
-        'SELECT * FROM style_cache WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
-    ).get(audioHash, styleId, orientation) as StyleCacheRow | null;
+    // Get job cache (case-insensitive style_id)
+    const job = database.prepare(
+        'SELECT * FROM job_cache WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ?'
+    ).get(audioHash, styleId, orientation, ne) as JobCacheRow | null;
 
-    if (!style) return null;
+    if (!job) return null;
 
-    // Parse data
-    let segments: Array<{ index: number; text: string; start: number; end: number }> = [];
-    let queries: Array<{ query: string; start: number; end: number; type?: string; linkedTo?: number | null }> = [];
-    let images: Array<{ filePath: string; query: string; start: number; end: number }> = [];
+    // Get segment cache entries (case-insensitive style_id)
+    const segmentRows = database.prepare(
+        'SELECT * FROM segment_cache WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? ORDER BY segment_index ASC'
+    ).all(audioHash, styleId, orientation, ne) as SegmentCacheRow[];
 
-    if (style.segments) {
-        try { segments = JSON.parse(style.segments); } catch { /* ignore */ }
-    }
-    if (style.image_queries) {
-        try { queries = JSON.parse(style.image_queries); } catch { /* ignore */ }
-    }
-    if (style.downloaded_images) {
-        try { images = JSON.parse(style.downloaded_images); } catch { /* ignore */ }
+    // Parse TranscriptSegments from job
+    let transcriptSegments: Array<{ text: string; start: number; end: number }> = [];
+    if (job.segments) {
+        try { transcriptSegments = JSON.parse(job.segments); } catch { /* ignore */ }
     }
 
-    // Build entries by matching on index/timing
+    // Build entries by matching transcript segments with segment cache
     const entries: StoryboardEntry[] = [];
 
-    for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        if (!segment) continue;
+    // Note: segment_cache uses 1-based indexing for segment_index
+    for (let i = 0; i < transcriptSegments.length; i++) {
+        const transcriptSegment = transcriptSegments[i];
+        if (!transcriptSegment) continue;
 
-        // Find matching query (by index or timing)
-        const query = queries[i] || null;
+        const segmentIndex = i + 1;
+        const cacheRow = segmentRows.find(r => r.segment_index === segmentIndex);
 
-        // Find matching image
-        const image = images[i] || null;
+        let queryData: any | null = null;
+        if (cacheRow) {
+            try {
+                const shot = JSON.parse(cacheRow.structured_shot);
+                queryData = {
+                    query: cacheRow.current_prompt,
+                    start: shot.start,
+                    end: shot.end,
+                    type: shot.type,
+                };
+            } catch { /* ignore */ }
+        }
 
         entries.push({
             index: i,
             segment: {
-                text: segment.text,
-                start: segment.start,
-                end: segment.end,
+                text: transcriptSegment.text,
+                start: transcriptSegment.start,
+                end: transcriptSegment.end,
             },
-            query: query ? {
-                query: query.query,
-                start: query.start,
-                end: query.end,
-                type: query.type,
-                linkedTo: query.linkedTo,
-            } : null,
-            image: image ? {
-                filePath: image.filePath,
-                exists: existsSync(image.filePath),
-                url: `/images/${encodeURIComponent(image.filePath)}`,
+            query: queryData,
+            image: cacheRow?.image_path ? {
+                filePath: cacheRow.image_path,
+                exists: existsSync(cacheRow.image_path),
+                url: `/images/${encodeURIComponent(cacheRow.image_path)}`,
             } : null,
         });
     }
@@ -228,73 +281,145 @@ function getStoryboard(audioHash: string, styleId: string, orientation: string =
     };
 }
 
-function updateQuery(audioHash: string, styleId: string, orientation: string, index: number, newQuery: string, newType?: string): boolean {
+function updateQuery(audioHash: string, styleId: string, orientation: string, index: number, newQuery: string, newType?: string, naturalEdit: boolean = false): boolean {
     const database = getDb();
-
-    // Get current style cache
-    const style = database.prepare(
-        'SELECT image_queries, downloaded_images FROM style_cache WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
-    ).get(audioHash, styleId, orientation) as { image_queries: string | null; downloaded_images: string | null } | null;
-
-    if (!style?.image_queries) return false;
+    const ne = naturalEdit ? 1 : 0;
+    const segmentIndex = index + 1; // 1-based
 
     try {
-        const queries = JSON.parse(style.image_queries) as Array<{ query: string; type?: string;[key: string]: unknown }>;
-        let images: Array<{ type?: string;[key: string]: unknown }> = [];
+        // Get current segment cache (case-insensitive style_id)
+        const cacheRow = database.prepare(
+            'SELECT structured_shot FROM segment_cache WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?'
+        ).get(audioHash, styleId, orientation, ne, segmentIndex) as { structured_shot: string } | null;
 
-        if (style.downloaded_images) {
-            try {
-                images = JSON.parse(style.downloaded_images);
-            } catch (e) {
-                // If images are corrupted, we just won't update them, but we proceed with queries
-                console.error('Failed to parse downloaded_images', e);
-            }
+        if (!cacheRow) return false;
+
+        const shot = JSON.parse(cacheRow.structured_shot);
+        if (newType) {
+            shot.type = newType;
         }
 
-        if (index < 0 || index >= queries.length) return false;
-
-        // Update the query and type in image_queries
-        const q = queries[index];
-        if (q) {
-            q.query = newQuery;
-            if (newType) {
-                q.type = newType;
-            }
-        }
-
-        // Update both query and type in downloaded_images (if it exists)
-        const img = images[index] as { query?: string; type?: string } | undefined;
-        if (img) {
-            img.query = newQuery;
-            if (newType) {
-                img.type = newType;
-            }
-        }
-
-        // Save back to database
-        const stmt = database.prepare(
-            'UPDATE style_cache SET image_queries = ?, downloaded_images = ?, updated_at = strftime(\'%s\', \'now\') WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
-        );
-        stmt.run(JSON.stringify(queries), JSON.stringify(images), audioHash, styleId, orientation);
+        // Save back to database (case-insensitive style_id)
+        const stmt = database.prepare(`
+            UPDATE segment_cache 
+            SET current_prompt = ?, structured_shot = ?, updated_at = strftime('%s', 'now') 
+            WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
+        `);
+        stmt.run(newQuery, JSON.stringify(shot), audioHash, styleId, orientation, ne, segmentIndex);
 
         return true;
-    } catch {
+    } catch (e) {
+        console.error('Failed to update query', e);
         return false;
     }
 }
 
-function deleteImages(audioHash: string, styleId: string, orientation: string): boolean {
+function deleteImages(audioHash: string, styleId: string, orientation: string, naturalEdit: boolean = false): boolean {
     const database = getDb();
+    const ne = naturalEdit ? 1 : 0;
 
     try {
-        const stmt = database.prepare(
-            'UPDATE style_cache SET downloaded_images = NULL, updated_at = strftime(\'%s\', \'now\') WHERE audio_hash = ? AND style_id = ? AND orientation = ?'
-        );
-        stmt.run(audioHash, styleId, orientation);
+        const stmt = database.prepare(`
+            UPDATE segment_cache 
+            SET image_path = NULL, status = 'pending', updated_at = strftime('%s', 'now') 
+            WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ?
+        `);
+        stmt.run(audioHash, styleId, orientation, ne);
         return true;
-    } catch {
+    } catch (e) {
+        console.error('Failed to delete images', e);
         return false;
     }
+}
+
+async function regenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
+    // Deduplicate: if same segment is already being regenerated, wait for that instead
+    const dedupeKey = `${audioHash}:${styleId}:${orientation}:${index}:${naturalEdit}`;
+    const pending = pendingRegenerations.get(dedupeKey);
+    if (pending) {
+        console.log(`[Regeneration] Request already in progress for segment ${index}, waiting...`);
+        return pending;
+    }
+
+    const regenerationPromise = doRegenerateSegmentImage(audioHash, styleId, orientation, index, naturalEdit);
+    pendingRegenerations.set(dedupeKey, regenerationPromise);
+
+    try {
+        return await regenerationPromise;
+    } finally {
+        pendingRegenerations.delete(dedupeKey);
+    }
+}
+
+async function doRegenerateSegmentImage(audioHash: string, styleId: string, orientation: string, index: number, naturalEdit: boolean = false): Promise<string> {
+    const database = getDb();
+    const ne = naturalEdit ? 1 : 0;
+    const segmentIndex = index + 1; // 1-based
+
+    // 1. Get segment data
+    const cacheRow = database.prepare(
+        'SELECT current_prompt, structured_shot, seed FROM segment_cache WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?'
+    ).get(audioHash, styleId, orientation, ne, segmentIndex) as { current_prompt: string, structured_shot: string, seed: number | null } | null;
+
+    if (!cacheRow) throw new Error("Segment not found in database");
+
+    // 2. Resolve style
+    const style = getStyle(styleId) || getStyle("history")!;
+    const resolvedStyle = resolveStyle(style, { orientation: orientation as any });
+
+    // 3. Setup provider
+    const provider = getProvider();
+    const aspectRatio: '16:9' | '9:16' = orientation === 'vertical' ? '9:16' : '16:9';
+
+    // Use existing seed if available, otherwise random
+    const seed = cacheRow.seed || (Math.floor(Math.random() * 2147483646) + 1);
+
+    // 4. Generate with unified safety retry (handles UnsafePromptError automatically)
+    // Pass raw prompt - style is applied at generation time via stylePrefix
+    console.log(`[Regeneration] Generating image for segment ${index} (seed: ${seed}) with prompt: ${cacheRow.current_prompt.substring(0, 100)}...`);
+    const result = await generateWithSafetyRetry(
+        provider,
+        {
+            prompt: cacheRow.current_prompt,
+            negativePrompt: resolvedStyle.negativePrompt,
+            aspectRatio,
+            seed,
+        },
+        {
+            style: resolvedStyle,
+            stylePrefix: resolvedStyle.imageStyle,
+            onPromptRewritten: (newPrompt, rewriteCount) => {
+                // Update the prompt in DB when rewritten (raw scene, no style)
+                database.prepare(`
+                    UPDATE segment_cache 
+                    SET current_prompt = ?, rewrite_count = ?, updated_at = strftime('%s', 'now') 
+                    WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
+                `).run(newPrompt, rewriteCount, audioHash, styleId, orientation, ne, segmentIndex);
+                console.log(`[Regeneration] Prompt rewritten (${rewriteCount}x): ${newPrompt.substring(0, 60)}...`);
+            },
+        }
+    );
+
+    // 5. Save
+    const orientationSuffix = orientation === 'vertical' ? '_vertical' : '';
+    const filename = `${resolvedStyle.id}${orientationSuffix}_${index}.${result.format}`;
+    const filePath = join(IMAGES_DIR, filename);
+
+    if (!existsSync(IMAGES_DIR)) {
+        await Bun.spawn(["mkdir", "-p", IMAGES_DIR]).exited;
+    }
+
+    await Bun.write(filePath, result.data);
+    console.log(`[Regeneration] Saved image to: ${filePath}`);
+
+    // 6. Update DB
+    database.prepare(`
+        UPDATE segment_cache 
+        SET image_path = ?, status = 'approved', updated_at = strftime('%s', 'now') 
+        WHERE audio_hash = ? AND LOWER(style_id) = LOWER(?) AND orientation = ? AND natural_edit = ? AND segment_index = ?
+    `).run(filePath, audioHash, styleId, orientation, ne, segmentIndex);
+
+    return filePath;
 }
 
 // Static file serving
@@ -353,12 +478,13 @@ async function handleRequest(req: Request): Promise<Response> {
             const audioHash = parts[0];
             const styleId = parts[1];
             const orientation = url.searchParams.get('orientation') || 'horizontal';
+            const naturalEdit = url.searchParams.get('naturalEdit') === 'true';
 
             if (!audioHash || !styleId) {
                 return Response.json({ error: 'Missing audioHash or styleId' }, { status: 400, headers: corsHeaders });
             }
 
-            const storyboard = getStoryboard(audioHash, styleId, orientation);
+            const storyboard = getStoryboard(audioHash, styleId, orientation, naturalEdit);
             if (!storyboard) {
                 return Response.json({ error: 'Storyboard not found' }, { status: 404, headers: corsHeaders });
             }
@@ -372,6 +498,7 @@ async function handleRequest(req: Request): Promise<Response> {
             const styleId = parts[1];
             const index = parseInt(parts[2] || '', 10);
             const orientation = url.searchParams.get('orientation') || 'horizontal';
+            const naturalEdit = url.searchParams.get('naturalEdit') === 'true';
 
             if (!audioHash || !styleId || isNaN(index)) {
                 return Response.json({ error: 'Invalid parameters' }, { status: 400, headers: corsHeaders });
@@ -382,7 +509,7 @@ async function handleRequest(req: Request): Promise<Response> {
                 return Response.json({ error: 'Missing query in body' }, { status: 400, headers: corsHeaders });
             }
 
-            const success = updateQuery(audioHash, styleId, orientation, index, body.query, body.type);
+            const success = updateQuery(audioHash, styleId, orientation, index, body.query, body.type, naturalEdit);
             if (!success) {
                 return Response.json({ error: 'Failed to update query' }, { status: 500, headers: corsHeaders });
             }
@@ -395,13 +522,34 @@ async function handleRequest(req: Request): Promise<Response> {
             const audioHash = parts[0];
             const styleId = parts[1];
             const orientation = url.searchParams.get('orientation') || 'horizontal';
+            const naturalEdit = url.searchParams.get('naturalEdit') === 'true';
 
             if (!audioHash || !styleId) {
                 return Response.json({ error: 'Invalid parameters' }, { status: 400, headers: corsHeaders });
             }
 
-            const success = deleteImages(audioHash, styleId, orientation);
+            const success = deleteImages(audioHash, styleId, orientation, naturalEdit);
             return Response.json({ success }, { headers: corsHeaders });
+        }
+
+        if (path.startsWith('/api/regenerate/') && method === 'POST') {
+            const parts = path.replace('/api/regenerate/', '').split('/');
+            const audioHash = parts[0];
+            const styleId = parts[1];
+            const index = parseInt(parts[2] || '', 10);
+            const orientation = url.searchParams.get('orientation') || 'horizontal';
+            const naturalEdit = url.searchParams.get('naturalEdit') === 'true';
+
+            if (!audioHash || !styleId || isNaN(index)) {
+                return Response.json({ error: 'Invalid parameters' }, { status: 400, headers: corsHeaders });
+            }
+
+            const filePath = await regenerateSegmentImage(audioHash, styleId, orientation, index, naturalEdit);
+            return Response.json({
+                success: true,
+                filePath,
+                url: `/images/${encodeURIComponent(filePath)}?t=${Date.now()}` // Add timestamp to bust cache
+            }, { headers: corsHeaders });
         }
 
         // Serve images from tmp/images directory or by full path
@@ -472,6 +620,7 @@ if (!existsSync(CACHE_DB_PATH)) {
 const server = Bun.serve({
     port: PORT,
     fetch: handleRequest,
+    idleTimeout: 120, // 2 minutes - LLM rewrite + image generation can be slow
 });
 
 console.log(`✓ Server running at http://localhost:${server.port}`);

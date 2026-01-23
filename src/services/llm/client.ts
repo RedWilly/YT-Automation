@@ -70,10 +70,12 @@ export async function callLLMWithRetry(
             lastError = error instanceof Error ? error : new Error(String(error));
 
             if (attempt < maxRetries) {
+                const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
                 logger.warn(
                     "LLM",
-                    `LLM call${label} failed (attempt ${attempt + 1}/${maxRetries + 1}): ${lastError.message}. Retrying...`
+                    `LLM call${label} failed (attempt ${attempt + 1}/${maxRetries + 1}): ${lastError.message}. Retrying in ${delay}ms...`
                 );
+                await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
     }

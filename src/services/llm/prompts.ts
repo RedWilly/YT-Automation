@@ -7,7 +7,7 @@
 
 import type { ResolvedStyle } from '../../styles/types.ts';
 import type { StoryContext, BatchState } from '../../types/llm.ts';
-import { BEAT_TYPE_SCHEMA, COMPOSITION_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
+import { CAMERA_ANGLE_SCHEMA, SHOT_SCALE_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -43,8 +43,14 @@ THE DIRECTOR'S MINDSET:
    - Describe only the ACTION, not visual appearances (handled automatically)`;
 
    // --- CONTEXT: STORY OVERVIEW ---
+   const era = storyContext.globalEraConstraints?.era || 'Not specified';
+   const techLevel = storyContext.globalEraConstraints?.technologyLevel || 'modern';
+   const prohibitedItems = storyContext.globalEraConstraints?.prohibitedItems?.join(', ') || 'none';
+
    const storyOverview = `PRODUCTION CONTEXT:
-- Era/Period: ${storyContext.era || 'Not specified'}
+- Era/Period: ${era}
+- Technology Level: ${techLevel}
+- Prohibited Items (anachronisms): ${prohibitedItems}
 - Primary Location: ${storyContext.primarySetting || 'Various locations'}
 - Visual Tone: ${storyContext.tone || 'Not specified'}`;
 
@@ -62,77 +68,109 @@ THE DIRECTOR'S MINDSET:
       ? `{
   "start": number,
   "end": number,
-  "sceneId": "scene_id_from_context",
-  "beatType": ${BEAT_TYPE_SCHEMA},
+  "sceneId": "scene_id_from_SCENE_LIST",
   "focus": {
-    "primary": ["entity_id"],
-    "secondary": ["entity_id"],
-    "exclude": ["entity_id"]
+    "emphasis": ["entity_id"],  // 1-2 entities to FOCUS on (from scene's entities)
+    "exclude": ["entity_id"]    // entities mentioned but NOT shown
   },
-  "action": "what is physically happening",
-  "composition": ${COMPOSITION_SCHEMA} | null,
-  "framingNote": "optional specific framing guidance",
+  "action": "physical action only - NO visual descriptions",
+  "cameraAngle": ${CAMERA_ANGLE_SCHEMA} | null,
+  "shotScale": ${SHOT_SCALE_SCHEMA} | null,
+  "framingNote": "optional framing guidance",
   "type": ${SHOT_TYPE_SCHEMA}
 }`
       : `{
   "start": number,
   "end": number,
   "sceneId": "scene_id",
-  "beatType": ${BEAT_TYPE_SCHEMA},
   "focus": {
-    "primary": ["entity_id"],
-    "secondary": [],
+    "emphasis": ["entity_id"],
     "exclude": []
   },
   "action": "what is happening",
-  "composition": null,
+  "cameraAngle": null,
+  "shotScale": null,
   "type": "pan"
 }`;
 
    const shotTypeInstructions = useShotTypes
       ? `
-## CINEMATOGRAPHY: THE DIRECTOR'S TOOLKIT
+## SCHEMA DEFINITIONS (EXACT VALUES REQUIRED)
 
-CAMERA MOVEMENT (The 'type' field):
-- "pan": Revealing space, following motion, establishing geography, transitions between subjects. The workhorse.
-- "zoom": Drawing attention to something important—a face, detail, realization, emotional beat. Emphasis.
-- "static": Deliberate stillness. Gives the viewer breathing room. Without static shots, constant motion becomes exhausting.
+### FIELD: type (CAMERA MOVEMENT)
+Controls camera MOVEMENT effect for video editing.
+ALLOWED VALUES (pick exactly one):
+  ├─ "pan"    → reveals space, follows motion, establishes geography
+  ├─ "zoom"   → draws attention to important detail, emotional emphasis
+  └─ "static" → deliberate stillness, lets moment breathe, adds weight
 
-MOVEMENT SELECTION (Let the shot dictate):
-- Establishing a location? → pan
-- Following action or motion? → pan
-- Revealing something new? → pan
-- Emotional beat or realization? → zoom
-- Close-up on face/detail that matters? → zoom
-- Drawing psychological pressure? → zoom
-- Moment needs to land, sink in? → static
-- Intimate, contemplative beat? → static
-- Letting the audience absorb? → static
+RHYTHM RULE: Vary movement types. Don't repeat same type 3+ times consecutively.
 
-WHY STATIC MATTERS: A video with only motion feels frantic and cheap. Static shots add weight, intentionality, and let powerful moments breathe. Every video needs them.
+---
 
-RHYTHM RULE: Vary movement types. Don't repeat the same type 3+ times consecutively. Alternate between motion and stillness.
+### FIELD: cameraAngle (VERTICAL PERSPECTIVE)
+Controls where camera looks FROM (vertical position relative to subject).
+ALLOWED VALUES (pick exactly one, or null):
+  ├─ "Eye Level"     → camera at subject's eye height, neutral/relatable
+  ├─ "Low Angle"     → camera BELOW subject, looking UP → power/dominance/threat
+  ├─ "High Angle"    → camera ABOVE subject, looking DOWN → vulnerability/diminishment
+  ├─ "Bird's Eye"    → camera directly ABOVE, top-down view → god's view, scale
+  ├─ "Dutch Angle"   → camera TILTED, horizon at angle → disorientation/unease
+  └─ "Over Shoulder" → camera BEHIND one character → POV intimacy
 
-ANGLE PSYCHOLOGY (Use in 'framingNote'):
-- LOW ANGLE: Suggests power, dominance, or threat. Subject looks imposing.
-- HIGH ANGLE: Implies vulnerability, objectivity, or diminishment. Subject looks small.
-- DUTCH ANGLE (tilted): Signals disorientation, unease, or instability. Use sparingly.
-- EYE LEVEL: Neutral, relatable. Default for dialogue and connection.
+---
 
-MISE-EN-SCÈNE CHECKLIST (What's in the frame?):
+### FIELD: shotScale (FRAMING DISTANCE)
+Controls how much of subject fills the frame (distance from subject).
+ALLOWED VALUES (pick exactly one, or null):
+  ├─ "Wide Shot"         → FULL BODY + environment visible, establishes geography
+  ├─ "Medium Shot"       → WAIST UP, balances character and context
+  ├─ "Close-Up"          → FACE/DETAIL fills most of frame, emotional emphasis
+  └─ "Extreme Close-Up"  → EYES/HANDS/OBJECTS only, maximum intimacy
+
+---
+
+⚠️ CRITICAL: DO NOT CONFUSE THESE FIELDS ⚠️
+┌─────────────────────────────────────────────────────────────────────┐
+│ "Close-Up" is a shotScale (FRAMING), NOT a cameraAngle             │
+│ "Low Angle" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
+│ "Wide Shot" is a shotScale (FRAMING), NOT a cameraAngle            │
+│ "Eye Level" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
+│                                                                     │
+│ Each field has its OWN set of valid values that NEVER overlap!     │
+└─────────────────────────────────────────────────────────────────────┘
+
+---
+
+## COMBINING FIELDS FOR EMOTIONAL INTENT
+
+Use this table to select cameraAngle + shotScale based on what you want the audience to feel:
+
+| Intent          | cameraAngle      | shotScale           | Effect                        |
+|-----------------|------------------|---------------------|-------------------------------|
+| Tension         | "Low Angle"      | "Close-Up"          | subject looms, feels threat   |
+| Power           | "Low Angle"      | "Wide Shot"         | subject dominates the frame   |
+| Vulnerability   | "High Angle"     | "Medium Shot"       | subject looks small, exposed  |
+| Disorientation  | "Dutch Angle"    | "Close-Up"          | off-center, unsettling        |
+| Intimacy        | "Eye Level"      | "Close-Up"          | direct connection with viewer |
+| Observation     | "Bird's Eye"     | "Wide Shot"         | detached, god's view          |
+| POV Connection  | "Over Shoulder"  | "Medium Shot"       | viewer becomes participant    |
+
+---
+
+## MISE-EN-SCÈNE CHECKLIST (What's in the frame?)
 - SETTING: Location details that establish tone (cluttered vs. sterile, warm vs. cold light)
 - PROPS: Objects that carry meaning (a weapon, a letter, an empty chair)
 - POSITIONING: Where characters stand relative to each other (dominance, isolation, intimacy)
 - LIGHTING: Harsh shadows = tension. Soft light = warmth. Silhouettes = mystery.
 
-DEPTH STAGING (MANDATORY):
+## DEPTH STAGING (MANDATORY)
 - FOREGROUND: Elements that create tension, frame the shot, or add intimacy
 - MIDGROUND: Where the action lives
 - BACKGROUND: Context, threat, or environmental storytelling`
       : '';
 
    // --- CRITICAL RULES (Condensed for token efficiency) ---
-   const typicalBeats = storyContext.contentStrategy?.typicalBeats?.join(', ');
    const contentType = storyContext.contentStrategy?.type || storyContext.contentType;
 
    const criticalRules = `
@@ -141,19 +179,45 @@ DEPTH STAGING (MANDATORY):
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
 4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
-5. **beatType MUST be EXACTLY one of**: ${BEAT_TYPE_SCHEMA}
-6. **composition MUST be EXACTLY one of**: ${COMPOSITION_SCHEMA} | null
-7. **type MUST be EXACTLY one of**: ${SHOT_TYPE_SCHEMA}
+
+## SCHEMA ENFORCEMENT (EXACT VALUES ONLY)
+┌──────────────┬─────────────────────────────────────────────────────────────────┐
+│ FIELD        │ EXACT VALID VALUES                                              │
+├──────────────┼─────────────────────────────────────────────────────────────────┤
+│ type         │ "pan" | "zoom" | "static"                                       │
+│ cameraAngle  │ "Eye Level" | "Low Angle" | "High Angle" | "Bird's Eye" |       │
+│              │ "Dutch Angle" | "Over Shoulder" | null                          │
+│ shotScale    │ "Wide Shot" | "Medium Shot" | "Close-Up" | "Extreme Close-Up" | │
+│              │ null                                                            │
+└──────────────┴─────────────────────────────────────────────────────────────────┘
+
+REMEMBER:
+- cameraAngle = WHERE camera looks FROM (vertical perspective)
+- shotScale = HOW MUCH of subject is in frame (framing distance)
+- DO NOT CONFUSE cameraAngle and shotScale!
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
 Visual Approach: ${storyContext.contentStrategy?.visualApproach}
-Typical Beats: ${typicalBeats}
 
-## FOCUS LOGIC (Visual Hierarchy)
-- PRIMARY: THE subject. If everything is primary, nothing is. Pick ONE focus per shot.
-- SECONDARY: Visible but not dominant. Background elements. Set dressing.
+## SCENE INHERITANCE (CRITICAL - READ CAREFULLY)
+Your shot INHERITS from the scene automatically:
+- Scene's primaryEntities are AUTO-INCLUDED (you don't specify them)
+- Scene's setting, mood, lighting, keyProps are AUTO-APPLIED
+- You ONLY specify:
+  1. "emphasis": Which 1-2 entities to FOCUS on (subset of scene entities)
+  2. "exclude": Which entities to HIDE from this specific shot
+  3. "action": What is physically happening
+
+Example: Scene has primaryEntities ["vettius_pollio", "screaming_slave", "moray_eel", "eel_pools"]
+- Your emphasis: ["screaming_slave"] → slave is the focus
+- Your exclude: ["vettius_pollio"] → Pollio not shown
+- AUTO-INCLUDED as secondary: moray_eel, eel_pools (because they're in the scene)
+
+## FOCUS LOGIC
+- EMPHASIS: The 1-2 entities to FOCUS on. Pick the emotional center of the shot.
 - EXCLUDE: Entities mentioned in audio but NOT shown. Builds tension, saves reveals.
+- Everything else in the scene is automatically visible as context.
 
 ## THE "BLOCKING FIRST" RULE
 Before choosing your shot, mentally stage the scene:
@@ -161,19 +225,6 @@ Before choosing your shot, mentally stage the scene:
 - Who dominates space?
 - Who is trapped, isolated, or exposed?
 THEN choose composition and camera to REVEAL that truth.
-
-## COMPOSITION GUIDANCE (Framing for Clarity)
-- "extreme-wide": Establishes geography, shows isolation or scale
-- "wide": Full body, shows action in environment
-- "medium": Waist up, balances character and context
-- "close-up": Face/detail, emotional emphasis
-- "extreme-close-up": Hands, eyes, objects—maximum intimacy
-
-Match composition to intent:
-- Tension? Close-up, tight framing, low angle.
-- Power? Low angle, wide shot, subject dominates frame.
-- Vulnerability? High angle, isolating composition, empty space around subject.
-- Disorientation? Dutch angle, off-center framing.
 
 ## SYMBOLISM CONSISTENCY
 - Use consistent visual metaphors. If swords represent honor, maintain that meaning.
@@ -240,44 +291,43 @@ export function buildContextAwareUserPrompt(
    }).join('\n\n');
 
    const typeField = naturalEdit
-      ? `- SET "beatType": narrative purpose of this shot
-- SET "focus": { "primary": main focus, "secondary": background, "exclude": not in shot }
+      ? `- SET "focus.emphasis": 1-2 entity IDs to FOCUS on (from scene's entities)
+- SET "focus.exclude": entity IDs to HIDE from this shot
 - SET "type": "pan", "zoom", or "static" (for video editing)
-- SET "composition": framing guidance or null
-- SET "framingNote": optional specific framing details`
-      : `- SET "beatType": purpose of this shot (action, explanation, establishing, etc.)
-- SET "focus": { "primary": main focus entities, "secondary": [], "exclude": [] }
-- SET "type": "pan" (default)
-- SET "composition": null`;
+- SET "cameraAngle": camera perspective
+- SET "shotScale": framing distance
+- SET "framingNote": optional specific framing details
+NOTE: Scene's other entities are AUTO-INCLUDED as secondary context`
+      : `- SET "focus.emphasis": main entity to focus on
+- SET "focus.exclude": [] (entities to hide)
+- SET "type": "pan" (default)`;
 
    const outputExample = naturalEdit
       ? `[{
   "start": 0,
   "end": 5000,
-  "sceneId": "battlefield",
-  "beatType": "emotional",
+  "sceneId": "scene_1",
   "focus": {
-    "primary": ["fathers_sword"],
-    "secondary": ["marcus"],
-    "exclude": ["enemy_soldiers"]
+    "emphasis": ["screaming_slave"],
+    "exclude": ["vettius_pollio"]
   },
-  "action": "hands gripping the hilt tightly, rain dripping onto the muddy trench floor",
-  "composition": "extreme-close-up",
-  "framingNote": "sword fills foreground, blurred soldier silhouettes in background",
+  "action": "suspended by ropes over the dark water, struggling against bonds",
+  "cameraAngle": "Low Angle",
+  "shotScale": "Medium Shot",
+  "framingNote": "slave centered, guards' boots visible in foreground",
   "type": "static"
 }, ...]`
       : `[{
   "start": 0,
   "end": 5000,
   "sceneId": "main_scene",
-  "beatType": "action",
   "focus": {
-    "primary": ["main_entity"],
-    "secondary": [],
+    "emphasis": ["main_entity"],
     "exclude": []
   },
-  "action": "walking across the cobblestone square, market stalls blurred in background",
-  "composition": null,
+  "action": "walking across the cobblestone square",
+  "cameraAngle": null,
+  "shotScale": null,
   "type": "pan"
 }]`;
 

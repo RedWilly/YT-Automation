@@ -1,7 +1,7 @@
 /** Handles parsing, JSON extraction, and validation of LLM responses */
 
 import type { ImageSearchQuery } from "../../types/index.ts";
-import { CAMERA_ANGLE_KEYS, SHOT_SCALE_KEYS, SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
+import { SHOT_TYPES, type StructuredShot } from "../../types/llm.ts";
 import * as logger from "../../utils/logger.ts";
 
 /** Parse and validate image queries from LLM response */
@@ -60,12 +60,12 @@ export function parseStructuredShots(content: string): StructuredShot[] {
 }
 
 /**
- * Enforce shot type distribution: static should be ~10% max
+ * Enforce shot type distribution: static should be ~25% max
  * If too many static shots, convert excess to pan/zoom based on context
  */
 function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[] {
     const total = shots.length;
-    const maxStatic = Math.max(1, Math.ceil(total * 0.25)); // At least 1, max 20%
+    const maxStatic = Math.max(1, Math.ceil(total * 0.25)); // At least 1, max 25%
 
     const staticShots = shots.filter(s => s.type === 'static');
     const staticCount = staticShots.length;
@@ -87,13 +87,13 @@ function enforceShootTypeDistribution(shots: StructuredShot[]): StructuredShot[]
 
         converted++;
 
-        // Choose pan or zoom based on shot scale
-        const isCloseUp = shot.shotScale && ['Close-Up', 'Extreme Close-Up'].includes(shot.shotScale);
+        // Check if action mentions close-up to determine conversion type
+        const isCloseUp = /\[shotScale:\s*(Close-Up|Extreme Close-Up)\]/i.test(shot.action);
 
         // Zoom for close-ups, pan for everything else
         const newType = isCloseUp ? 'zoom' : 'pan';
 
-        logger.debug("LLM", `Shot ${index + 1}: static → ${newType} (scale: ${shot.shotScale})`);
+        logger.debug("LLM", `Shot ${index + 1}: static → ${newType}`);
 
         return { ...shot, type: newType };
     });
@@ -251,10 +251,6 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
             logger.debug("LLM", `Shot ${i}: end is not a number (got ${typeof obj.end})`);
             return false;
         }
-        if (typeof obj.sceneId !== "string") {
-            logger.debug("LLM", `Shot ${i}: sceneId is not a string (got ${typeof obj.sceneId})`);
-            return false;
-        }
         if (typeof obj.action !== "string") {
             logger.debug("LLM", `Shot ${i}: action is not a string (got ${typeof obj.action})`);
             return false;
@@ -264,48 +260,15 @@ export function isValidStructuredShotArray(data: unknown): data is StructuredSho
             return false;
         }
 
-        // focus object validation (new structure: emphasis + exclude)
-        if (!obj.focus || typeof obj.focus !== 'object') {
-            logger.debug("LLM", `Shot ${i}: focus is missing or not an object (got ${typeof obj.focus})`);
-            return false;
-        }
-        const focus = obj.focus as Record<string, unknown>;
-
-        // Check for OLD format (primary/secondary instead of emphasis)
-        if ('primary' in focus || 'secondary' in focus) {
-            logger.debug("LLM", `Shot ${i}: OLD FORMAT DETECTED - has primary/secondary instead of emphasis/exclude`);
-            return false;
-        }
-
-        if (!Array.isArray(focus.emphasis)) {
-            logger.debug("LLM", `Shot ${i}: focus.emphasis is not an array (got ${typeof focus.emphasis})`);
-            return false;
-        }
-        if (!Array.isArray(focus.exclude)) {
-            logger.debug("LLM", `Shot ${i}: focus.exclude is not an array (got ${typeof focus.exclude})`);
-            return false;
-        }
-
-        // cameraAngle validation (can be null)
-        if (obj.cameraAngle !== null && obj.cameraAngle !== undefined) {
-            if (!CAMERA_ANGLE_KEYS.includes(obj.cameraAngle as typeof CAMERA_ANGLE_KEYS[number])) {
-                logger.debug("LLM", `Shot ${i}: invalid cameraAngle "${obj.cameraAngle}" (valid: ${CAMERA_ANGLE_KEYS.join(', ')})`);
-                return false;
-            }
-        }
-
-        // shotScale validation (can be null)
-        if (obj.shotScale !== null && obj.shotScale !== undefined) {
-            if (!SHOT_SCALE_KEYS.includes(obj.shotScale as typeof SHOT_SCALE_KEYS[number])) {
-                logger.debug("LLM", `Shot ${i}: invalid shotScale "${obj.shotScale}" (valid: ${SHOT_SCALE_KEYS.join(', ')})`);
-                return false;
-            }
-        }
-
         // Optional framingNote
         if (obj.framingNote !== undefined && obj.framingNote !== null && typeof obj.framingNote !== "string") {
             logger.debug("LLM", `Shot ${i}: framingNote is not a string (got ${typeof obj.framingNote})`);
             return false;
+        }
+
+        // Warn if OLD format fields are present (for migration debugging)
+        if ('sceneId' in obj || 'focus' in obj || 'cameraAngle' in obj || 'shotScale' in obj || 'exclude' in obj) {
+            logger.debug("LLM", `Shot ${i}: OLD FORMAT fields detected - these are ignored in new format`);
         }
     }
 
@@ -354,12 +317,6 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
         if (typeof shot.start !== "number" || typeof shot.end !== "number") {
             throw new Error(`Invalid shot at index ${i}: start/end must be numbers`);
         }
-        if (typeof shot.sceneId !== "string" || shot.sceneId.trim().length === 0) {
-            throw new Error(`Invalid shot at index ${i}: sceneId is required`);
-        }
-        if (shot.sceneId === "default") {
-            logger.warn("LLM", `Shot ${i} uses "default" sceneId - LLM ignored story context`);
-        }
         if (typeof shot.action !== "string" || shot.action.trim().length === 0) {
             throw new Error(`Invalid shot at index ${i}: action is required`);
         }
@@ -370,12 +327,10 @@ export function validateStructuredShots(shots: StructuredShot[]): boolean {
             throw new Error(`Invalid shot at index ${i}: start (${shot.start}) > end (${shot.end})`);
         }
 
-        // Validate focus has emphasis array
-        if (!shot.focus || !Array.isArray(shot.focus.emphasis)) {
-            throw new Error(`Invalid shot at index ${i}: focus.emphasis is required`);
-        }
-        if (shot.focus.emphasis.length === 0) {
-            logger.warn("LLM", `Shot ${i} has empty emphasis - no focus entity specified`);
+        // Check for entity references in action (should have at least one [something])
+        const hasEntityRef = /\[[^\]]+\]/.test(shot.action);
+        if (!hasEntityRef) {
+            logger.warn("LLM", `Shot ${i} has no bracket references in action - may lack entity/camera info`);
         }
     }
 

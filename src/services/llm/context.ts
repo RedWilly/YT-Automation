@@ -124,7 +124,16 @@ FOR EACH SCENE, ADD DIRECTORIAL INFORMATION:
 - visualTone: How should this scene FEEL? ("claustrophobic", "expansive", "intimate", "chaotic", "sterile")
 - powerDynamic: Who dominates space? Who is vulnerable? ("hero isolated", "villain looms", "equals face off")
 - keyProps: Symbolic objects that carry emotional weight in this scene ("the sword", "the letter", "the empty chair")
-- lightingCue: Lighting direction ("harsh overhead shadows", "warm golden hour", "silhouette against light", "cold blue")
+- mood: VISUAL atmosphere descriptors (NOT emotions). Use comma-separated visual adjectives.
+  ✓ GOOD: "dark, tense, shadowy, claustrophobic"
+  ✓ GOOD: "bright, chaotic, dusty, crowded"
+  ✗ BAD: "tragic, hopeful, bittersweet" (abstract emotions, not visual)
+  ✗ BAD: "The moment when hope dies" (narrative, not descriptor)
+- lightingCue: REUSABLE lighting descriptors for image prompts. Use visual terms only.
+  ✓ GOOD: "harsh orange backlighting, heavy smoke, deep shadows"
+  ✓ GOOD: "soft diffused daylight, warm tones, minimal shadows"
+  ✗ BAD: "The hellish glow of the burning city" (narrative/story-specific)
+  ✗ BAD: "Lighting that reflects his inner turmoil" (abstract, not visual)
 
 # OUTPUT FORMAT
 Return a valid JSON object with this structure:
@@ -353,22 +362,15 @@ export function buildContextInjection(
         entitySection += '\n';
     }
 
-    // Build scene section with directorial information
-    let sceneSection = '== CURRENT SCENE (DIRECTORIAL CONTEXT) ==\n';
+    // Build scene section with directorial information (for context only - not referenced by ID)
+    let sceneSection = '== CURRENT SCENE CONTEXT ==\n';
 
     if (relevantScenes.length > 0) {
         const scene = relevantScenes[0];
         if (scene) {
-            sceneSection += `SCENE ID: ${scene.id}\n`;
             sceneSection += `LOCATION: ${scene.name}\n`;
             sceneSection += `SETTING: ${scene.setting}\n`;
             sceneSection += `MOOD: ${scene.mood}\n`;
-
-            // PRIMARY ENTITIES (AUTO-INCLUDED in every shot unless excluded)
-            sceneSection += `\nPRIMARY ENTITIES (auto-included): [${scene.primaryEntities.join(', ')}]\n`;
-            if (scene.secondaryEntities && scene.secondaryEntities.length > 0) {
-                sceneSection += `SECONDARY ENTITIES: [${scene.secondaryEntities.join(', ')}]\n`;
-            }
 
             // Directorial fields
             if (scene.visualTone) {
@@ -419,19 +421,20 @@ Generate structured shots for segments ${currentSegments[0] + 1}-${currentSegmen
 
 THE DIRECTOR'S QUESTION (ask for EACH segment):
 "What should the audience FEEL or UNDERSTAND right now?"
-- If the answer is about a CHARACTER's emotion → focus on character, use close-up
-- If the answer is about POWER/THREAT → use low angle, show dominance
-- If the answer is about VULNERABILITY → use high angle, isolate the subject
-- If the answer is about a LOCATION/SETTING → use wide shot, establish the space
+- If the answer is about a CHARACTER's emotion → focus on character, use [shotScale: Close-Up]
+- If the answer is about POWER/THREAT → use [cameraAngle: Low Angle], show dominance
+- If the answer is about VULNERABILITY → use [cameraAngle: High Angle], isolate the subject
+- If the answer is about a LOCATION/SETTING → use [shotScale: Wide Shot], establish the space
 - If the answer is about an OBJECT → focus on the object, use the scene as background
 
-REFERENCED ≠ MUST BE SHOWN:
-Just because a character is MENTIONED in the audio does NOT mean they should be in the shot.
-Use "focus.exclude" for entities that are referenced but should NOT be visualized.
-Show what serves the EMOTIONAL INTENT, not just what is literally mentioned.
+BRACKET NOTATION:
+- Reference entities using [entity_id] from the ENTITY REGISTRY above
+- Embed camera angles using [cameraAngle: X] 
+- Embed shot scales using [shotScale: Y]
+- For things NOT in the registry, describe them inline with full visual detail
 
 MANDATORY RULES:
-1. Use entity IDs from the VISUAL ASSETS REGISTRY above
+1. Use entity IDs from the VISUAL ASSETS REGISTRY in [brackets]
 2. Each shot must have depth: foreground/midground/background awareness
 3. Use the LIGHTING and VISUAL TONE from the scene context above
 4. Symbolic props (keyProps) should appear when emotionally relevant

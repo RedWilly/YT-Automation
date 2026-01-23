@@ -164,30 +164,33 @@ export interface LLMResponse {
 // STRUCTURED SHOT (Phase 2 Output)
 // =============================================================================
 
+/**
+ * New unified shot format with natural language action field.
+ * 
+ * The action field uses bracket notation to embed:
+ * - Entity references: [entity_id] → expanded to Name(visualAnchor)
+ * - Camera angle: [cameraAngle: X] → expanded to X
+ * - Shot scale: [shotScale: Y] → expanded to Y
+ * 
+ * Example action:
+ * "A [cameraAngle: High Angle] [shotScale: Wide Shot] of [screaming_slave] dangling over the murky [eel_pools]"
+ * 
+ * Transforms to:
+ * "A High Angle, Wide Shot of Screaming Slave(olive skin, muscular...) dangling over the murky Eel Pools(rectangular pools...)"
+ */
 export interface StructuredShot {
   start: number;
   end: number;
-  /** Scene ID - shot inherits primaryEntities, setting, mood, lighting from scene */
-  sceneId: string;
   /** 
-   * Focus configuration - simplified for consistency
-   * - emphasis: Entity IDs to EMPHASIZE in this shot (1-2 max, subset of scene entities)
-   * - exclude: Entity IDs to HIDE from this shot (mentioned but not shown)
-   * All other scene.primaryEntities are auto-included as secondary
+   * Natural language action with embedded references using bracket notation:
+   * - [entity_id] for entity references
+   * - [cameraAngle: X] for camera angle
+   * - [shotScale: Y] for shot scale
    */
-  focus: {
-    emphasis: string[];
-    exclude: string[];
-  };
-  /** Physical action happening - NO visual descriptions, just movement/gesture */
   action: string;
-  /** Camera angle - determines vertical perspective */
-  cameraAngle: CameraAngle | null;
-  /** Shot scale - determines framing/distance from subject */
-  shotScale: ShotScale | null;
-  /** Optional specific framing guidance */
+  /** Optional specific framing guidance - appended to final prompt */
   framingNote?: string;
-  /** Shot type for video effects */
+  /** Shot type for video effects: pan, zoom, static */
   type: ShotType;
 }
 

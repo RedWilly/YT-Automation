@@ -1,157 +1,214 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Storyboard viewer for v2v audio-to-video projects">
     <title>Storyboard Viewer — v2v</title>
-    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        bg: {
+                            primary: '#09090b',
+                            secondary: '#0f0f12',
+                            tertiary: '#18181b',
+                            elevated: '#1c1c21',
+                        },
+                        accent: {
+                            DEFAULT: '#818cf8',
+                            dim: 'rgba(129, 140, 248, 0.15)',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { background: #09090b; }
+        [hidden] { display: none !important; }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); }
+        .spinner-dot { animation: pulse 1.4s ease-in-out infinite; }
+        .spinner-dot:nth-child(1) { animation-delay: -0.32s; }
+        .spinner-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes pulse {
+            0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+            40% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner-small { animation: spin 0.7s linear infinite; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-animate { animation: slideIn 0.25s ease-out; }
+    </style>
 </head>
 
-<body>
-    <!-- Skip links for accessibility -->
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+<body class="font-sans text-zinc-100 min-h-screen antialiased">
+    <!-- Skip link -->
+    <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-1/2 focus:-translate-x-1/2 focus:px-4 focus:py-2 focus:bg-accent focus:text-black focus:rounded-md focus:z-50">
+        Skip to main content
+    </a>
 
-    <div class="app" id="app">
+    <div id="app" class="flex flex-col min-h-screen">
         <!-- Header -->
-        <header class="header" role="banner">
-            <div class="header-content">
-                <h1 class="logo">
-                    <span class="logo-icon" aria-hidden="true">🎬</span>
+        <header class="sticky top-0 z-50 bg-bg-secondary/80 backdrop-blur-xl border-b border-white/5">
+            <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+                <h1 class="flex items-center gap-3 text-lg font-semibold tracking-tight">
+                    <span class="text-xl opacity-80">🎬</span>
                     <span>Storyboard Viewer</span>
                 </h1>
-                <nav class="header-nav" role="navigation" aria-label="Main navigation">
-                    <button class="nav-btn" id="btn-projects" aria-current="page" aria-label="View all projects">
-                        <span aria-hidden="true">📁</span> Projects
+                <nav class="flex gap-2">
+                    <button id="btn-projects" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-md transition-colors" aria-current="page">
+                        <span>📁</span> Projects
                     </button>
-                    <button class="nav-btn" id="btn-refresh" aria-label="Refresh project list">
-                        <span aria-hidden="true">🔄</span> Refresh
+                    <button id="btn-refresh" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white hover:bg-white/5 rounded-md transition-colors">
+                        <span>🔄</span> Refresh
                     </button>
                 </nav>
             </div>
         </header>
 
-        <!-- Main content -->
-        <main id="main-content" class="main" role="main">
-            <!-- Loading state -->
-            <div class="loading" id="loading" aria-live="polite" aria-busy="true">
-                <div class="spinner" role="status">
-                    <span class="spinner-dot"></span>
-                    <span class="spinner-dot"></span>
-                    <span class="spinner-dot"></span>
+        <!-- Main -->
+        <main id="main-content" class="flex-1 max-w-6xl w-full mx-auto px-6 py-8">
+            <!-- Loading -->
+            <div id="loading" class="flex flex-col items-center justify-center py-20 gap-4 text-zinc-500">
+                <div class="flex gap-1.5">
+                    <span class="spinner-dot w-2 h-2 bg-accent rounded-full"></span>
+                    <span class="spinner-dot w-2 h-2 bg-accent rounded-full"></span>
+                    <span class="spinner-dot w-2 h-2 bg-accent rounded-full"></span>
                 </div>
                 <p>Loading projects...</p>
             </div>
 
-            <!-- Error state -->
-            <div class="error-state" id="error-state" hidden aria-live="assertive">
-                <div class="error-icon" aria-hidden="true">⚠️</div>
-                <h2>Connection Error</h2>
-                <p id="error-message">Unable to connect to the server.</p>
-                <button class="btn btn-primary" id="btn-retry">Try Again</button>
+            <!-- Error -->
+            <div id="error-state" hidden class="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <div class="text-5xl opacity-50">⚠️</div>
+                <h2 class="text-xl font-semibold">Connection Error</h2>
+                <p id="error-message" class="text-zinc-500 max-w-sm">Unable to connect to the server.</p>
+                <button id="btn-retry" class="px-4 py-2 bg-accent text-white font-medium rounded-md hover:brightness-110 transition">
+                    Try Again
+                </button>
             </div>
 
-            <!-- Empty state -->
-            <div class="empty-state" id="empty-state" hidden>
-                <div class="empty-icon" aria-hidden="true">📭</div>
-                <h2>No Projects Found</h2>
-                <p>Generate some videos with the Telegram bot first, then come back here to view your storyboards.</p>
+            <!-- Empty -->
+            <div id="empty-state" hidden class="flex flex-col items-center justify-center py-20 text-center gap-4">
+                <div class="text-5xl opacity-50">📭</div>
+                <h2 class="text-xl font-semibold">No Projects Found</h2>
+                <p class="text-zinc-500 max-w-sm">Generate some videos with the Telegram bot first, then come back here.</p>
             </div>
 
-            <!-- Project list view -->
-            <section class="project-list" id="project-list" hidden aria-labelledby="projects-heading">
-                <h2 id="projects-heading" class="section-heading">Your Projects</h2>
-                <div class="project-grid" id="project-grid" role="list">
-                    <!-- Projects will be rendered here -->
-                </div>
+            <!-- Project List -->
+            <section id="project-list" hidden>
+                <h2 class="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-6">Your Projects</h2>
+                <div id="project-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </section>
 
-            <!-- Storyboard view -->
-            <section class="storyboard" id="storyboard-view" hidden aria-labelledby="storyboard-heading">
-                <div class="storyboard-header">
-                    <button class="btn btn-ghost" id="btn-back" aria-label="Back to project list">
-                        <span aria-hidden="true">←</span> Back
+            <!-- Storyboard View -->
+            <section id="storyboard-view" hidden>
+                <div class="flex flex-wrap items-center gap-6 mb-6">
+                    <button id="btn-back" class="flex items-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white border border-white/10 hover:bg-white/5 rounded-md transition-colors">
+                        <span>←</span> Back
                     </button>
-                    <div class="storyboard-info">
-                        <h2 id="storyboard-heading" class="storyboard-title">
-                            <span id="storyboard-filename">Audio File</span>
-                        </h2>
-                        <div class="storyboard-meta">
-                            <span class="badge badge-style" id="storyboard-style">history</span>
-                            <span class="badge badge-orientation" id="storyboard-orientation">horizontal</span>
-                            <span class="storyboard-stats" id="storyboard-stats">0 segments</span>
+                    <div class="flex-1 min-w-0">
+                        <h2 id="storyboard-filename" class="text-xl font-semibold truncate">Audio File</h2>
+                        <div class="flex items-center gap-3 mt-1 flex-wrap">
+                            <span id="storyboard-style" class="px-2 py-0.5 text-xs font-medium bg-accent-dim text-accent rounded">history</span>
+                            <span id="storyboard-orientation" class="px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-400 rounded">horizontal</span>
+                            <span id="storyboard-stats" class="text-sm text-zinc-500">0 segments</span>
                         </div>
                     </div>
-                    <div class="storyboard-actions">
-                        <button class="btn btn-danger" id="btn-clear-images"
-                            aria-label="Clear cached images to regenerate">
-                            <span aria-hidden="true">🗑️</span> Clear Images
-                        </button>
-                    </div>
+                    <button id="btn-clear-images" class="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 rounded-md transition-colors">
+                        <span>🗑️</span> Clear Images
+                    </button>
                 </div>
 
-                <!-- Style selector for projects with multiple styles -->
-                <div class="style-selector" id="style-selector" hidden>
-                    <label class="style-selector-label" id="style-selector-label">Select Style:</label>
-                    <div class="style-tabs" id="style-tabs" role="tablist" aria-labelledby="style-selector-label">
-                        <!-- Style tabs will be rendered here -->
-                    </div>
+                <!-- Style Selector -->
+                <div id="style-selector" hidden class="mb-6">
+                    <label id="style-selector-label" class="block text-xs font-medium text-zinc-500 uppercase tracking-widest mb-3">Select Style</label>
+                    <div id="style-tabs" class="flex flex-wrap gap-2"></div>
                 </div>
 
-                <!-- Storyboard timeline -->
-                <div class="timeline" id="timeline" role="list" aria-label="Storyboard segments">
-                    <!-- Segments will be rendered here -->
-                </div>
+                <!-- Timeline -->
+                <div id="timeline" class="flex flex-col gap-4"></div>
             </section>
         </main>
 
         <!-- Footer -->
-        <footer class="footer" role="contentinfo">
-            <p>v2v Storyboard Viewer • <a href="https://github.com/RedWilly/YT-Automation" target="_blank"
-                    rel="noopener">GitHub</a></p>
+        <footer class="py-6 text-center text-xs text-zinc-600 border-t border-white/5">
+            <p>v2v Storyboard Viewer • <a href="https://github.com/RedWilly/YT-Automation" target="_blank" rel="noopener" class="text-zinc-500 hover:text-accent transition-colors">GitHub</a></p>
         </footer>
     </div>
 
-    <!-- Modal for editing queries -->
-    <dialog class="modal" id="edit-modal" aria-labelledby="modal-title">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h3 id="modal-title" class="modal-title">Edit Image Query</h3>
-                <button class="modal-close" id="modal-close" aria-label="Close dialog">
-                    <span aria-hidden="true">×</span>
-                </button>
+    <!-- Edit Modal -->
+    <dialog id="edit-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md bg-bg-secondary border border-white/10 rounded-2xl shadow-2xl p-0 overflow-hidden">
+        <div class="flex flex-col">
+            <header class="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <h3 id="modal-title" class="font-semibold">Edit Image Query</h3>
+                <button id="modal-close" class="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 rounded transition-colors text-xl">×</button>
             </header>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="query-input" class="form-label">Image Generation Prompt</label>
-                    <textarea id="query-input" class="form-textarea" rows="4"
-                        placeholder="Enter the image generation prompt..."></textarea>
+            <div class="px-5 py-5 space-y-5">
+                <div>
+                    <label for="query-input" class="block text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Image Prompt</label>
+                    <textarea id="query-input" rows="4" placeholder="Enter the image generation prompt..." class="w-full px-3 py-2.5 bg-bg-tertiary border border-white/10 rounded-lg text-sm font-mono focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 resize-y"></textarea>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Shot Type</label>
-                    <div class="shot-type-group" id="shot-type-group" role="radiogroup">
-                        <button type="button" class="shot-type-btn" data-value="static" role="radio">Static</button>
-                        <button type="button" class="shot-type-btn" data-value="pan" role="radio">Pan</button>
-                        <button type="button" class="shot-type-btn" data-value="zoom" role="radio">Zoom</button>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Shot Type</label>
+                    <div id="shot-type-group" class="flex gap-0.5 bg-bg-tertiary p-0.5 rounded-lg">
+                        <button type="button" class="shot-type-btn flex-1 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-md transition-colors" data-value="static" role="radio">Static</button>
+                        <button type="button" class="shot-type-btn flex-1 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-md transition-colors" data-value="pan" role="radio">Pan</button>
+                        <button type="button" class="shot-type-btn flex-1 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-md transition-colors" data-value="zoom" role="radio">Zoom</button>
                     </div>
                 </div>
-                <div class="segment-preview" id="segment-preview">
-                    <p class="form-label">Segment Text:</p>
-                    <blockquote id="segment-text" class="segment-quote"></blockquote>
+                <div class="bg-bg-tertiary p-4 rounded-lg">
+                    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Segment Text</p>
+                    <blockquote id="segment-text" class="text-sm text-zinc-300 border-l-2 border-accent pl-4"></blockquote>
                 </div>
             </div>
-            <footer class="modal-footer">
-                <button class="btn btn-ghost" id="btn-cancel">Cancel</button>
-                <button class="btn btn-primary" id="btn-save">Save Changes</button>
+            <footer class="flex justify-end gap-2 px-5 py-4 border-t border-white/10">
+                <button id="btn-cancel" class="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white border border-white/10 hover:bg-white/5 rounded-md transition-colors">Cancel</button>
+                <button id="btn-save" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-md hover:brightness-110 transition">Save Changes</button>
             </footer>
         </div>
     </dialog>
 
-    <!-- Toast notifications -->
-    <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true">
-        <!-- Toasts will be rendered here -->
-    </div>
+    <!-- Confirm Clear Modal -->
+    <dialog id="confirm-clear-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-md bg-bg-secondary border border-white/10 rounded-2xl shadow-2xl p-0 overflow-hidden">
+        <div class="flex flex-col">
+            <header class="flex items-center justify-between px-5 py-4 border-b border-red-500/20">
+                <h3 id="confirm-clear-title" class="font-semibold text-red-400">⚠️ Clear All Images</h3>
+                <button id="confirm-clear-close" class="w-7 h-7 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/10 rounded transition-colors text-xl">×</button>
+            </header>
+            <div class="px-5 py-5 space-y-5">
+                <p class="text-sm text-zinc-400 leading-relaxed bg-red-500/10 border-l-2 border-red-500 p-4 rounded-r-lg">
+                    This will permanently delete all cached images for this storyboard. You will need to regenerate them, which may take time and use API credits.
+                </p>
+                <div>
+                    <label for="confirm-input" class="block text-xs font-medium text-zinc-500 uppercase tracking-wide mb-2">Type "confirm" to proceed</label>
+                    <input type="text" id="confirm-input" placeholder="Type confirm here..." autocomplete="off" class="w-full px-3 py-2.5 bg-bg-tertiary border border-white/10 rounded-lg text-sm focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                </div>
+            </div>
+            <footer class="flex justify-end gap-2 px-5 py-4 border-t border-white/10">
+                <button id="confirm-clear-cancel" class="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-white border border-white/10 hover:bg-white/5 rounded-md transition-colors">Cancel</button>
+                <button id="confirm-clear-submit" disabled class="px-4 py-2 text-sm font-medium bg-red-500/20 text-red-400 rounded-md hover:bg-red-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Clear Images</button>
+            </footer>
+        </div>
+    </dialog>
+
+    <!-- Toasts -->
+    <div id="toast-container" class="fixed bottom-6 right-6 flex flex-col gap-2 z-50"></div>
 
     <script src="app.js"></script>
 </body>

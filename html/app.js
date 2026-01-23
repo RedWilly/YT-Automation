@@ -42,6 +42,9 @@ const elements = {
     shotTypeGroup: document.getElementById('shot-type-group'),
     segmentText: document.getElementById('segment-text'),
     toastContainer: document.getElementById('toast-container'),
+    confirmClearModal: document.getElementById('confirm-clear-modal'),
+    confirmInput: document.getElementById('confirm-input'),
+    confirmClearSubmit: document.getElementById('confirm-clear-submit'),
 };
 
 // ========================================
@@ -153,16 +156,25 @@ function escapeHtml(text) {
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-icon" aria-hidden="true">${type === 'success' ? '✓' : '✕'}</span>
-        <span class="toast-message">${escapeHtml(message)}</span>
-    `;
+    const borderColor = type === 'success' ? 'border-l-emerald-500' : 'border-l-red-500';
+    toast.className = `toast-animate flex items-center gap-3 px-4 py-3 bg-bg-elevated border border-white/10 ${borderColor} border-l-[3px] rounded-lg shadow-lg`;
+
+    const icon = document.createElement('span');
+    icon.className = 'text-base';
+    icon.textContent = type === 'success' ? '✓' : '✕';
+
+    const msg = document.createElement('span');
+    msg.className = 'text-sm text-zinc-100';
+    msg.textContent = message;
+
+    toast.appendChild(icon);
+    toast.appendChild(msg);
     elements.toastContainer.appendChild(toast);
 
     setTimeout(() => {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100%)';
+        toast.style.transition = 'all 0.3s ease';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
@@ -186,42 +198,69 @@ function renderProjects() {
     }
 
     setView('projects');
+    elements.projectGrid.textContent = '';
 
-    elements.projectGrid.innerHTML = state.projects.map(project => `
-        <article 
-            class="project-card" 
-            role="listitem"
-            tabindex="0"
-            data-hash="${project.audioHash}"
-            aria-label="${escapeHtml(project.filename)}"
-        >
-            <div class="project-header">
-                <span class="project-icon" aria-hidden="true">🎵</span>
-                <span class="project-date">${formatDate(project.createdAt)}</span>
-            </div>
-            <h3 class="project-title">${escapeHtml(truncateFilename(project.filename, 40))}</h3>
-            <p class="project-duration">
-                ${project.duration ? `Duration: ${formatDuration(project.duration)}` : 'Unknown duration'}
-            </p>
-            <div class="project-styles">
-                ${project.styles.map(style => `
-                    <span class="badge badge-style">${escapeHtml(style.styleId)}</span>
-                    ${style.hasImages ? '<span class="badge badge-images">Images</span>' : ''}
-                    ${style.segmentCount > 0 ? `<span class="badge badge-segments">${style.segmentCount} segs</span>` : ''}
-                `).join('')}
-            </div>
-        </article>
-    `).join('');
+    state.projects.forEach(project => {
+        const article = document.createElement('article');
+        article.className = 'bg-bg-secondary border border-white/5 rounded-xl p-5 cursor-pointer transition-all hover:bg-bg-tertiary hover:border-white/10 hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent';
+        article.tabIndex = 0;
+        article.dataset.hash = project.audioHash;
 
-    // Add click handlers
-    elements.projectGrid.querySelectorAll('.project-card').forEach(card => {
-        card.addEventListener('click', () => selectProject(card.dataset.hash));
-        card.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                selectProject(card.dataset.hash);
+        const header = document.createElement('div');
+        header.className = 'flex items-start justify-between mb-3';
+        const icon = document.createElement('span');
+        icon.className = 'text-2xl opacity-70';
+        icon.textContent = '🎵';
+        const dateSpan = document.createElement('span');
+        dateSpan.className = 'text-xs text-zinc-600';
+        dateSpan.textContent = formatDate(project.createdAt);
+        header.appendChild(icon);
+        header.appendChild(dateSpan);
+
+        const title = document.createElement('h3');
+        title.className = 'font-medium text-white mb-1 leading-snug break-words';
+        title.textContent = truncateFilename(project.filename, 40);
+
+        const duration = document.createElement('p');
+        duration.className = 'text-sm text-zinc-500 mb-4';
+        duration.textContent = project.duration ? `Duration: ${formatDuration(project.duration)}` : 'Unknown duration';
+
+        const stylesDiv = document.createElement('div');
+        stylesDiv.className = 'flex flex-wrap gap-1.5';
+        project.styles.forEach(style => {
+            const badge = document.createElement('span');
+            badge.className = 'px-2 py-0.5 text-xs font-medium bg-accent-dim text-accent rounded';
+            badge.textContent = style.styleId;
+            stylesDiv.appendChild(badge);
+
+            if (style.hasImages) {
+                const imgBadge = document.createElement('span');
+                imgBadge.className = 'px-2 py-0.5 text-xs font-medium bg-emerald-500/15 text-emerald-400 rounded';
+                imgBadge.textContent = 'Images';
+                stylesDiv.appendChild(imgBadge);
+            }
+            if (style.segmentCount > 0) {
+                const segBadge = document.createElement('span');
+                segBadge.className = 'px-2 py-0.5 text-xs font-medium bg-amber-500/15 text-amber-400 rounded';
+                segBadge.textContent = `${style.segmentCount} segs`;
+                stylesDiv.appendChild(segBadge);
             }
         });
+
+        article.appendChild(header);
+        article.appendChild(title);
+        article.appendChild(duration);
+        article.appendChild(stylesDiv);
+
+        article.addEventListener('click', () => selectProject(project.audioHash));
+        article.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectProject(project.audioHash);
+            }
+        });
+
+        elements.projectGrid.appendChild(article);
     });
 }
 
@@ -246,98 +285,156 @@ function renderStoryboard() {
     const project = state.projects.find(p => p.audioHash === selectedProject);
     if (project && project.styles.length > 1) {
         elements.styleSelector.hidden = false;
-        elements.styleTabs.innerHTML = project.styles.map(style => `
-            <button 
-                class="style-tab" 
-                role="tab"
-                aria-selected="${style.styleId === storyboard.styleId && style.orientation === storyboard.orientation && style.naturalEdit === (storyboard.naturalEdit || false)}"
-                data-style="${style.styleId}"
-                data-orientation="${style.orientation}"
-                data-natural-edit="${style.naturalEdit}"
-            >
-                ${escapeHtml(style.styleId)} (${style.orientation}${style.naturalEdit ? ', Natural' : ''})
-            </button>
-        `).join('');
+        elements.styleTabs.textContent = '';
 
-        // Add click handlers
-        elements.styleTabs.querySelectorAll('.style-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                selectStyle(tab.dataset.style, tab.dataset.orientation, tab.dataset.naturalEdit === 'true');
+        project.styles.forEach(style => {
+            const isSelected = style.styleId === storyboard.styleId &&
+                style.orientation === storyboard.orientation &&
+                style.naturalEdit === (storyboard.naturalEdit || false);
+
+            const btn = document.createElement('button');
+            btn.className = isSelected
+                ? 'px-4 py-2 text-sm font-medium bg-accent text-white rounded-md transition-colors'
+                : 'px-4 py-2 text-sm font-medium text-zinc-400 border border-white/10 hover:text-white hover:bg-white/5 rounded-md transition-colors';
+            btn.dataset.style = style.styleId;
+            btn.dataset.orientation = style.orientation;
+            btn.dataset.naturalEdit = String(style.naturalEdit);
+            btn.textContent = `${style.styleId} (${style.orientation}${style.naturalEdit ? ', Natural' : ''})`;
+
+            btn.addEventListener('click', () => {
+                selectStyle(style.styleId, style.orientation, style.naturalEdit);
             });
+
+            elements.styleTabs.appendChild(btn);
         });
     } else {
         elements.styleSelector.hidden = true;
     }
 
-    // Render timeline
-    elements.timeline.innerHTML = storyboard.entries.map((entry, index) => {
+    // Render timeline using DOM API to avoid XSS
+    elements.timeline.textContent = '';
+
+    storyboard.entries.forEach((entry, index) => {
         const duration = (entry.segment.end - entry.segment.start) / 1000;
 
-        return `
-            <article class="segment-card" role="listitem" data-index="${index}">
-                <header class="segment-header">
-                    <span class="segment-number" aria-label="Segment ${index + 1}">${index + 1}</span>
-                    <span class="segment-timing">
-                        ${formatTimestamp(entry.segment.start)} → ${formatTimestamp(entry.segment.end)}
-                    </span>
-                    <span class="segment-duration">${duration.toFixed(1)}s</span>
-                </header>
-                <div class="segment-body">
-                    <div class="segment-content">
-                        <p class="segment-text">${escapeHtml(entry.segment.text)}</p>
-                        <div class="segment-query-section">
-                            <div class="segment-query-label">
-                                <span class="query-label-text">Image Query:</span>
-                                ${entry.query?.type
-                ? `<span class="badge badge-shot-type">${escapeHtml(entry.query.type)}</span>`
-                : ''}
-                                <button 
-                                    class="query-edit-btn" 
-                                    data-index="${index}"
-                                    aria-label="Edit query for segment ${index + 1}"
-                                >
-                                    ✏️ Edit
-                                </button>
-                                <button 
-                                    class="query-regenerate-btn" 
-                                    data-index="${index}"
-                                    aria-label="Regenerate image for segment ${index + 1}"
-                                >
-                                    ✨ Regenerate
-                                </button>
-                            </div>
-                            ${entry.query
-                ? `<pre class="segment-query">${escapeHtml(entry.query.query)}</pre>`
-                : `<p class="segment-query-empty">No query generated</p>`
-            }
-                        </div>
-                    </div>
-                    <div class="segment-image">
-                        ${entry.image && entry.image.exists
-                ? `<img 
-                                src="${entry.image.url}" 
-                                alt="Generated image for segment ${index + 1}"
-                                loading="lazy"
-                               />`
-                : `<div class="segment-image-placeholder">
-                                <span class="segment-image-placeholder-icon" aria-hidden="true">🖼️</span>
-                                <span>No image generated</span>
-                               </div>`
-            }
-                    </div>
-                </div>
-            </article>
-        `;
-    }).join('');
+        const article = document.createElement('article');
+        article.className = 'bg-bg-secondary border border-white/5 rounded-xl overflow-hidden transition-colors hover:border-white/10';
+        article.dataset.index = String(index);
 
-    // Add edit button handlers
-    elements.timeline.querySelectorAll('.query-edit-btn').forEach(btn => {
-        btn.addEventListener('click', () => openEditModal(parseInt(btn.dataset.index, 10)));
-    });
+        // Header
+        const header = document.createElement('header');
+        header.className = 'flex items-center gap-4 px-5 py-4 bg-bg-tertiary border-b border-white/5';
 
-    // Add regenerate button handlers
-    elements.timeline.querySelectorAll('.query-regenerate-btn').forEach(btn => {
-        btn.addEventListener('click', () => handleRegenerate(parseInt(btn.dataset.index, 10)));
+        const segNum = document.createElement('span');
+        segNum.className = 'w-7 h-7 flex items-center justify-center bg-accent text-white text-xs font-semibold rounded-full shrink-0';
+        segNum.textContent = String(index + 1);
+
+        const segTiming = document.createElement('span');
+        segTiming.className = 'flex-1 font-mono text-xs text-zinc-500';
+        segTiming.textContent = `${formatTimestamp(entry.segment.start)} → ${formatTimestamp(entry.segment.end)}`;
+
+        const segDuration = document.createElement('span');
+        segDuration.className = 'text-xs text-zinc-500 bg-bg-elevated px-2 py-1 rounded';
+        segDuration.textContent = `${duration.toFixed(1)}s`;
+
+        header.appendChild(segNum);
+        header.appendChild(segTiming);
+        header.appendChild(segDuration);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'flex gap-5 p-5 items-start';
+
+        // Content section
+        const content = document.createElement('div');
+        content.className = 'flex-1 min-w-0 flex flex-col gap-4';
+
+        const segText = document.createElement('p');
+        segText.className = 'text-zinc-100 leading-relaxed';
+        segText.textContent = entry.segment.text;
+
+        const querySection = document.createElement('div');
+        querySection.className = 'flex flex-col gap-3';
+
+        const queryLabel = document.createElement('div');
+        queryLabel.className = 'flex items-center gap-2 flex-wrap';
+
+        const labelText = document.createElement('span');
+        labelText.className = 'text-xs font-medium text-zinc-500 uppercase tracking-wide';
+        labelText.textContent = 'Image Query:';
+        queryLabel.appendChild(labelText);
+
+        if (entry.query?.type) {
+            const typeBadge = document.createElement('span');
+            typeBadge.className = 'px-2 py-0.5 text-[10px] font-medium bg-accent-dim text-accent rounded uppercase tracking-wide';
+            typeBadge.textContent = entry.query.type;
+            queryLabel.appendChild(typeBadge);
+        }
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'px-2 py-1 text-xs font-medium text-zinc-400 bg-bg-elevated border border-white/10 rounded hover:text-white hover:bg-bg-tertiary transition-colors';
+        editBtn.textContent = '✏️ Edit';
+        editBtn.addEventListener('click', () => openEditModal(index));
+
+        const regenBtn = document.createElement('button');
+        regenBtn.className = 'px-2 py-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-transparent rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-wait';
+        regenBtn.textContent = '✨ Regenerate';
+        regenBtn.addEventListener('click', () => handleRegenerate(index));
+
+        queryLabel.appendChild(editBtn);
+        queryLabel.appendChild(regenBtn);
+
+        querySection.appendChild(queryLabel);
+
+        if (entry.query) {
+            const queryPre = document.createElement('pre');
+            queryPre.className = 'font-mono text-sm text-zinc-400 bg-bg-tertiary p-4 rounded-lg border-l-2 border-accent whitespace-pre-wrap break-words max-h-44 overflow-y-auto leading-relaxed';
+            queryPre.textContent = entry.query.query;
+            querySection.appendChild(queryPre);
+        } else {
+            const emptyP = document.createElement('p');
+            emptyP.className = 'text-sm text-zinc-500 italic';
+            emptyP.textContent = 'No query generated';
+            querySection.appendChild(emptyP);
+        }
+
+        content.appendChild(segText);
+        content.appendChild(querySection);
+
+        // Image section
+        const imageDiv = document.createElement('div');
+        imageDiv.className = 'w-[280px] h-[158px] shrink-0 bg-bg-tertiary rounded-lg overflow-hidden flex items-center justify-center';
+
+        if (entry.image && entry.image.exists) {
+            const img = document.createElement('img');
+            img.src = entry.image.url;
+            img.alt = `Generated image for segment ${index + 1}`;
+            img.loading = 'lazy';
+            img.className = 'w-full h-full object-cover';
+            imageDiv.appendChild(img);
+        } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'flex flex-col items-center justify-center gap-2 text-zinc-500 text-sm text-center p-4';
+
+            const placeholderIcon = document.createElement('span');
+            placeholderIcon.className = 'text-2xl opacity-50';
+            placeholderIcon.textContent = '🖼️';
+
+            const placeholderText = document.createElement('span');
+            placeholderText.textContent = 'No image generated';
+
+            placeholder.appendChild(placeholderIcon);
+            placeholder.appendChild(placeholderText);
+            imageDiv.appendChild(placeholder);
+        }
+
+        body.appendChild(content);
+        body.appendChild(imageDiv);
+
+        article.appendChild(header);
+        article.appendChild(body);
+
+        elements.timeline.appendChild(article);
     });
 }
 
@@ -417,10 +514,14 @@ function openEditModal(index) {
     state.editingIndex = index;
     elements.queryInput.value = entry.query?.query || '';
 
-    // Set active shot type button
+    // Set active shot type button with Tailwind classes
     const type = entry.query?.type || 'static';
     elements.shotTypeGroup.querySelectorAll('.shot-type-btn').forEach(btn => {
-        btn.setAttribute('aria-checked', btn.dataset.value === type ? 'true' : 'false');
+        const isActive = btn.dataset.value === type;
+        btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+        btn.className = isActive
+            ? 'shot-type-btn flex-1 px-3 py-2 text-sm font-medium bg-accent text-white rounded-md transition-colors'
+            : 'shot-type-btn flex-1 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-md transition-colors';
     });
 
     elements.segmentText.textContent = entry.segment.text;
@@ -471,12 +572,22 @@ async function saveQuery() {
     }
 }
 
-async function handleClearImages() {
+function openConfirmClearModal() {
     if (!state.selectedProject || !state.selectedStyle) return;
+    elements.confirmInput.value = '';
+    elements.confirmClearSubmit.disabled = true;
+    elements.confirmClearModal.showModal();
+    elements.confirmInput.focus();
+}
 
-    if (!confirm('Clear all cached images? You will need to run the workflow again to regenerate them.')) {
-        return;
-    }
+function closeConfirmClearModal() {
+    elements.confirmClearModal.close();
+    elements.confirmInput.value = '';
+    elements.confirmClearSubmit.disabled = true;
+}
+
+async function handleClearImages() {
+    closeConfirmClearModal();
 
     try {
         await clearImages(
@@ -501,21 +612,32 @@ async function handleRegenerate(index) {
     if (!entry) return;
 
     // Show loading state in the segment
-    const segmentEl = elements.timeline.querySelector(`.segment-card[data-index="${index}"]`);
-    const imgContainer = segmentEl.querySelector('.segment-image');
-    const regenerateBtn = segmentEl.querySelector('.query-regenerate-btn');
+    const segmentEl = elements.timeline.querySelector(`[data-index="${index}"]`);
+    if (!segmentEl) return;
 
-    const originalContent = imgContainer.innerHTML;
-    const originalBtnText = regenerateBtn.innerHTML;
+    const imgContainer = segmentEl.querySelector('.w-\\[280px\\]');
+    const regenerateBtn = Array.from(segmentEl.querySelectorAll('button')).find(b => b.textContent.includes('Regenerate'));
 
-    imgContainer.innerHTML = `
-        <div class="segment-image-placeholder">
-            <div class="spinner-small"></div>
-            <span>Regenerating...</span>
-        </div>
-    `;
+    if (!imgContainer || !regenerateBtn) return;
+
+    // Store original children for restoration on error
+    const originalChildren = Array.from(imgContainer.childNodes).map(n => n.cloneNode(true));
+    const originalBtnText = regenerateBtn.textContent;
+
+    // Show loading state
+    imgContainer.textContent = '';
+    const loadingPlaceholder = document.createElement('div');
+    loadingPlaceholder.className = 'flex flex-col items-center justify-center gap-2 text-zinc-500 text-sm';
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner-small w-5 h-5 border-2 border-white/10 border-t-accent rounded-full';
+    const loadingText = document.createElement('span');
+    loadingText.textContent = 'Regenerating...';
+    loadingPlaceholder.appendChild(spinner);
+    loadingPlaceholder.appendChild(loadingText);
+    imgContainer.appendChild(loadingPlaceholder);
+
     regenerateBtn.disabled = true;
-    regenerateBtn.innerHTML = '⌛ Generating...';
+    regenerateBtn.textContent = '⌛ Generating...';
 
     try {
         const result = await regenerateImage(
@@ -526,7 +648,7 @@ async function handleRegenerate(index) {
             state.selectedNaturalEdit
         );
 
-        // Update local state and UI
+        // Update local state
         if (state.storyboard.entries[index]) {
             state.storyboard.entries[index].image = {
                 exists: true,
@@ -535,17 +657,23 @@ async function handleRegenerate(index) {
             };
         }
 
-        // Just update the image directly to avoid full rerender
-        imgContainer.innerHTML = `
-            <img src="${result.url}" alt="Generated image for segment ${index + 1}" loading="lazy">
-        `;
+        // Update image
+        imgContainer.textContent = '';
+        const img = document.createElement('img');
+        img.src = result.url;
+        img.alt = `Generated image for segment ${index + 1}`;
+        img.loading = 'lazy';
+        img.className = 'w-full h-full object-cover';
+        imgContainer.appendChild(img);
+
         showToast(`Image ${index + 1} regenerated successfully`);
     } catch (error) {
-        imgContainer.innerHTML = originalContent;
+        imgContainer.textContent = '';
+        originalChildren.forEach(child => imgContainer.appendChild(child));
         showToast(`Failed to regenerate: ${error.message}`, 'error');
     } finally {
         regenerateBtn.disabled = false;
-        regenerateBtn.innerHTML = originalBtnText;
+        regenerateBtn.textContent = originalBtnText;
     }
 }
 
@@ -557,15 +685,35 @@ document.getElementById('btn-projects').addEventListener('click', goBack);
 document.getElementById('btn-refresh').addEventListener('click', loadProjects);
 document.getElementById('btn-retry').addEventListener('click', loadProjects);
 document.getElementById('btn-back').addEventListener('click', goBack);
-document.getElementById('btn-clear-images').addEventListener('click', handleClearImages);
+document.getElementById('btn-clear-images').addEventListener('click', openConfirmClearModal);
 document.getElementById('modal-close').addEventListener('click', closeEditModal);
 document.getElementById('btn-cancel').addEventListener('click', closeEditModal);
 document.getElementById('btn-save').addEventListener('click', saveQuery);
 
+// Confirm clear modal events
+document.getElementById('confirm-clear-close').addEventListener('click', closeConfirmClearModal);
+document.getElementById('confirm-clear-cancel').addEventListener('click', closeConfirmClearModal);
+document.getElementById('confirm-clear-submit').addEventListener('click', handleClearImages);
+
+elements.confirmInput.addEventListener('input', (e) => {
+    const isConfirm = e.target.value.toLowerCase().trim() === 'confirm';
+    elements.confirmClearSubmit.disabled = !isConfirm;
+});
+
+elements.confirmInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !elements.confirmClearSubmit.disabled) {
+        handleClearImages();
+    }
+});
+
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && elements.editModal.open) {
-        closeEditModal();
+    if (e.key === 'Escape') {
+        if (elements.confirmClearModal.open) {
+            closeConfirmClearModal();
+        } else if (elements.editModal.open) {
+            closeEditModal();
+        }
     }
 });
 
@@ -576,10 +724,16 @@ elements.queryInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Close modal on backdrop click
+// Close modals on backdrop click
 elements.editModal.addEventListener('click', (e) => {
     if (e.target === elements.editModal) {
         closeEditModal();
+    }
+});
+
+elements.confirmClearModal.addEventListener('click', (e) => {
+    if (e.target === elements.confirmClearModal) {
+        closeConfirmClearModal();
     }
 });
 
@@ -594,8 +748,10 @@ elements.shotTypeGroup.addEventListener('click', (e) => {
 
     elements.shotTypeGroup.querySelectorAll('.shot-type-btn').forEach(b => {
         b.setAttribute('aria-checked', 'false');
+        b.className = 'shot-type-btn flex-1 px-3 py-2 text-sm font-medium text-zinc-400 hover:text-white rounded-md transition-colors';
     });
     btn.setAttribute('aria-checked', 'true');
+    btn.className = 'shot-type-btn flex-1 px-3 py-2 text-sm font-medium bg-accent text-white rounded-md transition-colors';
 });
 
 loadProjects();

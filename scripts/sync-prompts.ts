@@ -18,9 +18,9 @@ function syncPrompts() {
     try {
         const db = new Database(DB_PATH);
 
-        // Count rows that need updating
+        // Count rows that need updating (handle NULL values properly)
         const toUpdate = db.prepare(
-            "SELECT COUNT(*) as count FROM segment_cache WHERE current_prompt != original_prompt"
+            "SELECT COUNT(*) as count FROM segment_cache WHERE COALESCE(current_prompt, '') != COALESCE(original_prompt, '')"
         ).get() as { count: number };
 
         if (toUpdate.count === 0) {
@@ -31,13 +31,13 @@ function syncPrompts() {
 
         console.log(`Found ${toUpdate.count} segments to update...`);
 
-        // Perform the update
+        // Perform the update (handle NULL values properly)
         const result = db.prepare(`
       UPDATE segment_cache 
       SET 
         current_prompt = original_prompt,
         updated_at = strftime('%s', 'now')
-      WHERE current_prompt != original_prompt
+      WHERE COALESCE(current_prompt, '') != COALESCE(original_prompt, '')
     `).run();
 
         console.log(`✓ Successfully updated ${result.changes} segments.`);

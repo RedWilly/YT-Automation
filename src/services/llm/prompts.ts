@@ -7,7 +7,7 @@
 
 import type { ResolvedStyle } from '../../styles/types.ts';
 import type { StoryContext, BatchState } from '../../types/llm.ts';
-import { CAMERA_ANGLE_SCHEMA, SHOT_SCALE_SCHEMA, SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
+import { SHOT_TYPE_SCHEMA } from '../../types/llm.ts';
 import { buildContextInjection } from './context.ts';
 
 /**
@@ -35,12 +35,15 @@ THE DIRECTOR'S MINDSET:
 5. DEPTH, NOT WIDTH: Foreground (tension) → Midground (action) → Background (context/threat).`;
 
    // --- TASK ---
-   const task = `Output STRUCTURED SHOT METADATA for each segment. You do NOT write image prompts—those are generated automatically from your structured output.
-   
-   YOUR JOB: Identify WHO is in the shot, WHERE it takes place, and WHAT ACTION is happening.
-   - Reference entities by their ID from the ENTITY REGISTRY
-   - Reference scenes by their ID from the SCENE LIST
-   - Describe only the ACTION, not visual appearances (handled automatically)`;
+   const task = `Output NATURAL LANGUAGE shot descriptions using bracket notation for references.
+
+YOUR JOB: Write each shot as a natural sentence that embeds:
+- Entity references using [entity_id] from the ENTITY REGISTRY
+- Camera angle using [cameraAngle: X]
+- Shot scale using [shotScale: Y]
+
+The prompt builder will automatically expand [entity_id] to Name(visualAnchor).
+You focus on COMPOSITION, ACTION, and STORYTELLING.`;
 
    // --- CONTEXT: STORY OVERVIEW ---
    const era = storyContext.globalEraConstraints?.era || 'Not specified';
@@ -64,40 +67,56 @@ THE DIRECTOR'S MINDSET:
 
    // --- SHOT TYPES ---
    const useShotTypes = style.segmentationType === 'sentence';
-   const outputSchema = useShotTypes
-      ? `{
+   
+   const outputSchema = `{
   "start": number,
   "end": number,
-  "sceneId": "scene_id_from_SCENE_LIST",
-  "focus": {
-    "emphasis": ["entity_id"],  // 1-2 entities to FOCUS on (from scene's entities)
-    "exclude": ["entity_id"]    // entities mentioned but NOT shown
-  },
-  "action": "physical action only - NO visual descriptions",
-  "cameraAngle": ${CAMERA_ANGLE_SCHEMA} | null,
-  "shotScale": ${SHOT_SCALE_SCHEMA} | null,
+  "action": "Natural language with [entity_id], [cameraAngle: X], [shotScale: Y] embedded",
   "framingNote": "optional framing guidance",
   "type": ${SHOT_TYPE_SCHEMA}
-}`
-      : `{
-  "start": number,
-  "end": number,
-  "sceneId": "scene_id",
-  "focus": {
-    "emphasis": ["entity_id"],
-    "exclude": []
-  },
-  "action": "what is happening",
-  "cameraAngle": null,
-  "shotScale": null,
-  "type": "pan"
 }`;
 
    const shotTypeInstructions = useShotTypes
       ? `
-## SCHEMA DEFINITIONS (EXACT VALUES REQUIRED)
+## BRACKET NOTATION (CRITICAL)
 
-### FIELD: type (CAMERA MOVEMENT)
+Your action field uses brackets to reference entities and camera settings:
+
+### Entity References: [entity_id]
+Use the EXACT ID from ENTITY REGISTRY. The prompt builder expands to Name(visualAnchor).
+Example: [screaming_slave] → Screaming Slave(Adult Roman slave, olive skin, muscular build...)
+
+### Camera Angle: [cameraAngle: X]
+Embeds vertical perspective directly in the action.
+ALLOWED VALUES:
+  ├─ "Eye Level"     → camera at subject's eye height, neutral/relatable
+  ├─ "Low Angle"     → camera BELOW subject, looking UP → power/dominance/threat
+  ├─ "High Angle"    → camera ABOVE subject, looking DOWN → vulnerability/diminishment
+  ├─ "Bird's Eye"    → camera directly ABOVE, top-down view → god's view, scale
+  ├─ "Dutch Angle"   → camera TILTED, horizon at angle → disorientation/unease
+  └─ "Over Shoulder" → camera BEHIND one character → POV intimacy
+
+### Shot Scale: [shotScale: X]
+Embeds framing distance directly in the action.
+ALLOWED VALUES:
+  ├─ "Wide Shot"         → FULL BODY + environment visible, establishes geography
+  ├─ "Medium Shot"       → WAIST UP, balances character and context
+  ├─ "Close-Up"          → FACE/DETAIL fills most of frame, emotional emphasis
+  └─ "Extreme Close-Up"  → EYES/HANDS/OBJECTS only, maximum intimacy
+
+### Example Actions:
+✓ "A [cameraAngle: Low Angle] [shotScale: Medium Shot] of [vettius_pollio] holding a writhing [live_fish] above [screaming_slave]'s face"
+✓ "[cameraAngle: High Angle] [shotScale: Wide Shot] showing [screaming_slave] falling toward the churning [eel_pools]"
+✓ "[cameraAngle: Eye Level] [shotScale: Close-Up] of [emperor_augustus] watching with cold assessment"
+
+### Inline Descriptions (No Entity):
+When describing something NOT in the entity registry, write it inline:
+✓ "A group of terrified servants pressed against the far wall, their faces illuminated by torchlight"
+✓ "The shattered crystal fragments catching lamplight on the marble floor"
+
+---
+
+## FIELD: type (CAMERA MOVEMENT)
 Controls camera MOVEMENT effect for video editing.
 ALLOWED VALUES (pick exactly one):
   ├─ "pan"    → reveals space, follows motion, establishes geography
@@ -108,43 +127,7 @@ RHYTHM RULE: Vary movement types. Don't repeat same type 3+ times consecutively.
 
 ---
 
-### FIELD: cameraAngle (VERTICAL PERSPECTIVE)
-Controls where camera looks FROM (vertical position relative to subject).
-ALLOWED VALUES (pick exactly one, or null):
-  ├─ "Eye Level"     → camera at subject's eye height, neutral/relatable
-  ├─ "Low Angle"     → camera BELOW subject, looking UP → power/dominance/threat
-  ├─ "High Angle"    → camera ABOVE subject, looking DOWN → vulnerability/diminishment
-  ├─ "Bird's Eye"    → camera directly ABOVE, top-down view → god's view, scale
-  ├─ "Dutch Angle"   → camera TILTED, horizon at angle → disorientation/unease
-  └─ "Over Shoulder" → camera BEHIND one character → POV intimacy
-
----
-
-### FIELD: shotScale (FRAMING DISTANCE)
-Controls how much of subject fills the frame (distance from subject).
-ALLOWED VALUES (pick exactly one, or null):
-  ├─ "Wide Shot"         → FULL BODY + environment visible, establishes geography
-  ├─ "Medium Shot"       → WAIST UP, balances character and context
-  ├─ "Close-Up"          → FACE/DETAIL fills most of frame, emotional emphasis
-  └─ "Extreme Close-Up"  → EYES/HANDS/OBJECTS only, maximum intimacy
-
----
-
-⚠️ CRITICAL: DO NOT CONFUSE THESE FIELDS ⚠️
-┌─────────────────────────────────────────────────────────────────────┐
-│ "Close-Up" is a shotScale (FRAMING), NOT a cameraAngle             │
-│ "Low Angle" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
-│ "Wide Shot" is a shotScale (FRAMING), NOT a cameraAngle            │
-│ "Eye Level" is a cameraAngle (PERSPECTIVE), NOT a shotScale        │
-│                                                                     │
-│ Each field has its OWN set of valid values that NEVER overlap!     │
-└─────────────────────────────────────────────────────────────────────┘
-
----
-
-## COMBINING FIELDS FOR EMOTIONAL INTENT
-
-Use this table to select cameraAngle + shotScale based on what you want the audience to feel:
+## COMBINING FOR EMOTIONAL INTENT
 
 | Intent          | cameraAngle      | shotScale           | Effect                        |
 |-----------------|------------------|---------------------|-------------------------------|
@@ -178,46 +161,18 @@ Use this table to select cameraAngle + shotScale based on what you want the audi
 1. NO text/numbers/dates in action field (no "1944", no dialogue quotes)
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
-4. All IDs must exist in ENTITY REGISTRY and SCENE LIST above
+4. All entity IDs in [brackets] must exist in ENTITY REGISTRY
 
-## SCHEMA ENFORCEMENT (EXACT VALUES ONLY)
-┌──────────────┬─────────────────────────────────────────────────────────────────┐
-│ FIELD        │ EXACT VALID VALUES                                              │
-├──────────────┼─────────────────────────────────────────────────────────────────┤
-│ type         │ "pan" | "zoom" | "static"                                       │
-│ cameraAngle  │ "Eye Level" | "Low Angle" | "High Angle" | "Bird's Eye" |       │
-│              │ "Dutch Angle" | "Over Shoulder" | null                          │
-│ shotScale    │ "Wide Shot" | "Medium Shot" | "Close-Up" | "Extreme Close-Up" | │
-│              │ null                                                            │
-└──────────────┴─────────────────────────────────────────────────────────────────┘
-
-REMEMBER:
-- cameraAngle = WHERE camera looks FROM (vertical perspective)
-- shotScale = HOW MUCH of subject is in frame (framing distance)
-- DO NOT CONFUSE cameraAngle and shotScale!
+## BRACKET NOTATION ENFORCEMENT
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Entity refs:    [entity_id]           → Must match ID from ENTITY REGISTRY  │
+│ Camera angle:   [cameraAngle: X]      → X must be valid camera angle        │
+│ Shot scale:     [shotScale: Y]        → Y must be valid shot scale          │
+└──────────────────────────────────────────────────────────────────────────────┘
 
 ## CONTENT STRATEGY (From Phase 1 Analysis)
 Content Type: ${contentType}
 Visual Approach: ${storyContext.contentStrategy?.visualApproach}
-
-## SCENE INHERITANCE (CRITICAL - READ CAREFULLY)
-Your shot INHERITS from the scene automatically:
-- Scene's primaryEntities are AUTO-INCLUDED (you don't specify them)
-- Scene's setting, mood, lighting, keyProps are AUTO-APPLIED
-- You ONLY specify:
-  1. "emphasis": Which 1-2 entities to FOCUS on (subset of scene entities)
-  2. "exclude": Which entities to HIDE from this specific shot
-  3. "action": What is physically happening
-
-Example: Scene has primaryEntities ["vettius_pollio", "screaming_slave", "moray_eel", "eel_pools"]
-- Your emphasis: ["screaming_slave"] → slave is the focus
-- Your exclude: ["vettius_pollio"] → Pollio not shown
-- AUTO-INCLUDED as secondary: moray_eel, eel_pools (because they're in the scene)
-
-## FOCUS LOGIC
-- EMPHASIS: The 1-2 entities to FOCUS on. Pick the emotional center of the shot.
-- EXCLUDE: Entities mentioned in audio but NOT shown. Builds tension, saves reveals.
-- Everything else in the scene is automatically visible as context.
 
 ## THE "BLOCKING FIRST" RULE
 Before choosing your shot, mentally stage the scene:
@@ -230,12 +185,11 @@ THEN choose composition and camera to REVEAL that truth.
 - Use consistent visual metaphors. If swords represent honor, maintain that meaning.
 - Don't dilute symbols. A recurring prop should carry the same emotional weight each time.
 
-## ACTION FIELD RULES (SHOW, DON'T TELL)
-- Describe physical action + environment interaction (10-20 words)
-- NO visual appearance (handled by entity anchors)
-- NO dialogue (convert "He says X" to physical gesture or reaction)
-- Let the imagery carry the meaning. Trust the audience to interpret.
-- Examples: "clutching the letter, silhouetted against the rain-streaked window" ✓ | "reading the sad letter" ✗`;
+## ACTION FIELD RULES
+- Write natural sentences (15-40 words) that embed [entity_id], [cameraAngle], [shotScale]
+- Include physical action + environment interaction
+- For things NOT in entity registry, describe inline with full detail
+- Let the imagery carry the meaning. Trust the audience to interpret.`;
 
    return `# PERSONA
 ${persona}
@@ -291,43 +245,30 @@ export function buildContextAwareUserPrompt(
    }).join('\n\n');
 
    const typeField = naturalEdit
-      ? `- SET "focus.emphasis": 1-2 entity IDs to FOCUS on (from scene's entities)
-- SET "focus.exclude": entity IDs to HIDE from this shot
+      ? `- WRITE "action" as natural sentence with [entity_id], [cameraAngle: X], [shotScale: Y] embedded
 - SET "type": "pan", "zoom", or "static" (for video editing)
-- SET "cameraAngle": camera perspective
-- SET "shotScale": framing distance
-- SET "framingNote": optional specific framing details
-NOTE: Scene's other entities are AUTO-INCLUDED as secondary context`
-      : `- SET "focus.emphasis": main entity to focus on
-- SET "focus.exclude": [] (entities to hide)
+- SET "framingNote": optional specific framing details`
+      : `- WRITE "action" with [entity_id] references
 - SET "type": "pan" (default)`;
 
    const outputExample = naturalEdit
       ? `[{
   "start": 0,
   "end": 5000,
-  "sceneId": "scene_1",
-  "focus": {
-    "emphasis": ["screaming_slave"],
-    "exclude": ["vettius_pollio"]
-  },
-  "action": "suspended by ropes over the dark water, struggling against bonds",
-  "cameraAngle": "Low Angle",
-  "shotScale": "Medium Shot",
-  "framingNote": "slave centered, guards' boots visible in foreground",
+  "action": "A [cameraAngle: High Angle] [shotScale: Wide Shot] of [screaming_slave] suspended by ropes over the dark [eel_pools], body twisting in terror as torchlight flickers across the murky water below",
+  "framingNote": "slave isolated in midground, dark water filling lower frame",
   "type": "static"
+}, {
+  "start": 5000,
+  "end": 9000,
+  "action": "[cameraAngle: Low Angle] [shotScale: Medium Shot] of [vettius_pollio] holding a writhing [live_fish] just above [screaming_slave]'s upturned face, cold satisfaction visible in his expression",
+  "framingNote": "Pollio's hand and eel in foreground, slave's terror in background",
+  "type": "zoom"
 }, ...]`
       : `[{
   "start": 0,
   "end": 5000,
-  "sceneId": "main_scene",
-  "focus": {
-    "emphasis": ["main_entity"],
-    "exclude": []
-  },
-  "action": "walking across the cobblestone square",
-  "cameraAngle": null,
-  "shotScale": null,
+  "action": "[main_entity] walking across the cobblestone square",
   "type": "pan"
 }]`;
 
@@ -345,15 +286,14 @@ ${indexedTranscript}
 
 # INSTRUCTIONS (THE DIRECTOR'S WORKFLOW)
 1. FOR EACH SEGMENT, ask: "What should the audience FEEL or UNDERSTAND?"
-2. THEN decide: Who is primary focus? Where are they in the scene?
-3. THEN choose: composition and camera type to REVEAL that truth.
+2. DECIDE: Who/what is primary focus? Where are they in the scene?
+3. WRITE: Natural sentence action with [entity_id], [cameraAngle: X], [shotScale: Y] embedded
 4. Output EXACTLY ${segmentCount} structured shots — one per segment above.
 5. Shot 1 = SEGMENT ${batchStart + 1}, Shot 2 = SEGMENT ${batchStart + 2}, etc.
-6. Use entity IDs from ENTITY REGISTRY (not descriptions).
-7. Use sceneId from SCENE LIST.
-8. "action" field: Physical action + environment (10-20 words). Characters must be GROUNDED.
-9. DEPTH: Every shot should have foreground/midground/background awareness.
-10. FOCUS: ONE primary focus per shot. If everything is important, nothing is.
+6. Use entity IDs from ENTITY REGISTRY in [brackets].
+7. For things NOT in registry, describe inline with full visual detail.
+8. DEPTH: Every shot should have foreground/midground/background awareness.
+9. FOCUS: ONE primary focus per shot. If everything is important, nothing is.
 ${typeField}
 
 # OUTPUT
@@ -367,8 +307,9 @@ Before returning:
 1. COUNT your array items — must be EXACTLY ${segmentCount}
 2. VERIFY: Shot 1 matches SEGMENT ${batchStart + 1}'s content
 3. VERIFY: Shot ${segmentCount} matches SEGMENT ${batchStart + segmentCount}'s content
-4. Verify each action field has NO visual descriptions (just actions)
-5. Verify all entity/scene IDs exist in the registries above
+4. Verify all [entity_id] references exist in the ENTITY REGISTRY
+5. Verify [cameraAngle: X] uses valid camera angle values
+6. Verify [shotScale: Y] uses valid shot scale values
 
 If your count does not match or shots don't correspond to their segments, the response will be REJECTED.`;
 }

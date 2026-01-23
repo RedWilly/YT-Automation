@@ -246,7 +246,8 @@ async function generateQueriesWithContext(
             if (!shot) continue;
 
             const globalIndex = start + i + 1;  // 1-based segment index
-            const prompt = buildImagePrompt(shot, storyContext, style);
+            const shotIndex = start + i;  // 0-based for scene lookup
+            const prompt = buildImagePrompt(shot, storyContext, style, shotIndex);
             const seed = generateConsistentSeed(shot, start + i);
 
             if (cacheConfig) {
@@ -266,7 +267,15 @@ async function generateQueriesWithContext(
         allStructuredShots.push(...batchShots);
 
         // Update batch state for next iteration
-        const activeEntities = batchShots.flatMap(s => [...s.focus.emphasis]);
+        // Extract entity IDs from action strings (new format uses [entity_id] in action)
+        const entityPattern = /\[([a-z_][a-z0-9_]*)\]/gi;
+        const activeEntities = batchShots.flatMap(s => {
+            const matches = s.action.match(entityPattern) || [];
+            return matches
+                .map(m => m.replace(/[\[\]]/g, ''))
+                .filter(id => !id.toLowerCase().startsWith('cameraangle') && 
+                              !id.toLowerCase().startsWith('shotscale'));
+        });
         const currentScene = findCurrentScene(end - 1, storyContext);
         const currentMood = currentScene?.mood || batchState.currentMood;
 
@@ -286,7 +295,7 @@ async function generateQueriesWithContext(
     const queries = allStructuredShots.map((shot, i) => ({
         start: shot.start,
         end: shot.end,
-        query: buildImagePrompt(shot, storyContext, style),
+        query: buildImagePrompt(shot, storyContext, style, i),
         type: shot.type,
     }));
 

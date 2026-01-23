@@ -3,9 +3,7 @@
  * Vanilla JavaScript with immutable state management
  */
 
-// ========================================
 // State Management
-// ========================================
 
 const state = {
     projects: [],
@@ -18,9 +16,7 @@ const state = {
     error: null,
 };
 
-// ========================================
 // DOM Elements
-// ========================================
 
 const elements = {
     loading: document.getElementById('loading'),
@@ -47,9 +43,7 @@ const elements = {
     confirmClearSubmit: document.getElementById('confirm-clear-submit'),
 };
 
-// ========================================
 // API Functions
-// ========================================
 
 const API_BASE = '';
 
@@ -108,9 +102,7 @@ async function regenerateImage(audioHash, styleId, index, orientation = 'horizon
     return response.json();
 }
 
-// ========================================
 // Utility Functions
-// ========================================
 
 function formatDuration(seconds) {
     if (!seconds) return 'Unknown duration';
@@ -150,9 +142,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// ========================================
 // Toast Notifications
-// ========================================
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
@@ -179,9 +169,7 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// ========================================
 // Render Functions
-// ========================================
 
 function setView(view) {
     elements.loading.hidden = view !== 'loading';
@@ -438,9 +426,7 @@ function renderStoryboard() {
     });
 }
 
-// ========================================
 // Navigation & Actions
-// ========================================
 
 async function loadProjects() {
     state.loading = true;
@@ -503,9 +489,7 @@ function goBack() {
     renderProjects();
 }
 
-// ========================================
 // Modal Functions
-// ========================================
 
 function openEditModal(index) {
     const entry = state.storyboard?.entries[index];
@@ -677,9 +661,7 @@ async function handleRegenerate(index) {
     }
 }
 
-// ========================================
 // Event Listeners
-// ========================================
 
 document.getElementById('btn-projects').addEventListener('click', goBack);
 document.getElementById('btn-refresh').addEventListener('click', loadProjects);
@@ -737,9 +719,7 @@ elements.confirmClearModal.addEventListener('click', (e) => {
     }
 });
 
-// ========================================
 // Initialize
-// ========================================
 
 // Event listener for shot type buttons
 elements.shotTypeGroup.addEventListener('click', (e) => {

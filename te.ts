@@ -134,9 +134,7 @@ const testCases = [
 ];
 
 // ---------- Test Runner ----------
-logger.log("ParserTest", "=".repeat(60));
 logger.log("ParserTest", "Parser Test Suite - Sequential Timestamps");
-logger.log("ParserTest", "=".repeat(60));
 
 let allPassed = true;
 const results: { name: string; status: string; error?: string }[] = [];
@@ -169,9 +167,7 @@ testCases.forEach((test, idx) => {
     }
 });
 
-logger.log("ParserTest", "\n" + "=".repeat(60));
 logger.log("ParserTest", "Summary");
-logger.log("ParserTest", "=".repeat(60));
 
 const passed = results.filter(r => r.status === "✓ PASS").length;
 const failed = results.filter(r => r.status === "✗ FAIL").length;

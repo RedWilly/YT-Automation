@@ -80,15 +80,7 @@ export async function generateVideo(
   };
 }
 
-/**
- * Run FFmpeg command to generate video
- * @param images - Array of images
- * @param audioFilePath - Path to audio file
- * @param filterComplex - FFmpeg filter complex string
- * @param outputPath - Output video path
- * @param captionsEnabled - Whether captions are enabled
- * @param assFilePath - Optional path to ASS subtitle file
- */
+/** Run FFmpeg command to generate video */
 async function runFFmpeg(
   images: DownloadedImage[],
   audioFilePath: string,
@@ -218,15 +210,7 @@ async function runFFmpeg(
   });
 }
 
-/**
- * Render video in chunks to prevent memory exhaustion
- * @param images - Sorted array of images
- * @param audioFilePath - Path to audio file
- * @param outputPath - Final output video path
- * @param words - Word-level data from AssemblyAI
- * @param segments - Transcript segments
- * @param style - Resolved style configuration
- */
+/** Render video in chunks to prevent memory exhaustion */
 async function renderVideoInChunks(
   images: DownloadedImage[],
   audioFilePath: string,
@@ -316,17 +300,7 @@ async function renderVideoInChunks(
   logger.success("Video", `Chunked rendering completed successfully`);
 }
 
-/**
- * Run FFmpeg for a single chunk with audio segment
- * @param images - Array of images for this chunk
- * @param audioFilePath - Path to audio file
- * @param filterComplex - FFmpeg filter complex string
- * @param outputPath - Output path for this chunk
- * @param audioStartTime - Start time in audio file (seconds)
- * @param audioDuration - Duration of audio segment (seconds)
- * @param captionsEnabled - Whether captions are enabled
- * @param assFilePath - Optional path to ASS subtitle file for this chunk
- */
+/** Run FFmpeg for a single chunk with audio segment */
 async function runFFmpegChunk(
   images: DownloadedImage[],
   audioFilePath: string,
@@ -454,11 +428,7 @@ async function runFFmpegChunk(
   });
 }
 
-/**
- * Concatenate multiple video chunks into a single video
- * @param chunkPaths - Array of chunk video file paths
- * @param outputPath - Final output video path
- */
+/** Concatenate multiple video chunks into a single video */
 async function concatenateChunks(
   chunkPaths: string[],
   outputPath: string

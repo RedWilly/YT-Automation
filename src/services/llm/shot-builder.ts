@@ -19,10 +19,7 @@ const CAMERA_ANGLE_PATTERN = /\[cameraAngle:\s*([^\]]+)\]/gi;
  */
 const SHOT_SCALE_PATTERN = /\[shotScale:\s*([^\]]+)\]/gi;
 
-/**
- * Look up entity by ID and return Name(visualAnchor) format
- * Falls back to just the ID if entity not found
- */
+/** Expand entity ID to Name(visualAnchor) format */
 function expandEntityReference(entityId: string, context: StoryContext): string {
     const entity = context.entities.find(e => e.id === entityId);
     if (!entity) {
@@ -44,12 +41,7 @@ function expandEntityReference(entityId: string, context: StoryContext): string 
     return visualAnchor ? `${entity.name}(${visualAnchor})` : entity.name;
 }
 
-/**
- * Parse and expand the action string:
- * - [entity_id] → Name(visualAnchor)
- * - [cameraAngle: X] → X
- * - [shotScale: Y] → Y
- */
+/** Expand camera, shot scale, and entity references in action string */
 function expandAction(action: string, context: StoryContext): string {
     let expanded = action;
 
@@ -67,7 +59,7 @@ function expandAction(action: string, context: StoryContext): string {
     // Must be done after camera/shot patterns to avoid false matches
     expanded = expanded.replace(ENTITY_REF_PATTERN, (_match, entityId) => {
         // Skip if this looks like a camera or shot pattern (already handled)
-        if (entityId.toLowerCase().startsWith('cameraangle') || 
+        if (entityId.toLowerCase().startsWith('cameraangle') ||
             entityId.toLowerCase().startsWith('shotscale')) {
             return _match;
         }
@@ -104,20 +96,20 @@ export function buildImagePrompt(
 
     // Find the scene this shot belongs to and append mood/lighting
     if (shotIndex !== undefined) {
-        const scene = context.scenes.find(s => 
+        const scene = context.scenes.find(s =>
             shotIndex >= s.segmentRange[0] && shotIndex <= s.segmentRange[1]
         );
-        
+
         if (scene) {
             const sceneContext: string[] = [];
-            
+
             if (scene.mood) {
                 sceneContext.push(scene.mood);
             }
             if (scene.lightingCue) {
                 sceneContext.push(scene.lightingCue);
             }
-            
+
             if (sceneContext.length > 0) {
                 if (!prompt.endsWith('.')) {
                     prompt += '.';
@@ -145,9 +137,7 @@ export function buildImagePrompt(
     return prompt.replace(/\.\s*\./g, '.').replace(/,\s*\./g, '.').trim();
 }
 
-/**
- * Generate a consistent seed based on shot content
- */
+/** Generate a consistent seed based on shot content */
 function hashCode(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -162,10 +152,10 @@ export function generateConsistentSeed(shot: StructuredShot, shotIndex: number):
     const entityMatches = shot.action.match(ENTITY_REF_PATTERN) || [];
     const entityIds = entityMatches
         .map(m => m.replace(/[\[\]]/g, ''))
-        .filter(id => !id.toLowerCase().startsWith('cameraangle') && 
-                      !id.toLowerCase().startsWith('shotscale'))
+        .filter(id => !id.toLowerCase().startsWith('cameraangle') &&
+            !id.toLowerCase().startsWith('shotscale'))
         .sort();
-    
+
     const seedBase = `${entityIds.join(',')}_${shotIndex}`;
     return Math.abs(hashCode(seedBase) + shotIndex) % 2147483647 || 1;
 }

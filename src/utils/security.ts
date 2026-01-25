@@ -1,49 +1,47 @@
 import { lookup } from "node:dns/promises";
+import { isIPv4, isIPv6 } from "node:net";
 
 /**
  * Checks if an IP address is private or reserved.
  */
 export function isPrivateIP(ip: string): boolean {
-    // IPv4
-    if (ip === '0.0.0.0') return true;
+    if (isIPv4(ip)) {
+        const parts = ip.split('.').map(Number);
+        const [a, b, c, d] = parts as [number, number, number, number];
 
-    // Check if IPv4
-    const ipv4Parts = ip.split('.').map(Number);
-    if (ipv4Parts.length === 4 && ipv4Parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
-        const [a, b] = ipv4Parts as [number, number, number, number];
-
-        // 127.0.0.0/8 (Loopback)
-        if (a === 127) return true;
-
-        // 10.0.0.0/8 (Private)
-        if (a === 10) return true;
-
-        // 192.168.0.0/16 (Private)
-        if (a === 192 && b === 168) return true;
-
-        // 172.16.0.0/12 (Private)
-        if (a === 172 && b >= 16 && b <= 31) return true;
-
-        // 169.254.0.0/16 (Link-local)
-        if (a === 169 && b === 254) return true;
-
-        return false;
+        return (
+            a === 0 || // 0.0.0.0/8
+            a === 10 || // 10.0.0.0/8
+            a === 127 || // 127.0.0.0/8 (Loopback)
+            (a === 169 && b === 254) || // 169.254.0.0/16 (Link-local)
+            (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+            (a === 192 && b === 168) || // 192.168.0.0/16
+            (a >= 224) // Multicast and Reserved (224.0.0.0/4 and 240.0.0.0/4)
+        );
     }
 
-    // IPv6 checks (basic)
-    // ::1 (Loopback)
-    if (ip === '::1') return true;
+    if (isIPv6(ip)) {
+        // Normalize IPv6 is complex without a library, but we can check common prefixes
+        const normalized = ip.toLowerCase();
 
-    // fc00::/7 (Unique Local Addresses) - fc or fd
-    if (/^f[cd][0-9a-f]{2}:/i.test(ip)) return true;
+        // Loopback
+        if (normalized === '::1' || normalized.match(/^0{0,3}::0{0,3}1$/)) return true;
 
-    // fe80::/10 (Link-Local Unicast)
-    if (/^fe[89ab][0-9a-f]:/i.test(ip)) return true;
+        // Unique Local Addresses (fc00::/7) -> starts with fc or fd
+        if (/^f[cd]/i.test(normalized)) return true;
 
-    // ::ffff:127.0.0.1 (IPv4-mapped IPv6)
-    if (ip.toLowerCase().startsWith('::ffff:')) {
-        const ipv4Part = ip.substring(7);
-        return isPrivateIP(ipv4Part);
+        // Link-Local Unicast (fe80::/10) -> starts with fe8, fe9, fea, feb
+        if (/^fe[89ab]/i.test(normalized)) return true;
+
+        // IPv4-mapped IPv6 (::ffff:0:0/96)
+        if (normalized.includes('::ffff:')) {
+            const parts = normalized.split(':');
+            const lastPart = parts[parts.length - 1];
+            // If the last part looks like an IPv4 address, validate it
+            if (lastPart && isIPv4(lastPart)) {
+                return isPrivateIP(lastPart);
+            }
+        }
     }
 
     return false;
@@ -68,12 +66,10 @@ export async function validateUrl(url: string): Promise<void> {
 
     // 2. DNS Resolution & IP Validation
     try {
-        // We use all: true to get all resolved addresses to prevent DNS pinning bypass/rebinding to some extent
-        // although true DNS rebinding protection requires pinning the socket.
-        // @ts-ignore - Bun types might not fully match Node's lookup options perfectly in all versions, but this is standard.
+        // We use all: true to get all resolved addresses
+        // @ts-ignore - Bun types for lookup options
         const result = await lookup(parsedUrl.hostname, { all: true });
 
-        // If result is an array (when all: true)
         const addresses = Array.isArray(result) ? result : [result];
 
         for (const entry of addresses) {
@@ -86,6 +82,7 @@ export async function validateUrl(url: string): Promise<void> {
             throw error;
         }
         // If DNS lookup fails, it implies the host is unreachable or invalid
+        // We fail safe.
         throw new Error(`DNS resolution failed for ${parsedUrl.hostname}`);
     }
 }

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import * as logger from "../logger.ts";
 import { getFileUrl } from "./client.ts";
+import { validateUrl } from "../security.ts";
 
 export async function downloadTelegramFile(
     fileId: string,
@@ -118,6 +119,9 @@ export function extractFilenameFromResponse(response: Response, url: string): st
 
 export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise<string> {
     logger.log("Telegram", `Processing audio from URL: ${url}`);
+
+    // Validate URL to prevent SSRF
+    await validateUrl(url);
 
     // Ensure the directory exists
     await mkdir(tmpDir, { recursive: true });

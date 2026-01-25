@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { mkdir } from "node:fs/promises";
 import * as logger from "../logger.ts";
 import { getFileUrl } from "./client.ts";
+import { safeFetch } from "../network.ts";
 
 export async function downloadTelegramFile(
     fileId: string,
@@ -133,7 +134,7 @@ export async function downloadAudioFromUrl(url: string, tmpDir: string): Promise
         return expectedFilePath;
     }
 
-    const response = await fetch(url);
+    const response = await safeFetch(url);
     if (!response.ok) {
         throw new Error(`Failed to download file from URL: ${response.status} ${response.statusText}`);
     }

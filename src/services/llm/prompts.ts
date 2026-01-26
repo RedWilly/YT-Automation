@@ -158,7 +158,10 @@ RHYTHM RULE: Vary movement types. Don't repeat same type 3+ times consecutively.
 
    const criticalRules = `
 ## HARD CONSTRAINTS (INSTANT REJECTION)
-1. NO text/numbers/dates in action field (no "1944", no dialogue quotes)
+1. NO TEXT RENDERING: Never include dialogue, quotes, numbers, dates, letters, signs, labels, or ANY written content in action field.
+   - The image generator CANNOT render text. Any text/numbers will appear garbled or ruin the image.
+   - BAD: "slave screaming 'Help me!'" (contains dialogue text)
+   - GOOD: "slave with mouth open in desperate scream, tears streaming down face" (describes the emotion visually)
 2. NO diagrams/maps/montages/split screens—describe ONE moment
 3. ONE idea per shot. If you need to explain what's happening, the shot is too busy.
 4. All entity IDs in [brackets] must exist in ENTITY REGISTRY

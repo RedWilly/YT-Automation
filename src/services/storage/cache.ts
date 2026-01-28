@@ -420,6 +420,36 @@ export function getDownloadedImages(key: JobKey): DownloadedImage[] | null {
 }
 
 /**
+ * Get cached images for resume - returns only images that exist on disk.
+ * Unlike getDownloadedImages, this doesn't fail if some images are missing.
+ * Images are returned in segment order (sorted by segment_index).
+ */
+export function getCachedImagesForResume(key: JobKey): DownloadedImage[] {
+    const segments = getAllSegments(key)
+        .filter(s => s.status === 'approved' && s.image_path && existsSync(s.image_path))
+        .sort((a, b) => a.segment_index - b.segment_index);
+
+    const images: DownloadedImage[] = [];
+    for (const seg of segments) {
+        try {
+            const shot = JSON.parse(seg.structured_shot);
+            images.push({
+                query: seg.current_prompt,
+                start: shot.start,
+                end: shot.end,
+                filePath: seg.image_path!,
+                type: shot.type,
+                seed: seg.seed ?? undefined,
+            });
+        } catch {
+            // Skip segments with invalid JSON
+        }
+    }
+
+    return images;
+}
+
+/**
  * Get resume state for a job - where to continue from.
  */
 export function getResumeState(key: JobKey): {

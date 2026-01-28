@@ -8,6 +8,7 @@ import type { WorkflowState } from "./types.ts";
 import { downloadImagesForQueries, validateDownloadedImages } from "../../../services/image/index.ts";
 import {
     getDownloadedImages,
+    getCachedImagesForResume,
     getResumeState,
     updateSegmentStatus,
     updateSegmentRewrite,
@@ -43,6 +44,9 @@ export async function imageDownloadStage(state: WorkflowState): Promise<Workflow
     const existingCount = resumeState.completedCount;
     const remainingCount = totalSegments - existingCount;
 
+    // Get cached images for resume (only images that exist on disk)
+    const cachedImages = existingCount > 0 ? getCachedImagesForResume(jobKey) : [];
+
     await state.progress.update({
         step: "Downloading Images",
         message: existingCount > 0
@@ -58,7 +62,7 @@ export async function imageDownloadStage(state: WorkflowState): Promise<Workflow
     const downloadedImages = await downloadImagesForQueries(
         state.imageQueries,
         state.style,
-        undefined,  // No legacy cache, use segment cache
+        cachedImages.length > 0 ? cachedImages : undefined,  // Pass cached images for resume
         undefined,  // No legacy callback
         state.structuredShots,
         {
